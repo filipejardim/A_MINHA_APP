@@ -1,0 +1,10 @@
+{
+  "helloWorld": "你好，世界",
+  "regen": "重新生成",
+  "change_id_title": "更改隐私 ID？",
+  "change_id_desc": "警告：如果生成新 ID，您将失去与所有当前联系人的连接。是否继续？",
+  "cancel": "取消",
+  "yes_change": "是的，更改",
+  "close": "关闭",
+  "copy_toast": "ID 已复制到剪贴板！"
+}

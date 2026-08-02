@@ -1,0 +1,10 @@
+{
+  "helloWorld": "Olá Mundo",
+  "regen": "Regenerar",
+  "change_id_title": "Mudar ID de Privacidade?",
+  "change_id_desc": "Atenção: Se gerar um novo ID, perderá a ligação com todos os seus contactos atuais. Deseja continuar?",
+  "cancel": "Cancelar",
+  "yes_change": "Sim, Mudar",
+  "close": "Fechar",
+  "copy_toast": "ID copiado!"
+}

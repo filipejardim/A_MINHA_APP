@@ -1,0 +1,10 @@
+{
+  "helloWorld": "Hello World",
+  "regen": "Regen",
+  "change_id_title": "Change Privacy ID?",
+  "change_id_desc": "Warning: If you generate a new ID, you will lose connection with all current contacts. Do you want to continue?",
+  "cancel": "Cancel",
+  "yes_change": "Yes, Change",
+  "close": "Close",
+  "copy_toast": "ID copied to clipboard!"
+}

@@ -1,0 +1,10 @@
+{
+  "helloWorld": "Bonjour le monde",
+  "regen": "Régénérer",
+  "change_id_title": "Changer l'ID de confidentialité ?",
+  "change_id_desc": "Avertissement : Si vous géénérez un nouvel ID, vous perdrez la connexion avec tous vos contacts actuels. Voulez-vous continuer ?",
+  "cancel": "Annuler",
+  "yes_change": "Oui, changer",
+  "close": "Fermer",
+  "copy_toast": "ID copié dans le presse-papiers !"
+}

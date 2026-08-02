@@ -1,0 +1,10 @@
+{
+  "helloWorld": "Witaj świecie",
+  "regen": "Wygeneruj ponowne",
+  "change_id_title": "Zmienić ID prywatności?",
+  "change_id_desc": "Ostrzeżenie: Jeśli wygenerujesz nowy ID, stracisz połączenie ze wszystkimi obecnymi kontaktami. Czy chcesz kontynuować?",
+  "cancel": "Anuluj",
+  "yes_change": "Tak, zmień",
+  "close": "Zamknij",
+  "copy_toast": "ID skopiowane do schowka!"
+}

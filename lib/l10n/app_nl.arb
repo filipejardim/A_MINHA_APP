@@ -1,0 +1,10 @@
+{
+  "helloWorld": "Hallo Wereld",
+  "regen": "Opnieuw genereren",
+  "change_id_title": "Privacy-ID wijzigen?",
+  "change_id_desc": "Waarschuwing: Als u een nieuw ID genereert, verliest u de verbinding met alle huidige contacten. Wilt u doorgaan?",
+  "cancel": "Annuleren",
+  "yes_change": "Ja, wijzigen",
+  "close": "Sluiten",
+  "copy_toast": "ID gekopieerd naar klembord!"
+}

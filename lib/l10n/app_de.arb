@@ -1,0 +1,10 @@
+{
+  "helloWorld": "Hallo Welt",
+  "regen": "Regenerieren",
+  "change_id_title": "Datenschutz-ID ändern?",
+  "change_id_desc": "Warnung: Wenn Sie eine neue ID generieren, verlieren Sie die Verbindung zu allen aktuellen Kontakten. Möchten Sie fortfahren?",
+  "cancel": "Abbrechen",
+  "yes_change": "Ja, ändern",
+  "close": "Schließen",
+  "copy_toast": "ID in Zwischenablage kopiert!"
+}

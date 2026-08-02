@@ -1,0 +1,10 @@
+{
+  "helloWorld": "Merhaba Dünya",
+  "regen": "Yeniden Oluştur",
+  "change_id_title": "Gizlilik Kimliği Değiştirilsin mi?",
+  "change_id_desc": "Uyarı: Yeni bir Kimlik oluşturursanız, mevcut tüm kişilerle bağlantınızı kaybedersiniz. Devam etmek istiyor musunuz?",
+  "cancel": "İptal",
+  "yes_change": "Evet, Değiştir",
+  "close": "Kapat",
+  "copy_toast": "Kimlik panoya kopyalandı!"
+}
