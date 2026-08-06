@@ -1316,6 +1316,7 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
           widget.chatData['destructTime'] = decoded['time'];
         });
         widget.onUpdate();
+        Hive.box('padlock_vault').put(widget.chatData['id'], widget.chatData);
       }
       return;
     }
@@ -1481,6 +1482,7 @@ void _checkExpiredMessages() {
     // Só atualiza o ecrã e a base de dados se tiver efetivamente destruído alguma coisa
     if (apagouAlgumaCoisa) {
       widget.onUpdate();
+      Hive.box('padlock_vault').put(widget.chatData['id'], widget.chatData);
     }
   }
   
