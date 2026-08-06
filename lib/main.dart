@@ -13,16 +13,42 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 // Serviço de rede para conectar ao servidor
 class PadlockNetwork {
+  static String? chatAbertoAtualmente;
   static WebSocketChannel? channel;
   static Stream<dynamic>? stream;
 
-  static void connect() {
-    try {
-      channel = WebSocketChannel.connect(Uri.parse('wss://servidor-padlock.onrender.com'));
-      stream = channel?.stream.asBroadcastStream();
-      stream?.listen((data) => print('Dados recebidos: $data'));
-    } catch (e) { print('Erro: $e'); }
+  
+
+static void connect() {
+  try {
+    channel = WebSocketChannel.connect(Uri.parse('wss://servidor-padlock.onrender.com'));
+    stream = channel?.stream.asBroadcastStream();
+    
+    // Escuta os dados e, muito importante, monitoriza se o canal fecha
+    stream?.listen(
+      (data) => print('Dados recebidos: $data'),
+      onDone: () {
+        print('Ligação WebSocket fechada. A tentar reconectar em 3 segundos...');
+        _tentarReconectar();
+      },
+      onError: (error) {
+        print('Erro no WebSocket: $error');
+        _tentarReconectar();
+      },
+    );
+  } catch (e) {
+    print('Erro ao ligar: $e');
+    _tentarReconectar();
   }
+}
+
+// Função auxiliar de reconexão automática silenciosa
+static void _tentarReconectar() {
+  Future.delayed(const Duration(seconds: 3), () {
+    print('A executar reconexão automática...');
+    connect();
+  });
+}
 }
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -334,7 +360,76 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   }
                 });
               }
+              else if (data['type'] == 'secure_message') {
+            final String peerId = data['senderId'] ?? data['targetId'];
+
+            if (PadlockNetwork.chatAbertoAtualmente == peerId) {
+              return;
+            }
+
+            int chatIdx = _chats.indexWhere((c) => c['id'] == peerId);
+
+        if (chatIdx == -1) {
+      setState(() {
+        _chats.insert(0, {'name': peerId, 'id': peerId, 'msg': '', 'time': 'Just Now', 'unread': 0, 'messages': []});
+        chatIdx = 0;
+      });
+    }
+
+        if (chatIdx != -1) {
+              String decryptedText = '[Erro de Segurança - Mensagem Ilegível]';
+              final payloadParts = data['payload'].toString().split(':');
+
+              if (payloadParts.length == 2) {
+                try {
+                  final vault = Hive.box('padlock_vault');
+                  final sharedSecretBase64 = vault.get('shared_secret_$peerId');
+
+                  enc.Key key;
+                  if (sharedSecretBase64 != null) {
+                    key = enc.Key.fromBase64(sharedSecretBase64);
+                  } else {
+                    key = enc.Key.fromUtf8('Chave_Provisoria_P2P_AES_256_GCM');
+                  }
+
+                  final iv = enc.IV.fromBase64(payloadParts[0]);
+                  final encryptedData = enc.Encrypted.fromBase64(payloadParts[1]);
+                  final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
+                  decryptedText = encrypter.decrypt(encryptedData, iv: iv);
+                } catch (e) {
+                  print('Falha na decifragem global: $e');
+                }
+              }
+
+              setState(() {
+                final chat = _chats[chatIdx];
+                if (chat['messages'] == null) {
+                  chat['messages'] = <Map<String, dynamic>>[];
+                }
+
+                chat['messages'].add({
+                  'text': decryptedText,
+                  'isMe': false,
+                  'status': 'delivered',
+                  'timestamp': DateTime.now().millisecondsSinceEpoch,
+                });
+
+                chat['unread'] = (chat['unread'] ?? 0) + 1;
+              });
+
+              Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
+              try {
+                html.Notification(
+                  'Mensagem Cifrada', 
+                  body: 'Tens uma nova mensagem de ${_chats[chatIdx]['name'] ?? 'um contacto'}.',
+                );
+              } catch (e) {
+                print('Erro ao disparar pop-up de notificação: $e');
+              }
+            }
+          }
             });
+            
     } catch (e) {
       print('Erro ao escutar WebSocket: $e');
     }
@@ -512,6 +607,7 @@ Future<void> _logout() async {
   @override
   Widget build(BuildContext context) {
     final local = t[widget.currentLanguage] ?? t['EN']!;
+    int totalUnread = _chats.fold(0, (sum, chat) => sum + ((chat['unread'] ?? 0) as int));
 
     final List<Widget> screens = [
       ChatsScreen(
@@ -614,15 +710,16 @@ Future<void> _logout() async {
         onSelectContact: (contactName) {
           int existingIndex = _chats.indexWhere((c) => c['name'] == contactName);
           if (existingIndex == -1)  {
-            _chats.insert(0,{
-              'name': contactName,
-              'msg': 'Secure channel established.',
-              'time': 'Just Now',
-              'unread': 0,
-              'messages': [
-                {'text': 'Secure channel established.', 'isMe': false}
-              ]
-            });
+            _chats.insert(0, {
+          'name': contactName,
+          'id': contactName,
+          'msg': 'Secure channel established.',
+          'time': 'Just Now',
+          'unread': 0,
+          'messages': [
+            {'text': 'Secure channel established.', 'isMe': false}
+          ]
+        });
             existingIndex = 0;
           }
           else {
@@ -866,7 +963,30 @@ Future<void> _logout() async {
         
         items: [
         BottomNavigationBarItem(
-          icon: const Icon(Icons.chat_bubble_outline),
+          icon: Stack(
+      clipBehavior: Clip.none,
+      children: [
+        const Icon(Icons.chat_bubble_outline),
+        if (totalUnread > 0)
+          Positioned(
+            right: -6,
+            top: -6,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: Color(0xFF880000),
+                shape: BoxShape.circle,
+              ),
+              constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+              child: Text(
+                '$totalUnread',
+                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+      ],
+    ),
           activeIcon: const Icon(Icons.chat_bubble, color: Color(0xFF8B0000)),
           label: (() {
             final padlock = context.findAncestorStateOfType<_PadlockAppState>();
@@ -967,6 +1087,7 @@ class ChatsScreen extends StatelessWidget {
               final chat = list[index];
                 return GestureDetector(
                   onTap: () async {
+                    chat['unread'] = 0; onUpdateChats();
                     await Navigator.push(
                     
                       context,
@@ -979,7 +1100,7 @@ class ChatsScreen extends StatelessWidget {
                         ),
                       ),
                     );
-                    chat['unread'] = 0; onUpdateChats();
+                    
                   },
                   
                   child: Container(
@@ -1012,26 +1133,36 @@ class ChatsScreen extends StatelessWidget {
               ),
             ),
             if ((chat['unread'] ?? 0) > 0)
-              Positioned(
-                top: -2,
-                right: -2,
-                child: Container(
-                  padding: const EdgeInsets.all(5),
-                  decoration: BoxDecoration(
-                    color: Colors.black,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.green, width: 1.5),
-                  ),
-                  child: Text(
-                    '${chat['unread']}',
-                    style: const TextStyle(
-                      color: Colors.green,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
+            Positioned(
+              top: -6,
+              right: -6,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  const Icon(
+                    Icons.mail, 
+                    color: Color.fromARGB(255, 252, 253, 252), 
+                    size: 26,
+                  ), // O envelope pequenino
+                  Container(
+          padding: const EdgeInsets.all(4),
+          decoration: const BoxDecoration(
+            color: Colors.red,
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            '${chat['unread']}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ], // Fecha a lista do Stack
+    ), // Fecha o Stack do envelope
+  ), // Fecha o Positioned
+                  
           ],
         ),
                       title: Row(
@@ -1144,6 +1275,20 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
   @override
   void initState() {
     super.initState();
+    PadlockNetwork.chatAbertoAtualmente = widget.chatData['id'];
+    // DISPARO IMEDIATO: Avisa a rede que acabaste de entrar no chat e leste tudo
+    if (PadlockNetwork.channel != null) {
+      try {
+        PadlockNetwork.channel!.sink.add(jsonEncode({
+          'type': 'message_read',
+          'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
+          'targetId': widget.chatData['id']
+        }));
+        print('Aviso de leitura retroativo enviado ao abrir o chat!');
+      } catch (e) {
+        print('Erro ao enviar recibo na abertura: $e');
+      }
+    }
     // Motor automático que corre a cada 1 segundo
     _destructionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
@@ -1156,6 +1301,24 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
      
       try {
         final decoded = jsonDecode(data);
+        if (decoded['type'] == 'delete_message') {
+      if (mounted) {
+        setState(() {
+          widget.chatData['messages'].removeWhere((msg) => msg['timestamp'] == decoded['timestamp']);
+        });
+        widget.onUpdate();
+      }
+      return;
+    }
+    if (decoded['type'] == 'update_timer') {
+      if (mounted) {
+        setState(() {
+          widget.chatData['destructTime'] = decoded['time'];
+        });
+        widget.onUpdate();
+      }
+      return;
+    }
         if (widget.chatData['status'] != 'Blocked' && decoded['type'] == 'secure_message') {
           if (mounted) {
           // 1. Prepara a variável de segurança (se falhar, não mostra nada comprometedor)
@@ -1200,18 +1363,24 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
             });
           });
           widget.onUpdate();
-
           // 1. O SEGREDO: Envia recibo de leitura invisível pela rede P2P
+          print('====================================================');
+print('GATILHO ACIONADO: A tentar enviar message_read para a rede!');
+print('Canal aberto? ${PadlockNetwork.channel != null}');
+print('====================================================');
           try {
-            PadlockNetwork.channel?.sink.add(jsonEncode({
-              'type': 'message_read',
-              'targetId': widget.chatData['id']
-            }));
+           PadlockNetwork.channel?.sink.add(jsonEncode({
+          'type': 'message_read',
+          'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
+          'targetId': widget.chatData['id']
+        })); 
           } catch (e) {
             print('Erro ao enviar recibo: $e');
           }
         }
       }
+         
+
       // 2. RECEBER RECIBO P2P: Pinta os teus cadeados de azul!
       else if (decoded['type'] == 'message_read') {
         if (mounted) {
@@ -1263,6 +1432,7 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
   @override
   void dispose() {
     _destructionTimer?.cancel(); // Desliga o relógio ao sair do ecrã
+    PadlockNetwork.chatAbertoAtualmente = null;
     super.dispose();
   }
 
@@ -1297,6 +1467,7 @@ void _checkExpiredMessages() {
   msg['text'] = '0000000000000000'; // Sobregravação de segurança anti-forense
   msg['read'] = true;
   apagouAlgumaCoisa = true;
+  PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'delete_message', 'timestamp': timestamp}));
   return true; // Aniquilação total do registo
 }
         return false; // Mantém a mensagem
@@ -1383,11 +1554,12 @@ void _sendMessage() {
       final destId = widget.chatData['id'] ?? widget.chatData['peerId'] ?? widget.chatData['targetId'] ?? widget.chatData['contactId'] ?? widget.chatData.values.firstWhere((v) => v.toString().length > 30, orElse: () => '');
 
       PadlockNetwork.channel?.sink.add(jsonEncode({
-        'type': 'secure_message',
-        'targetId': destId,
-        'payload': encryptedPayload,
-        'timestamp': currentTimestamp,
-      }));
+              'type': 'secure_message',
+              'senderId': Hive.box('padlock_vault').get('user_privacy_id'), // <-- A peça que faltava para o receptor saber quem mandou
+              'targetId': destId,
+              'payload': encryptedPayload,
+              'timestamp': currentTimestamp,
+            }));
     } catch (e) {
       print('Erro ao enviar mensagem: $e');
     }
@@ -1638,25 +1810,26 @@ void _sendMessage() {
     ),
     const SizedBox(height: 3),
     Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // 1º Cadeado (Enviado - sempre visível)
-                            Icon(
-                              m['status'] == 'read' ? Icons.lock_open : Icons.lock,
-                              size: 12,
-                              color: m['status'] == 'read' ? Colors.lightBlueAccent : Colors.white60,
-                            ),
-                            // 2º Cadeado (Entregue ou Lido)
-                            if (m['status'] == 'delivered' || m['status'] == 'read') ...[
-                              const SizedBox(width: 2),
-                              Icon(
-                                m['status'] == 'read' ? Icons.lock_open : Icons.lock,
-                                size: 12,
-                                color: m['status'] == 'read' ? Colors.lightBlueAccent : Colors.white60,
-                              ),
-                            ],
-                          ],
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isMe) ...[
+                      // Lógica APENAS para as tuas mensagens (Bolhas vermelhas)
+                      Icon(
+                        m['status'] == 'read' ? Icons.lock_open : Icons.lock,
+                        size: 12,
+                        color: m['status'] == 'read' ? Colors.lightBlueAccent : Colors.white60,
+                      ),
+                      if (m['status'] == 'delivered' || m['status'] == 'read') ...[
+                        const SizedBox(width: 2),
+                        Icon(
+                          m['status'] == 'read' ? Icons.lock_open : Icons.lock,
+                          size: 12,
+                          color: m['status'] == 'read' ? Colors.lightBlueAccent : Colors.white60,
                         ),
+                      ],
+                    ],
+                  ],
+                ),
     if (isMe) ...[
       const SizedBox(height: 5),
       GestureDetector(
