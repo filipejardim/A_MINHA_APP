@@ -1467,7 +1467,11 @@ void _checkExpiredMessages() {
   msg['text'] = '0000000000000000'; // Sobregravação de segurança anti-forense
   msg['read'] = true;
   apagouAlgumaCoisa = true;
-  PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'delete_message', 'timestamp': timestamp}));
+  PadlockNetwork.channel?.sink.add(jsonEncode({
+  'type': 'delete_message', 
+  'timestamp': timestamp,
+  'target': widget.chatData['id']
+}));
   return true; // Aniquilação total do registo
 }
         return false; // Mantém a mensagem
@@ -1724,6 +1728,7 @@ void _sendMessage() {
                           onTap: () {
                             setState(() { widget.chatData['destructTime'] = '1m'; });
                             widget.onUpdate();
+                            Hive.box('padlock_vault').put(widget.chatData['id'], widget.chatData);
                             try { PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'update_timer', 'targetId': widget.chatData['id'], 'time': '1m'})); } catch (e) {}
                             Navigator.pop(context);
                           },
@@ -1733,6 +1738,7 @@ void _sendMessage() {
                           onTap: () {
                             setState(() { widget.chatData['destructTime'] = '5m'; });
                             widget.onUpdate();
+                            Hive.box('padlock_vault').put(widget.chatData['id'], widget.chatData);
                             try { PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'update_timer', 'targetId': widget.chatData['id'], 'time': '5m'})); } catch (e) {}
                             Navigator.pop(context);
                           },
@@ -1742,6 +1748,7 @@ void _sendMessage() {
                           onTap: () {
                             setState(() { widget.chatData['destructTime'] = '1h'; });
                             widget.onUpdate();
+                            Hive.box('padlock_vault').put(widget.chatData['id'], widget.chatData);
                             try { PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'update_timer', 'targetId': widget.chatData['id'], 'time': '1h'})); } catch (e) {}
                             Navigator.pop(context);
                           },
@@ -1751,6 +1758,7 @@ void _sendMessage() {
                           onTap: () {
                             setState(() { widget.chatData['destructTime'] = '24h'; });
                             widget.onUpdate();
+                            Hive.box('padlock_vault').put(widget.chatData['id'], widget.chatData);
                             try { PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'update_timer', 'targetId': widget.chatData['id'], 'time': '24h'})); } catch (e) {}
                             Navigator.pop(context);
                           },
