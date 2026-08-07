@@ -463,8 +463,24 @@ String? chatsData = vault.get('chats');
       if (chatsData != null) {
         List<dynamic> decodedChats = jsonDecode(chatsData);
         _chats.clear();
-        for (var item in decodedChats) {
-          _chats.add(Map<String, dynamic>.from(item));
+        final now = DateTime.now().millisecondsSinceEpoch;
+        
+        for (var chat in decodedChats) {
+          if (chat['messages'] != null) {
+            final destructTimeStr = chat['destructTime'] ?? '24h';
+            int limitMillis = 24 * 60 * 60 * 1000;
+            if (destructTimeStr == '1m') limitMillis = 60 * 1000;
+            else if (destructTimeStr == '5m') limitMillis = 5 * 60 * 1000;
+            else if (destructTimeStr == '1h') limitMillis = 60 * 60 * 1000;
+            else if (destructTimeStr == '24h') limitMillis = 24 * 60 * 60 * 1000;
+
+            // Remove mensagens caducadas ANTES de mostrar o ecrã
+            (chat['messages'] as List).removeWhere((msg) {
+              final timestamp = msg['timestamp'] ?? now;
+              return (now - timestamp) > limitMillis;
+            });
+          }
+          _chats.add(Map<String, dynamic>.from(chat));
         }
       }
     });
@@ -1271,24 +1287,27 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
   final TextEditingController _msgController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   Timer? _destructionTimer;
+  StreamSubscription? _chatSubscription;
 
   @override
   void initState() {
     super.initState();
     PadlockNetwork.chatAbertoAtualmente = widget.chatData['id'];
-    // DISPARO IMEDIATO: Avisa a rede que acabaste de entrar no chat e leste tudo
-    if (PadlockNetwork.channel != null) {
-      try {
-        PadlockNetwork.channel!.sink.add(jsonEncode({
-          'type': 'message_read',
-          'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
-          'targetId': widget.chatData['id']
-        }));
-        print('Aviso de leitura retroativo enviado ao abrir o chat!');
-      } catch (e) {
-        print('Erro ao enviar recibo na abertura: $e');
+    // DISPARO ATRASADO: Dá tempo à app e ao WebSocket para estabilizarem (evita que o aviso se perca no vazio)
+    Future.delayed(const Duration(milliseconds: 800), () {
+      if (PadlockNetwork.channel != null && mounted) {
+        try {
+          PadlockNetwork.channel!.sink.add(jsonEncode({
+            'type': 'message_read',
+            'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
+            'targetId': widget.chatData['id']
+          }));
+          print('Aviso de leitura retroativo enviado com segurança!');
+        } catch (e) {
+          print('Erro ao enviar recibo na abertura: $e');
+        }
       }
-    }
+    });
     // Motor automático que corre a cada 1 segundo
     _destructionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
@@ -1296,7 +1315,7 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
       }
     });
     // Escuta bilateral de mensagens recebidas via WebSocket P2P
-    PadlockNetwork.stream?.listen((data) {
+    _chatSubscription = PadlockNetwork.stream?.listen((data) {
      print('TESTE DE ENTRADA DO WEBSOCKET: $data');
      
       try {
@@ -1364,6 +1383,22 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
             });
           });
           widget.onUpdate();
+          // 1. Tranca a mensagem recebida na gaveta geral do cofre para não desaparecer
+      final vault = Hive.box('padlock_vault');
+      final String? chatsJson = vault.get('chats');
+      if (chatsJson != null) {
+        List<dynamic> allChats = jsonDecode(chatsJson);
+        for (int i = 0; i < allChats.length; i++) {
+          if (allChats[i]['id'] == widget.chatData['id']) {
+            allChats[i] = widget.chatData;
+            break;
+          }
+        }
+        vault.put('chats', jsonEncode(allChats));
+      }
+      
+      // 2. Empurra o ecrã automaticamente para baixo para não ficar debaixo do telefone!
+      _scrollToBottom();
           // 1. O SEGREDO: Envia recibo de leitura invisível pela rede P2P
           print('====================================================');
 print('GATILHO ACIONADO: A tentar enviar message_read para a rede!');
@@ -1432,6 +1467,7 @@ print('====================================================');
 
   @override
   void dispose() {
+    _chatSubscription?.cancel();
     _destructionTimer?.cancel(); // Desliga o relógio ao sair do ecrã
     PadlockNetwork.chatAbertoAtualmente = null;
     super.dispose();
@@ -1482,7 +1518,18 @@ void _checkExpiredMessages() {
     // Só atualiza o ecrã e a base de dados se tiver efetivamente destruído alguma coisa
     if (apagouAlgumaCoisa) {
       widget.onUpdate();
-      Hive.box('padlock_vault').put(widget.chatData['id'], widget.chatData);
+      final vault = Hive.box('padlock_vault');
+      final String? chatsJson = vault.get('chats');
+      if (chatsJson != null) {
+        List<dynamic> allChats = jsonDecode(chatsJson);
+        for (int i = 0; i < allChats.length; i++) {
+          if (allChats[i]['id'] == widget.chatData['id']) {
+            allChats[i] = widget.chatData;
+            break;
+          }
+        }
+        vault.put('chats', jsonEncode(allChats));
+      }
     }
   }
   
@@ -1586,6 +1633,18 @@ void _sendMessage() {
   
 
   widget.onUpdate();
+  final vault = Hive.box('padlock_vault');
+      final String? chatsJson = vault.get('chats');
+      if (chatsJson != null) {
+        List<dynamic> allChats = jsonDecode(chatsJson);
+        for (int i = 0; i < allChats.length; i++) {
+          if (allChats[i]['id'] == widget.chatData['id']) {
+            allChats[i] = widget.chatData;
+            break;
+          }
+        }
+        vault.put('chats', jsonEncode(allChats));
+      }
   _scrollToBottom();
 
   
