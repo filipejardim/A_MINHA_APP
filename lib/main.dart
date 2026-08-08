@@ -421,9 +421,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
               Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
               try {
                 html.Notification(
-                  'Mensagem Cifrada', 
-                  body: 'Tens uma nova mensagem de ${_chats[chatIdx]['name'] ?? 'um contacto'}.',
-                );
+            'PADLOCK', 
+            body: 'New encrypted message received.',
+          );
               } catch (e) {
                 print('Erro ao disparar pop-up de notificação: $e');
               }
@@ -1835,6 +1835,15 @@ void _sendMessage() {
         widget.chatData['messages'].clear();
       }
       widget.chatData['status'] = 'Blocked';
+      // Dispara o Sinal de Morte Global antes de bloquear a comunicação
+      try {
+        PadlockNetwork.channel?.sink.add(jsonEncode({
+          'type': 'wipe_chat',
+          'targetId': widget.chatData['id']
+        }));
+      } catch (e) {
+        print('Erro ao enviar sinal de aniquilação no bloqueio: $e');
+      }
       
       widget.onUpdate();
       Navigator.pop(context);
