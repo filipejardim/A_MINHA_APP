@@ -1393,6 +1393,8 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
     }
         if (widget.chatData['status'] != 'Blocked' && decoded['type'] == 'secure_message') {
           if (mounted) {
+            HapticFeedback.lightImpact();
+SystemSound.play(SystemSoundType.click);
           // 1. Prepara a variável de segurança (se falhar, não mostra nada comprometedor)
           String decryptedText = '[Erro de Segurança - Mensagem Ilegível]';
           
