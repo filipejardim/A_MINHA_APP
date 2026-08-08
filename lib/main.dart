@@ -281,7 +281,7 @@ class MainNavigationScreen extends StatefulWidget {
   State<MainNavigationScreen> createState() => _MainNavigationScreenState();
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
+class _MainNavigationScreenState extends State<MainNavigationScreen> with WidgetsBindingObserver {
    final _storage = const FlutterSecureStorage();
   String _username = "Carregando...";
   int _currentIndex = 0;
@@ -299,6 +299,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _generateNewId();
      _loadUsername(); // Chama a função para ler o nome
     _loadStoredData(); // Carrega os contactos e mensagens do cofre
@@ -434,7 +435,30 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       print('Erro ao escutar WebSocket: $e');
     }
   }
+@override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      print('APP ACORDOU! A forçar reconexão automática ao Render...');
+      
+      PadlockNetwork.connect();
+      
+      Future.delayed(const Duration(seconds: 1), () {
+        if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
+          PadlockNetwork.channel?.sink.add(jsonEncode({
+            'type': 'register', 
+            'senderId': _myPrivacyId
+          }));
+          print('Registo re-enviado com sucesso no despertar!');
+        }
+      });
+    }
+  }
    Future<void> _loadUsername() async {
     // Lê o nome diretamente do Cofre Blindado
     final vault = Hive.box('padlock_vault');
@@ -1321,14 +1345,42 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
       try {
         final decoded = jsonDecode(data);
         if (decoded['type'] == 'delete_message') {
-      if (mounted) {
-        setState(() {
-          widget.chatData['messages'].removeWhere((msg) => msg['timestamp'] == decoded['timestamp']);
-        });
-        widget.onUpdate();
-      }
-      return;
-    }
+              if (mounted) {
+                setState(() {
+                  if (widget.chatData['messages'] != null) {
+                    final targetTimestamp = decoded['timestamp'];
+                    // 1. Sobregravação forense na RAM (Destrói o rasto no telemóvel que recebe)
+                    for (var i = 0; i < widget.chatData['messages'].length; i++) {
+                      if (widget.chatData['messages'][i]['timestamp'] == targetTimestamp) {
+                        widget.chatData['messages'][i]['text'] = '00000000000000000000000000000000';
+                      }
+                    }
+                    // 2. Limpeza local: Remove do ecrã
+                    widget.chatData['messages'].removeWhere((msg) => msg['timestamp'] == targetTimestamp);
+                  }
+                });
+                widget.onUpdate();
+              }
+              return;
+            }
+
+            if (decoded['type'] == 'wipe_chat') {
+              if (mounted) {
+                setState(() {
+                  if (widget.chatData['messages'] != null) {
+                    // 1. Sobregravação na RAM de todas as mensagens do chat
+                    for (var i = 0; i < widget.chatData['messages'].length; i++) {
+                      widget.chatData['messages'][i]['text'] = '00000000000000000000000000000000';
+                    }
+                    // 2. Esvazia a lista totalmente
+                    widget.chatData['messages'].clear();
+                  }
+                  widget.chatData['msg'] = 'Nó Destruído';
+                });
+                widget.onUpdate();
+              }
+              return;
+            }
     if (decoded['type'] == 'update_timer') {
       if (mounted) {
         setState(() {
@@ -1535,14 +1587,32 @@ void _checkExpiredMessages() {
   
 
 void _deleteMessage(int index) {
-  setState(() {
-    if (widget.chatData['messages'][index] != null) {
-      widget.chatData['messages'][index]['text'] = '00000000000000000000';
+    // 1. Destruição forense: Sobregravamos os dados na RAM antes de apagar
+    final targetMessage = widget.chatData['messages'][index];
+    final timestamp = targetMessage['timestamp'];
+    
+    setState(() {
+      targetMessage['text'] = '00000000000000000000000000000000';
+    });
+
+    // 2. Sinal de Morte Bilateral: Dispara ordem de destruição para o outro lado
+    try {
+      PadlockNetwork.channel?.sink.add(jsonEncode({
+        'type': 'delete_message',
+        'timestamp': timestamp,
+        'targetId': widget.chatData['id']
+      }));
+    } catch (e) {
+      print('Erro ao enviar sinal de destruição: $e');
     }
-    widget.chatData['messages'].removeAt(index);
-  });
-  widget.onUpdate();
-}
+
+    // 3. Limpeza Local: Remove do ecrã após a ordem ser disparada
+    setState(() {
+      widget.chatData['messages'].removeAt(index);
+    });
+    
+    widget.onUpdate();
+  }
 
 void _confirmDelete(BuildContext context, int index) {
   showDialog(
@@ -1650,11 +1720,11 @@ void _sendMessage() {
   
 }
 
-  void _scrollToBottom() {
+ void _scrollToBottom() {
     Future.delayed(const Duration(milliseconds: 100), () {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
+          0.0,
           duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );
@@ -1720,17 +1790,29 @@ void _sendMessage() {
   color: const Color(0xFF151515),
   onSelected: (val) {
     if (val == 'clear') {
-      setState(() {
-        if (widget.chatData['messages'] != null) {
-          for (var i = 0; i < widget.chatData['messages'].length; i++) {
-            widget.chatData['messages'][i]['text'] = '00000000000000000000';
-          }
-          widget.chatData['messages'].clear();
-        }
-        widget.chatData['msg'] = 'Channel Destroyed';
-      });
-      widget.onUpdate();
-      Navigator.pop(context);
+              // 1. Sinal de Morte Global: Obriga o outro telefone a destruir o chat todo
+              try {
+                PadlockNetwork.channel?.sink.add(jsonEncode({
+                  'type': 'wipe_chat',
+                  'targetId': widget.chatData['id']
+                }));
+              } catch (e) {
+                print('Erro ao enviar sinal de aniquilação total: $e');
+              }
+
+              // 2. Destruição Forense (Sobregravação na RAM de todas as mensagens)
+              setState(() {
+                if (widget.chatData['messages'] != null) {
+                  for (var i = 0; i < widget.chatData['messages'].length; i++) {
+                    widget.chatData['messages'][i]['text'] = '00000000000000000000000000000000';
+                  }
+                  widget.chatData['messages'].clear();
+                }
+                widget.chatData['msg'] = 'Nó Destruído';
+              });
+              
+              widget.onUpdate();
+              Navigator.pop(context);
       } else if (val == 'block') {
           showDialog(
         context: context,
@@ -1846,12 +1928,13 @@ void _sendMessage() {
       ),
     ),
           Expanded(
-            child: ListView.builder(
+           child: ListView.builder(
+              reverse: true,
               controller: _scrollController,
               padding: const EdgeInsets.all(15),
               itemCount: widget.chatData['messages'].length,
               itemBuilder: (context, index) {
-                final m = widget.chatData['messages'][index];
+                final m = widget.chatData['messages'].reversed.toList()[index];
                 final isMe = m['isMe'] == true;
                 return Align(
                   alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
