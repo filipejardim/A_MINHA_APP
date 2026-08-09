@@ -15,18 +15,29 @@ import 'package:shared_preferences/shared_preferences.dart';
 class PadlockNetwork {
   static String? chatAbertoAtualmente;
   static WebSocketChannel? channel;
-  static Stream<dynamic>? stream;
+  // O HUB PERMANENTE QUE NUNCA MORRE:
+  static final StreamController<dynamic> messageHub = StreamController<dynamic>.broadcast();
+  static ValueNotifier<String> status = ValueNotifier<String>('Aguardar...');
+
+  static void disconnect() {
+    status.value = 'Offline';
+    channel?.sink.close();
+    channel = null;
+  }
 
   
 
 static void connect() {
+  if (channel != null) disconnect();
+    status.value = 'Aguardar...';
   try {
     channel = WebSocketChannel.connect(Uri.parse('wss://servidor-padlock.onrender.com'));
-    stream = channel?.stream.asBroadcastStream();
-    
-    // Escuta os dados e, muito importante, monitoriza se o canal fecha
-    stream?.listen(
-      (data) => print('Dados recebidos: $data'),
+    // Escuta os dados do Render e reencaminha para o Hub permanente
+    channel?.stream.listen(
+      (data) {
+        print('Dados recebidos: $data');
+        messageHub.add(data); // Distribui para a app toda, sem nunca falhar
+      },
       onDone: () {
         print('Ligação WebSocket fechada. A tentar reconectar em 3 segundos...');
         _tentarReconectar();
@@ -44,6 +55,8 @@ static void connect() {
 
 // Função auxiliar de reconexão automática silenciosa
 static void _tentarReconectar() {
+  if (status.value == 'Offline') return;
+    status.value = 'Aguardar...';
   Future.delayed(const Duration(seconds: 3), () {
     print('A executar reconexão automática...');
     connect();
@@ -306,7 +319,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
     _initNotifications();
     // Escuta as mensagens do WebSocket para detetar pedidos de contacto
     try {
-      PadlockNetwork.stream?.listen((message) async {
+      PadlockNetwork.messageHub.stream.listen((message) async {
               final data = jsonDecode(message);
 
               if (data['type'] == 'contact_request') {
@@ -427,10 +440,49 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
               } catch (e) {
                 print('Erro ao disparar pop-up de notificação: $e');
               }
+         }
+          }
+          // --- 1. LER A RESPOSTA DO SERVIDOR E PINTAR OS CADEADOS ---
+          else if (data['type'] == 'peer_status') {
+            final targetId = data['targetId'];
+            final peerStatus = data['status']; // 'Online' ou 'Offline'
+            
+            setState(() {
+              // Atualiza a cor nos Contactos
+              for (var contact in _contacts) {
+                if (contact['id'] == targetId || contact['name'] == targetId) {
+                  contact['status'] = peerStatus;
+                }
+              }
+              // Atualiza a cor na lista de Chats
+              for (var chat in _chats) {
+                if (chat['id'] == targetId || chat['name'] == targetId) {
+                  chat['status'] = peerStatus;
+                }
+              }
+            });
+          }
+            }); // Fim do listen do messageHub
+            
+        // --- 2. O RADAR: PERGUNTA AO RENDER A CADA 5 SEGUNDOS ---
+        _statusTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+          if (PadlockNetwork.channel != null && PadlockNetwork.status.value == 'Online') {
+            // 1. Ping de sobrevivência (mantém a ligação aberta)
+            PadlockNetwork.channel!.sink.add(jsonEncode({'type': 'ping'}));
+            
+            // 2. Pergunta ao Render como estão os teus contactos
+            for (var contact in _contacts) {
+              final idAlvo = contact['id'] ?? contact['name'];
+              if (idAlvo != null && idAlvo.isNotEmpty) {
+                PadlockNetwork.channel!.sink.add(jsonEncode({
+                  'type': 'check_status',
+                  'targetId': idAlvo
+                }));
+              }
             }
           }
-            });
-            
+        });
+
     } catch (e) {
       print('Erro ao escutar WebSocket: $e');
     }
@@ -441,24 +493,38 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
     super.dispose();
   }
 
+  
+  Timer? _gracePeriodTimer;
+  Timer? _statusTimer; // O nosso Radar de Estado Online
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      print('APP ACORDOU! A forçar reconexão automática ao Render...');
-      
-      PadlockNetwork.connect();
-      
-      Future.delayed(const Duration(seconds: 1), () {
-        if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
-          PadlockNetwork.channel?.sink.add(jsonEncode({
-            'type': 'register', 
-            'senderId': _myPrivacyId
-          }));
-          print('Registo re-enviado com sucesso no despertar!');
-        }
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      // TELEGRAM/SIGNAL LOGIC: Dá 3 minutos de vida em segundo plano antes de matar.
+      _gracePeriodTimer = Timer(const Duration(minutes: 3), () {
+        print('Tempo de tolerância esgotado. A fechar ligação em background.');
+        PadlockNetwork.disconnect(); 
       });
+    } 
+    else if (state == AppLifecycleState.resumed) {
+      // ACORDOU: Cancela o temporizador de morte se voltou antes dos 3 minutos
+      _gracePeriodTimer?.cancel();
+      
+      // Se por acaso a ligação já tinha morrido, reconecta limpo
+      if (PadlockNetwork.status.value == 'Offline' || PadlockNetwork.channel == null) {
+        PadlockNetwork.connect(); 
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
+            PadlockNetwork.channel?.sink.add(jsonEncode({
+              'type': 'register', 
+              'senderId': _myPrivacyId
+            }));
+          }
+        });
+      }
     }
   }
+  
    Future<void> _loadUsername() async {
     // Lê o nome diretamente do Cofre Blindado
     final vault = Hive.box('padlock_vault');
@@ -1339,7 +1405,7 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
       }
     });
     // Escuta bilateral de mensagens recebidas via WebSocket P2P
-    _chatSubscription = PadlockNetwork.stream?.listen((data) {
+    _chatSubscription = PadlockNetwork.messageHub.stream.listen((data) {
      print('TESTE DE ENTRADA DO WEBSOCKET: $data');
      
       try {
@@ -1493,6 +1559,15 @@ print('====================================================');
             widget.chatData['destructTime'] = decoded['time'];
           });
           widget.onUpdate();
+        }
+      }
+      // Recebe o estado em tempo real dentro da conversa aberta
+      else if (decoded['type'] == 'peer_status' && decoded['targetId'] == widget.chatData['id']) {
+        if (mounted) {
+          setState(() {
+            widget.chatData['status'] = decoded['status'];
+          });
+          widget.onUpdate(); // Força as listas de trás a atualizarem-se também
         }
       }
       else if (decoded['action'] == 'call_offer') {
@@ -2477,14 +2552,23 @@ class ProfileScreen extends StatelessWidget {
   ),
 ), // Container
         ),
-          const Text(
-  'online',
-  style: TextStyle(
-    color: Colors.greenAccent, 
-    fontSize: 14, 
-    fontWeight: FontWeight.bold,
-  ),
-), // Text
+          ValueListenableBuilder<String>(
+  valueListenable: PadlockNetwork.status,
+  builder: (context, status, child) {
+    Color statusColor = Colors.redAccent;
+    if (status == 'Online') statusColor = Colors.greenAccent;
+    if (status == 'Aguardar...') statusColor = Colors.orangeAccent;
+
+    return Text(
+      status.toLowerCase(),
+      style: TextStyle(
+        color: statusColor, 
+        fontSize: 14, 
+        fontWeight: FontWeight.bold,
+      ),
+    );
+  },
+),
           const SizedBox(height: 25),
 
           Row(
