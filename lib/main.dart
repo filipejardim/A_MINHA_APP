@@ -427,6 +427,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
                 });
               }
               else if (data['type'] == 'secure_message') {
+                if (data['senderId'] == Hive.box('padlock_vault').get('user_privacy_id')) return;
             final String peerId = data['senderId'] ?? data['targetId'];
 
             if (PadlockNetwork.chatAbertoAtualmente == peerId) {
@@ -494,6 +495,32 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
               }
          }
           }
+          else if (data['type'] == 'delete_message') {
+        final int targetTimestamp = data['timestamp'];
+        final String senderOfDelete = data['senderId'];
+        
+        setState(() {
+          for (var chat in _chats) {
+            if (chat['id'] == senderOfDelete || chat['id'] == data['targetId'] || chat['id'] == data['target']) {
+              if (chat['messages'] != null) {
+                for (var msg in chat['messages']) {
+                  if (msg['timestamp'] == targetTimestamp) {
+                    msg['text'] = '00000000000000000000000000000000'; // Destruição forense da RAM
+                  }
+                }
+                chat['messages'].removeWhere((msg) => msg['timestamp'] == targetTimestamp);
+              }
+            }
+          }
+        });
+        
+        // Salva a base de dados limpa no cofre Hive
+        try {
+          Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
+        } catch (e) {
+          print('Erro ao atualizar cofre após delete: $e');
+        }
+      }
           // --- 1. LER A RESPOSTA DO SERVIDOR E PINTAR OS CADEADOS ---
           else if (data['type'] == 'peer_status') {
             final targetId = data['targetId'];
@@ -502,13 +529,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
             setState(() {
               // Atualiza a cor nos Contactos
               for (var contact in _contacts) {
-                if (contact['id'] == targetId || contact['name'] == targetId) {
+                if (contact['id'] == targetId) {
                   contact['status'] = peerStatus;
                 }
               }
               // Atualiza a cor na lista de Chats
               for (var chat in _chats) {
-                if (chat['id'] == targetId || chat['name'] == targetId) {
+                if (chat['id'] == targetId) {
                   chat['status'] = peerStatus;
                 }
               }
