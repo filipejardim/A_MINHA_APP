@@ -32,12 +32,18 @@ static void connect() {
     status.value = 'Aguardar...';
   try {
     channel = WebSocketChannel.connect(Uri.parse('wss://servidor-padlock.onrender.com'));
-    // Escuta os dados do Render e reencaminha para o Hub permanente
-    channel?.stream.listen(
-      (data) {
-        print('Dados recebidos: $data');
-        messageHub.add(data); // Distribui para a app toda, sem nunca falhar
-      },
+      // Escuta os dados do Render e reencaminha para o Hub permanente
+      channel?.stream.listen(
+        (data) {
+          print('Dados recebidos: $data');
+          
+          // A PROVA DE VIDA DO RENDER: Se ele comunicou connosco, estamos online a 100%!
+          if (status.value != 'Online') {
+            status.value = 'Online';
+          }
+          
+          messageHub.add(data); // Distribui para a app toda, sem nunca falhar
+        },
       onDone: () {
         print('Ligação WebSocket fechada. A tentar reconectar em 3 segundos...');
         _tentarReconectar();
@@ -330,7 +336,34 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
                 // Vai dar ERRO VERMELHO aqui! Ignora e avança, vamos consertar a seguir.
                 mostrarPedidoDeConexao(senderId, senderPubKey);
               } 
+              else if (data['type'] == 'delete_message') {
+        final targetTimestamp = data['timestamp'];
+        final peerId = data['senderId'] ?? data['targetId'];
+        for (var chat in _chats) {
+          if (chat['id'] == peerId) {
+            if (chat['messages'] != null) {
+              (chat['messages'] as List).removeWhere((msg) => msg['timestamp'] == targetTimestamp);
+            }
+          }
+        }
+        Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
+        setState(() {});
+      }
+      else if (data['type'] == 'wipe_chat') {
+        final peerId = data['senderId'] ?? data['targetId'];
+        for (var chat in _chats) {
+          if (chat['id'] == peerId) {
+            if (chat['messages'] != null) {
+              chat['messages'].clear();
+            }
+            chat['msg'] = 'Nó Destruído';
+          }
+        }
+        Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
+        setState(() {});
+      }
               else if (data['type'] == 'contact_accepted') {
+                
                 final String acceptedId = data['senderId'];
                 final String? acceptedPubKey = data['publicKey'];
 
@@ -507,21 +540,23 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
       });
     } 
     else if (state == AppLifecycleState.resumed) {
-      // ACORDOU: Cancela o temporizador de morte se voltou antes dos 3 minutos
+      // ACORDOU: Cancela o temporizador de morte
       _gracePeriodTimer?.cancel();
       
-      // Se por acaso a ligação já tinha morrido, reconecta limpo
-      if (PadlockNetwork.status.value == 'Offline' || PadlockNetwork.channel == null) {
-        PadlockNetwork.connect(); 
-        Future.delayed(const Duration(milliseconds: 1500), () {
-          if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
-            PadlockNetwork.channel?.sink.add(jsonEncode({
-              'type': 'register', 
-              'senderId': _myPrivacyId
-            }));
-          }
-        });
-      }
+      // 1. ASSASSINO DE ZOMBIES: Não confia na ligação antiga. Mata o tubo fantasma SEMPRE que olhas para o ecrã.
+      PadlockNetwork.disconnect(); 
+
+      // 2. ARRANQUE LIMPO: Liga de novo à força. Isto aciona o servidor a enviar as mensagens perdidas.
+      PadlockNetwork.connect(); 
+      
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
+          PadlockNetwork.channel?.sink.add(jsonEncode({
+            'type': 'register', 
+            'senderId': _myPrivacyId
+          }));
+        }
+      });
     }
   }
   
@@ -1187,7 +1222,31 @@ class ChatsScreen extends StatelessWidget {
               return 0;
             });
           }
-          return ListView.builder(
+          return RefreshIndicator(
+        color: const Color(0xFF8B0000), // A cor vermelha do tema Padlock
+        backgroundColor: const Color(0xFF1A1A1A),
+        onRefresh: () async {
+          // 1. O Botão de Pânico: Força a morte da ligação atual e cria uma nova
+          PadlockNetwork.disconnect();
+          PadlockNetwork.connect();
+          
+          // 2. Dá 1.5 segundos para o Render processar a nova entrada
+          await Future.delayed(const Duration(milliseconds: 1500));
+          
+          // 3. Grita para o servidor pedindo as mensagens e os vistos que ficaram retidos
+          final myId = Hive.box('padlock_vault').get('user_privacy_id');
+          if (myId != null && PadlockNetwork.channel != null) {
+            PadlockNetwork.channel?.sink.add(jsonEncode({
+              'type': 'register',
+              'senderId': myId
+            }));
+          }
+          
+          // 4. Força o ecrã a redesenhar as cores e as listas
+          onUpdateChats(); 
+        },
+        child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(), // Muito importante: permite puxar mesmo que tenhas apenas 1 chat na lista
             itemCount: list.length,
             itemBuilder: (context, index) {
               final chat = list[index];
@@ -1291,11 +1350,22 @@ class ChatsScreen extends StatelessWidget {
               ),
             ],
           ),
-                       subtitle: Padding(
+                 subtitle: Padding(
         padding: const EdgeInsets.only(top: 6.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ESTADO ONLINE INJETADO AQUI
+            Text(
+              chat['status'] ?? 'Offline',
+              style: TextStyle(
+                color: chat['status'] == 'Online' ? Colors.greenAccent : (chat['status'] == 'A aguardar...' ? Colors.orangeAccent : Colors.redAccent),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            
             Text('[Encrypted P2P Message]', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70)),
             const SizedBox(height: 4),
             Row(
@@ -1307,7 +1377,7 @@ class ChatsScreen extends StatelessWidget {
             ),
           ],
         ),
-      ),
+      ),      
 trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1342,6 +1412,7 @@ trailing: Row(
 ),
         ],),),),); // Fecha o ListTile
             },
+      ),
     );
   },
 ),
@@ -1677,6 +1748,7 @@ void _deleteMessage(int index) {
       PadlockNetwork.channel?.sink.add(jsonEncode({
         'type': 'delete_message',
         'timestamp': timestamp,
+        'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
         'targetId': widget.chatData['id']
       }));
     } catch (e) {
@@ -1685,7 +1757,7 @@ void _deleteMessage(int index) {
 
     // 3. Limpeza Local: Remove do ecrã após a ordem ser disparada
     setState(() {
-      widget.chatData['messages'].removeAt(index);
+      widget.chatData['messages'].removeWhere((msg) => msg['timestamp'] == timestamp);
     });
     
     widget.onUpdate();
@@ -1835,12 +1907,24 @@ void _sendMessage() {
               ),
               ),
             const SizedBox(width: 10),
-            Expanded(
+          Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(widget.chatData['name'], style: const TextStyle(fontSize: 14, fontFamily: 'monospace', fontWeight: FontWeight.bold)),
-                  const Text('P2P Secure Active', style: TextStyle(fontSize: 10, color: Colors.greenAccent)),
+                  
+                  // TEXTO INTELIGENTE: Lê o estado real e muda a cor (Verde/Laranja/Vermelho)
+                  Text(
+                    widget.chatData['status'] ?? 'A aguardar...', 
+                    style: TextStyle(
+                      fontSize: 10, 
+                      color: widget.chatData['status'] == 'Online' 
+                          ? Colors.greenAccent 
+                          : (widget.chatData['status'] == 'A aguardar...' ? Colors.orangeAccent : Colors.redAccent),
+                      fontWeight: FontWeight.bold
+                    )
+                  ),
+                  
                 ],
               ),
             ),
@@ -1871,7 +1955,8 @@ void _sendMessage() {
               try {
                 PadlockNetwork.channel?.sink.add(jsonEncode({
                   'type': 'wipe_chat',
-                  'targetId': widget.chatData['id']
+                  'targetId': widget.chatData['id'],
+                  'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
                 }));
               } catch (e) {
                 print('Erro ao enviar sinal de aniquilação total: $e');
@@ -1889,7 +1974,7 @@ void _sendMessage() {
               });
               
               widget.onUpdate();
-              Navigator.pop(context);
+              //Navigator.pop(context);
       } else if (val == 'block') {
           showDialog(
         context: context,
