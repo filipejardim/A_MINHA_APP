@@ -44,17 +44,21 @@ static void connect() {
           
           messageHub.add(data); // Distribui para a app toda, sem nunca falhar
         },
+        cancelOnError: true,
       onDone: () {
         print('Ligação WebSocket fechada. A tentar reconectar em 3 segundos...');
+        channel = null;
         _tentarReconectar();
       },
       onError: (error) {
         print('Erro no WebSocket: $error');
+        channel = null;
         _tentarReconectar();
       },
     );
   } catch (e) {
     print('Erro ao ligar: $e');
+    channel = null;
     _tentarReconectar();
   }
 }
@@ -323,6 +327,21 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
      _loadUsername(); // Chama a função para ler o nome
     _loadStoredData(); // Carrega os contactos e mensagens do cofre
     _initNotifications();
+
+
+    // 2. A REGRA DA DESCONFIANÇA (Cura para o "Ecrã Congelado")
+    // Espera meio segundo para o Cofre (Hive) carregar os dados antigos,
+    // e depois varre todos os contactos, forçando-os a cinzento/laranja
+    // até que o servidor confirme quem está realmente vivo.
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        setState(() {
+          for (var contact in _contacts) {
+            contact['status'] = 'Aguardar...'; // Pode ser 'Offline', como preferires
+          }
+        });
+      }
+    });
     // Escuta as mensagens do WebSocket para detetar pedidos de contacto
     try {
       PadlockNetwork.messageHub.stream.listen((message) async {
@@ -497,24 +516,27 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
           }
             }); // Fim do listen do messageHub
             
-        // --- 2. O RADAR: PERGUNTA AO RENDER A CADA 5 SEGUNDOS ---
-        _statusTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
-          if (PadlockNetwork.channel != null && PadlockNetwork.status.value == 'Online') {
-            // 1. Ping de sobrevivência (mantém a ligação aberta)
-            PadlockNetwork.channel!.sink.add(jsonEncode({'type': 'ping'}));
-            
-            // 2. Pergunta ao Render como estão os teus contactos
-            for (var contact in _contacts) {
-              final idAlvo = contact['id'] ?? contact['name'];
-              if (idAlvo != null && idAlvo.isNotEmpty) {
-                PadlockNetwork.channel!.sink.add(jsonEncode({
-                  'type': 'check_status',
-                  'targetId': idAlvo
-                }));
-              }
+       // --- 2. O RADAR: PERGUNTA AO RENDER A CADA 10 SEGUNDOS ---
+    _statusTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (PadlockNetwork.channel != null) {
+        // 1. O "Batimento cardíaco" constante (Mantém o tubo aberto no Render)
+        PadlockNetwork.channel!.sink.add(jsonEncode({'type': 'ping'}));
+
+        // 2. A Pergunta ao Servidor (A Verdade Transparente)
+        // Só pede o estado dos outros se tu estiveres ligado a 100%
+        if (PadlockNetwork.status.value == 'Online') {
+          for (var contact in _contacts) {
+            final idAlvo = contact['id'] ?? contact['name'];
+            if (idAlvo != null && idAlvo.isNotEmpty) {
+              PadlockNetwork.channel!.sink.add(jsonEncode({
+                'type': 'check_status',
+                'targetId': idAlvo
+              }));
             }
           }
-        });
+        }
+      }
+    });
 
     } catch (e) {
       print('Erro ao escutar WebSocket: $e');
@@ -523,6 +545,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
 @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _statusTimer?.cancel();
     super.dispose();
   }
 
@@ -533,28 +556,32 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      // TELEGRAM/SIGNAL LOGIC: Dá 3 minutos de vida em segundo plano antes de matar.
-      _gracePeriodTimer = Timer(const Duration(minutes: 3), () {
-        print('Tempo de tolerância esgotado. A fechar ligação em background.');
-        PadlockNetwork.disconnect(); 
-      });
+      // 1. O FIM DOS FANTASMAS: Tolerância Zero. 
+      // Foste ao Telegram ou bloqueaste o ecrã? Mata o tubo imediatamente.
+      // Isto garante que o outro telemóvel passa a ver-te "Offline" na hora.
+      PadlockNetwork.disconnect();
     } 
     else if (state == AppLifecycleState.resumed) {
-      // ACORDOU: Cancela o temporizador de morte
-      _gracePeriodTimer?.cancel();
-      
-      // 1. ASSASSINO DE ZOMBIES: Não confia na ligação antiga. Mata o tubo fantasma SEMPRE que olhas para o ecrã.
-      PadlockNetwork.disconnect(); 
+      // 2. O DESPERTADOR IMEDIATO: Voltaste a olhar para o ecrã.
+      PadlockNetwork.disconnect(); // Mata qualquer lixo antigo
+      PadlockNetwork.connect();    // Abre a torneira de novo a 100%
 
-      // 2. ARRANQUE LIMPO: Liga de novo à força. Isto aciona o servidor a enviar as mensagens perdidas.
-      PadlockNetwork.connect(); 
-      
-      Future.delayed(const Duration(milliseconds: 1500), () {
+      // Espera apenas 1 segundo para o tubo estabilizar e grita para a rede
+      Future.delayed(const Duration(milliseconds: 1000), () {
         if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
           PadlockNetwork.channel?.sink.add(jsonEncode({
-            'type': 'register', 
+            'type': 'register',
             'senderId': _myPrivacyId
           }));
+
+          // 3. ACENDER A LUZ IMEDIATAMENTE
+          // O setState força a interface a atualizar no exato momento 
+          // em que voltas, tirando-te do estado "A aguardar..."
+          if (mounted) {
+            setState(() {
+               // A interface é forçada a redesenhar e ler a nova ligação ativa
+            });
+          }
         }
       });
     }
@@ -648,7 +675,7 @@ String? chatsData = vault.get('chats');
     PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'register', 'senderId': newId}));
   }
 Future<void> _logout() async {
-    
+    PadlockNetwork.disconnect();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -1734,16 +1761,18 @@ void _checkExpiredMessages() {
   }
   
 
-void _deleteMessage(int index) {
-    // 1. Destruição forense: Sobregravamos os dados na RAM antes de apagar
-    final targetMessage = widget.chatData['messages'][index];
-    final timestamp = targetMessage['timestamp'];
-    
+// 1. MOTOR DE DESTRUIÇÃO CORRIGIDO (Usa a impressão digital 'timestamp' em vez da posição)
+  void _deleteMessage(int timestamp) {
     setState(() {
-      targetMessage['text'] = '00000000000000000000000000000000';
+      // Destruição forense: Sobregrava os dados na RAM
+      for (var msg in widget.chatData['messages']) {
+        if (msg['timestamp'] == timestamp) {
+          msg['text'] = '00000000000000000000000000000000';
+        }
+      }
     });
 
-    // 2. Sinal de Morte Bilateral: Dispara ordem de destruição para o outro lado
+    // Sinal de Morte Bilateral para o outro telemóvel
     try {
       PadlockNetwork.channel?.sink.add(jsonEncode({
         'type': 'delete_message',
@@ -1755,7 +1784,7 @@ void _deleteMessage(int index) {
       print('Erro ao enviar sinal de destruição: $e');
     }
 
-    // 3. Limpeza Local: Remove do ecrã após a ordem ser disparada
+    // Limpeza Local
     setState(() {
       widget.chatData['messages'].removeWhere((msg) => msg['timestamp'] == timestamp);
     });
@@ -1763,30 +1792,66 @@ void _deleteMessage(int index) {
     widget.onUpdate();
   }
 
-void _confirmDelete(BuildContext context, int index) {
-  showDialog(
-    context: context,
-    builder: (context) {
-      return AlertDialog(
-        title: const Text("Destruição de Nó"),
-        content: const Text("Deseja destruir este nó de mensagem permanentemente?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Cancelar"),
+  // 2. O MENU ESTILO TELEGRAM / SIGNAL (Aparece quando ficas a carregar na mensagem)
+  void _showLongPressMenu(BuildContext context, Map<String, dynamic> msg) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF151515),
+          shape: RoundedRectangleBorder(
+            side: const BorderSide(color: Color(0xFF8B0000), width: 1.0),
+            borderRadius: BorderRadius.circular(12),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _deleteMessage(index);
-            },
-            child: const Text("Destruir", style: TextStyle(color: Colors.red)),
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.copy, color: Colors.white),
+                title: const Text("Copiar Mensagem", style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: msg['text']));
+                  Navigator.pop(context); // Fecha o menu
+                },
+              ),
+              const Divider(color: Colors.white10),
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                title: const Text("Destruir Mensagem", style: TextStyle(color: Colors.redAccent)),
+                onTap: () {
+                  Navigator.pop(context); // Fecha o menu principal
+                  
+                  // Pergunta de confirmação antes de apagar de vez
+                  showDialog(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      backgroundColor: const Color(0xFF151515),
+                      title: const Text("Destruição de Nó", style: TextStyle(color: Colors.white)),
+                      content: const Text("Deseja destruir esta mensagem permanentemente em ambos os dispositivos?", style: TextStyle(color: Colors.grey)),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _deleteMessage(msg['timestamp']); // Executa a destruição!
+                          },
+                          child: const Text("Destruir", style: TextStyle(color: Colors.redAccent)),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-        ],
-      );
-    },
-  );
-}
+        );
+      },
+    );
+  }
 String _encryptAES256(String plainText) {
     // 1. Identifica o contacto com quem estás a falar
     final targetId = widget.chatData['id'];
@@ -2156,11 +2221,51 @@ void _sendMessage() {
     if (isMe) ...[
       const SizedBox(height: 5),
       GestureDetector(
-  behavior: HitTestBehavior.opaque,
-  onTap: () => _confirmDelete(context, index),
-  child: const Padding(
-    padding: EdgeInsets.all(8.0),
-    child: Icon(Icons.delete_outline, size: 18, color: Colors.white70),
+  onLongPress: () => _showLongPressMenu(context, m), // Abre o menu de copiar/destruir
+  child: Container(
+    margin: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.all(12),
+    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+    decoration: BoxDecoration(
+      color: isMe ? const Color(0xFF8B0000).withValues(alpha: 0.9) : const Color(0xFF1E2C3A),
+      borderRadius: BorderRadius.only(
+        topLeft: const Radius.circular(12),
+        topRight: const Radius.circular(12),
+        bottomLeft: isMe ? const Radius.circular(12) : Radius.zero,
+        bottomRight: isMe ? Radius.zero : const Radius.circular(12),
+      ),
+      border: Border.all(color: isMe ? Colors.redAccent.withValues(alpha: 0.3) : Colors.white10),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Text(
+          m['text'],
+          style: const TextStyle(color: Colors.white, fontSize: 14),
+        ),
+        const SizedBox(height: 3),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isMe) ...[
+              Icon(
+                m['status'] == 'read' ? Icons.lock_open : Icons.lock,
+                size: 12,
+                color: m['status'] == 'read' ? Colors.lightBlueAccent : Colors.white60,
+              ),
+              if (m['status'] == 'delivered' || m['status'] == 'read') ...[
+                const SizedBox(width: 2),
+                Icon(
+                  m['status'] == 'read' ? Icons.lock_open : Icons.lock,
+                  size: 12,
+                  color: m['status'] == 'read' ? Colors.lightBlueAccent : Colors.white60,
+                ),
+              ],
+            ],
+          ],
+        ),
+      ],
+    ),
   ),
 ),
     ],
