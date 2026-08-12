@@ -355,19 +355,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
                 // Vai dar ERRO VERMELHO aqui! Ignora e avança, vamos consertar a seguir.
                 mostrarPedidoDeConexao(senderId, senderPubKey);
               } 
-              else if (data['type'] == 'delete_message') {
-        final targetTimestamp = data['timestamp'];
-        final peerId = data['senderId'] ?? data['targetId'];
-        for (var chat in _chats) {
-          if (chat['id'] == peerId) {
-            if (chat['messages'] != null) {
-              (chat['messages'] as List).removeWhere((msg) => msg['timestamp'] == targetTimestamp);
-            }
-          }
-        }
-        Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
-        setState(() {});
-      }
+              
       else if (data['type'] == 'wipe_chat') {
         final peerId = data['senderId'] ?? data['targetId'];
         for (var chat in _chats) {
@@ -478,7 +466,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
                   'text': decryptedText,
                   'isMe': false,
                   'status': 'delivered',
-                  'timestamp': DateTime.now().millisecondsSinceEpoch,
+                  'timestamp': data['timestamp'],
                 });
 
                 chat['unread'] = (chat['unread'] ?? 0) + 1;
@@ -1583,6 +1571,7 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
       return;
     }
         if (widget.chatData['status'] != 'Blocked' && decoded['type'] == 'secure_message') {
+          if (decoded['senderId'] == Hive.box('padlock_vault').get('user_privacy_id')) return;
           if (mounted) {
             HapticFeedback.lightImpact();
 SystemSound.play(SystemSoundType.click);
@@ -1624,7 +1613,7 @@ SystemSound.play(SystemSoundType.click);
               'text': decryptedText,
               'isMe': false,
               'status': 'read',
-              'timestamp': DateTime.now().millisecondsSinceEpoch,
+              'timestamp': decoded['timestamp'],
             });
           });
           widget.onUpdate();
