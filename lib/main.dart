@@ -2190,7 +2190,9 @@ void _sendMessage() {
                 final isMe = m['isMe'] == true;
                 return Align(
                   alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
+                  child: GestureDetector(
+                onLongPress: () => _showLongPressMenu(context, m),
+                child: Container(
                     margin: const EdgeInsets.only(bottom: 10),
                     padding: const EdgeInsets.all(12),
                     constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
@@ -2234,66 +2236,14 @@ void _sendMessage() {
                     ],
                   ],
                 ),
-    if (isMe) ...[
-      const SizedBox(height: 5),
-      GestureDetector(
-  onLongPress: () => _showLongPressMenu(context, m), // Abre o menu de copiar/destruir
-  child: Container(
-    margin: const EdgeInsets.only(bottom: 10),
-    padding: const EdgeInsets.all(12),
-    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-    decoration: BoxDecoration(
-      color: isMe ? const Color(0xFF8B0000).withValues(alpha: 0.9) : const Color(0xFF1E2C3A),
-      borderRadius: BorderRadius.only(
-        topLeft: const Radius.circular(12),
-        topRight: const Radius.circular(12),
-        bottomLeft: isMe ? const Radius.circular(12) : Radius.zero,
-        bottomRight: isMe ? Radius.zero : const Radius.circular(12),
-      ),
-      border: Border.all(color: isMe ? Colors.redAccent.withValues(alpha: 0.3) : Colors.white10),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
-          m['text'],
-          style: const TextStyle(color: Colors.white, fontSize: 14),
-        ),
-        const SizedBox(height: 3),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isMe) ...[
-              Icon(
-                m['status'] == 'read' ? Icons.lock_open : Icons.lock,
-                size: 12,
-                color: m['status'] == 'read' ? Colors.lightBlueAccent : Colors.white60,
-              ),
-              if (m['status'] == 'delivered' || m['status'] == 'read') ...[
-                const SizedBox(width: 2),
-                Icon(
-                  m['status'] == 'read' ? Icons.lock_open : Icons.lock,
-                  size: 12,
-                  color: m['status'] == 'read' ? Colors.lightBlueAccent : Colors.white60,
-                ),
-              ],
-            ],
-          ],
-        ),
-      ],
-    ),
-  ),
-),
     ],
-  ],
-),
-
-
-                  ),
-                );
-              },
             ),
           ),
+        ),
+      );
+    },
+  ),
+),
           Padding(
             padding: const EdgeInsets.all(10.0),
             child: Row(
