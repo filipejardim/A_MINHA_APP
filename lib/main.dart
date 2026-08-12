@@ -327,6 +327,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
      _loadUsername(); // Chama a função para ler o nome
     _loadStoredData(); // Carrega os contactos e mensagens do cofre
     _initNotifications();
+    _resetInactivityTimer();
 
 
     // 2. A REGRA DA DESCONFIANÇA (Cura para o "Ecrã Congelado")
@@ -534,12 +535,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
        // --- 2. O RADAR: PERGUNTA AO RENDER A CADA 10 SEGUNDOS ---
     _statusTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       if (PadlockNetwork.channel != null) {
-        // 1. O "Batimento cardíaco" constante (Mantém o tubo aberto no Render)
+        // 1. O Batimento Cardíaco para não deixar a net cair
         PadlockNetwork.channel!.sink.add(jsonEncode({'type': 'ping'}));
 
-        // 2. A Pergunta ao Servidor (A Verdade Transparente)
-        // Só pede o estado dos outros se tu estiveres ligado a 100%
         if (PadlockNetwork.status.value == 'Online') {
+          // 2. Pede o estado real dos amigos
           for (var contact in _contacts) {
             final idAlvo = contact['id'] ?? contact['name'];
             if (idAlvo != null && idAlvo.isNotEmpty) {
@@ -548,6 +548,32 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
                 'targetId': idAlvo
               }));
             }
+          }
+          
+          // 3. O COFRE DE ESPERA: Dispara as mensagens que falharam antes!
+          final myId = Hive.box('padlock_vault').get('user_privacy_id');
+          bool salvouAlguma = false;
+          for (var chat in _chats) {
+            if (chat['messages'] != null) {
+              for (var msg in chat['messages']) {
+                if (msg['isMe'] == true && msg['status'] == 'A aguardar...' && msg['payload'] != null) {
+                  PadlockNetwork.channel!.sink.add(jsonEncode({
+                    'type': 'secure_message',
+                    'senderId': myId,
+                    'targetId': chat['id'],
+                    'payload': msg['payload'],
+                    'timestamp': msg['timestamp'],
+                  }));
+                  msg['status'] = 'sent'; // Muda de 'Aguardar' para 'Enviado'
+                  salvouAlguma = true;
+                }
+              }
+            }
+          }
+          // Se encontrou mensagens presas e as enviou, atualiza o ecrã e grava!
+          if (salvouAlguma && mounted) {
+            setState((){});
+            Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
           }
         }
       }
@@ -567,35 +593,36 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
   
   Timer? _gracePeriodTimer;
   Timer? _statusTimer; // O nosso Radar de Estado Online
+  Timer? _inactivityTimer;
+
+  void _resetInactivityTimer() {
+    _inactivityTimer?.cancel();
+    _inactivityTimer = Timer(const Duration(minutes: 3), () {
+      print('3 Minutos sem mexer. A forçar Logout.');
+      _logout();
+    });
+  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      // 1. O FIM DOS FANTASMAS: Tolerância Zero. 
-      // Foste ao Telegram ou bloqueaste o ecrã? Mata o tubo imediatamente.
-      // Isto garante que o outro telemóvel passa a ver-te "Offline" na hora.
+    if (state == AppLifecycleState.paused) {
+      // 1. Só desliga se a app for mesmo minimizada. IGNORA O INACTIVE (teclados/alertas).
       PadlockNetwork.disconnect();
     } 
     else if (state == AppLifecycleState.resumed) {
-      // 2. O DESPERTADOR IMEDIATO: Voltaste a olhar para o ecrã.
-      PadlockNetwork.disconnect(); // Mata qualquer lixo antigo
-      PadlockNetwork.connect();    // Abre a torneira de novo a 100%
+      // 2. Acordou. Liga a mangueira.
+      PadlockNetwork.connect();
 
-      // Espera apenas 1 segundo para o tubo estabilizar e grita para a rede
-      Future.delayed(const Duration(milliseconds: 1000), () {
+      // 3. Dá 2 SEGUNDOS INTEIROS para o túnel abrir e estabilizar antes de registar.
+      Future.delayed(const Duration(milliseconds: 2000), () {
         if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
           PadlockNetwork.channel?.sink.add(jsonEncode({
             'type': 'register',
             'senderId': _myPrivacyId
           }));
 
-          // 3. ACENDER A LUZ IMEDIATAMENTE
-          // O setState força a interface a atualizar no exato momento 
-          // em que voltas, tirando-te do estado "A aguardar..."
           if (mounted) {
-            setState(() {
-               // A interface é forçada a redesenhar e ler a nova ligação ativa
-            });
+            setState(() {});
           }
         }
       });
@@ -957,7 +984,11 @@ Future<void> _logout() async {
       ),
     ];
 
-    return Scaffold(
+    return GestureDetector(
+      onTap: _resetInactivityTimer,
+      onPanDown: (_) => _resetInactivityTimer(),
+      behavior: HitTestBehavior.translucent,
+      child: Scaffold(
        appBar: AppBar(
          title: Text(() {
                 final padlock = context.findAncestorStateOfType<_PadlockAppState>();
@@ -1204,11 +1235,12 @@ Future<void> _logout() async {
             return (t[lang]?['profile'] as String?) ?? 'Profile';
           }()),
         ),
-      ],
-      ),
-    );
-  }
-}
+  ],
+          ),
+        ), // <-- Fecha o Scaffold
+      );   // <-- Fecha o GestureDetector que abrimos na linha 962
+      }
+    }
 
 // ----------------------------------------------------
 // 1. CHATS SCREEN
@@ -1497,7 +1529,7 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
     super.initState();
     PadlockNetwork.chatAbertoAtualmente = widget.chatData['id'];
     // DISPARO ATRASADO: Dá tempo à app e ao WebSocket para estabilizarem (evita que o aviso se perca no vazio)
-    Future.delayed(const Duration(milliseconds: 800), () {
+    Future.delayed(const Duration(milliseconds: 2500), () {
       if (PadlockNetwork.channel != null && mounted) {
         try {
           PadlockNetwork.channel!.sink.add(jsonEncode({
@@ -1896,59 +1928,60 @@ String _encryptAES256(String plainText) {
     return '${iv.base64}:${encrypted.base64}';
   }
 void _sendMessage() {
-  print('DADOS DO CHAT: ${widget.chatData}');
-  if (_msgController.text.trim().isEmpty) return;
-  
-  final rawText = _msgController.text.trim();
-  final encryptedPayload = _encryptAES256(rawText);
-  final currentTimestamp = DateTime.now().millisecondsSinceEpoch;
-   try {
-      // Força Bruta: Encontra o ID do destinatário venha ele com que nome vier
-      final destId = widget.chatData['id'] ?? widget.chatData['peerId'] ?? widget.chatData['targetId'] ?? widget.chatData['contactId'] ?? widget.chatData.values.firstWhere((v) => v.toString().length > 30, orElse: () => '');
+    if (_msgController.text.trim().isEmpty) return;
+    
+    final rawText = _msgController.text.trim();
+    final encryptedPayload = _encryptAES256(rawText);
+    final currentTimestamp = DateTime.now().millisecondsSinceEpoch;
+    final destId = widget.chatData['id'] ?? widget.chatData['peerId'] ?? widget.chatData['targetId'] ?? widget.chatData['contactId'] ?? widget.chatData.values.firstWhere((v) => v.toString().length > 30, orElse: () => '');
+    
+    // 1. VERIFICA SE O TUBO ESTÁ ABERTO ANTES DE CUSPIR A MENSAGEM
+    bool isOnline = PadlockNetwork.status.value == 'Online' && PadlockNetwork.channel != null;
 
-      PadlockNetwork.channel?.sink.add(jsonEncode({
-              'type': 'secure_message',
-              'senderId': Hive.box('padlock_vault').get('user_privacy_id'), // <-- A peça que faltava para o receptor saber quem mandou
-              'targetId': destId,
-              'payload': encryptedPayload,
-              'timestamp': currentTimestamp,
-            }));
-    } catch (e) {
-      print('Erro ao enviar mensagem: $e');
+    if (isOnline) {
+      try {
+        PadlockNetwork.channel?.sink.add(jsonEncode({
+          'type': 'secure_message',
+          'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
+          'targetId': destId,
+          'payload': encryptedPayload,
+          'timestamp': currentTimestamp,
+        }));
+      } catch (e) {
+        print('Erro ao enviar mensagem: $e');
+      }
     }
 
-  setState(() {
-    widget.chatData['messages'].add({
-      'text': rawText,
-      'isMe': true,
-      'timestamp': currentTimestamp,
-      'status': 'sent',
+    setState(() {
+      widget.chatData['messages'].add({
+        'text': rawText,
+        'isMe': true,
+        'timestamp': currentTimestamp,
+        // 2. SE ESTIVER OFFLINE, FICA A AGUARDAR. SE ONLINE, MARCA LOGO ENVIADO.
+        'status': isOnline ? 'sent' : 'A aguardar...', 
+        'payload': encryptedPayload, // Guarda o pacote já encriptado para o radar enviar depois
+      });
+      widget.chatData['msg'] = rawText;
+      widget.chatData['time'] = 'Just Now';
     });
-    widget.chatData['msg'] = rawText;
-    widget.chatData['time'] = 'Just Now';
-  });
 
-  _msgController.clear();
-
-  
-
-  widget.onUpdate();
-  final vault = Hive.box('padlock_vault');
-      final String? chatsJson = vault.get('chats');
-      if (chatsJson != null) {
-        List<dynamic> allChats = jsonDecode(chatsJson);
-        for (int i = 0; i < allChats.length; i++) {
-          if (allChats[i]['id'] == widget.chatData['id']) {
-            allChats[i] = widget.chatData;
-            break;
-          }
+    _msgController.clear();
+    widget.onUpdate();
+    
+    final vault = Hive.box('padlock_vault');
+    final String? chatsJson = vault.get('chats');
+    if (chatsJson != null) {
+      List<dynamic> allChats = jsonDecode(chatsJson);
+      for (int i = 0; i < allChats.length; i++) {
+        if (allChats[i]['id'] == widget.chatData['id']) {
+          allChats[i] = widget.chatData;
+          break;
         }
-        vault.put('chats', jsonEncode(allChats));
       }
-  _scrollToBottom();
-
-  
-}
+      vault.put('chats', jsonEncode(allChats));
+    }
+    _scrollToBottom();
+  }
 
  void _scrollToBottom() {
     Future.delayed(const Duration(milliseconds: 100), () {
