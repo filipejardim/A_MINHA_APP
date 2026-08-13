@@ -787,6 +787,9 @@ Future<void> _logout() async {
                   'status': 'Online',
                   'handshake': 'completed',
                 });
+                
+                // Grava a lista de contactos permanentemente no cofre
+              Hive.box('padlock_vault').put('contacts', jsonEncode(_contacts));
               });
               
               if (context.mounted) {
