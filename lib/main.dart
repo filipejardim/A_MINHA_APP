@@ -15,63 +15,44 @@ import 'package:shared_preferences/shared_preferences.dart';
 class PadlockNetwork {
   static String? chatAbertoAtualmente;
   static WebSocketChannel? channel;
-  // O HUB PERMANENTE QUE NUNCA MORRE:
   static final StreamController<dynamic> messageHub = StreamController<dynamic>.broadcast();
-  static ValueNotifier<String> status = ValueNotifier<String>('Aguardar...');
+  static ValueNotifier<String> status = ValueNotifier<String>('Offline');
+
+  // Inicializa o detetor de hardware (Net do telemóvel)
+  static void initNetworkListener() {
+    html.window.onOnline.listen((event) {
+      status.value = 'Online';
+      connect(); // Tenta ligar o túnel P2P assim que deteta net
+    });
+    html.window.onOffline.listen((event) {
+      status.value = 'Offline';
+      disconnect(); // Corta o túnel limpo se a net do telemóvel for abaixo
+    });
+    // Define o estado inicial real do telemóvel
+    status.value = html.window.navigator.onLine == true ? 'Online' : 'Offline';
+  }
 
   static void disconnect() {
-    status.value = 'Offline';
     channel?.sink.close();
     channel = null;
   }
 
-  
+  static void connect() {
+    // Só tenta abrir o tubo P2P se o telemóvel tiver net real
+    if (html.window.navigator.onLine != true) return;
+    if (channel != null) return;
 
-static void connect() {
-  if (channel != null) disconnect();
-    status.value = 'Aguardar...';
-  try {
-    channel = WebSocketChannel.connect(Uri.parse('wss://servidor-padlock.onrender.com'));
-      // Escuta os dados do Render e reencaminha para o Hub permanente
+    try {
+      channel = WebSocketChannel.connect(Uri.parse('wss://servidor-padlock.onrender.com'));
       channel?.stream.listen(
-        (data) {
-          print('Dados recebidos: $data');
-          
-          // A PROVA DE VIDA DO RENDER: Se ele comunicou connosco, estamos online a 100%!
-          if (status.value != 'Online') {
-            status.value = 'Online';
-          }
-          
-          messageHub.add(data); // Distribui para a app toda, sem nunca falhar
-        },
-        cancelOnError: true,
-      onDone: () {
-        print('Ligação WebSocket fechada. A tentar reconectar em 3 segundos...');
-        channel = null;
-        _tentarReconectar();
-      },
-      onError: (error) {
-        print('Erro no WebSocket: $error');
-        channel = null;
-        _tentarReconectar();
-      },
-    );
-  } catch (e) {
-    print('Erro ao ligar: $e');
-    channel = null;
-    _tentarReconectar();
+        (data) => messageHub.add(data),
+        onDone: () => channel = null,
+        onError: (e) => channel = null,
+      );
+    } catch (e) {
+      channel = null;
+    }
   }
-}
-
-// Função auxiliar de reconexão automática silenciosa
-static void _tentarReconectar() {
-  if (status.value == 'Offline') return;
-    status.value = 'Aguardar...';
-  Future.delayed(const Duration(seconds: 3), () {
-    print('A executar reconexão automática...');
-    connect();
-  });
-}
 }
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -95,7 +76,7 @@ void main() async {
   await Hive.openBox('padlock_vault', encryptionCipher: HiveAesCipher(encryptionKeyUint8List));
   
   // 4. Arranca a rede e verifica o PIN (acesso visual do utilizador)
-  PadlockNetwork.connect();
+  PadlockNetwork.initNetworkListener();
   String? savedPin = await secureStorage.read(key: 'user_pin');
   bool isFirstTime = (savedPin == null);
   
@@ -984,9 +965,9 @@ Future<void> _logout() async {
       ),
     ];
 
-    return GestureDetector(
-      onTap: _resetInactivityTimer,
-      onPanDown: (_) => _resetInactivityTimer(),
+     return Listener(
+      onPointerDown: (_) => _resetInactivityTimer(),
+      onPointerMove: (_) => _resetInactivityTimer(),
       behavior: HitTestBehavior.translucent,
       child: Scaffold(
        appBar: AppBar(
@@ -1528,21 +1509,51 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
   void initState() {
     super.initState();
     PadlockNetwork.chatAbertoAtualmente = widget.chatData['id'];
-    // DISPARO ATRASADO: Dá tempo à app e ao WebSocket para estabilizarem (evita que o aviso se perca no vazio)
-    Future.delayed(const Duration(milliseconds: 2500), () {
-      if (PadlockNetwork.channel != null && mounted) {
+    // --- METRALHADORA DE VISTOS BILATERAL ---
+    void _forceReadReceipts() {
+      if (PadlockNetwork.channel != null && html.window.navigator.onLine == true) {
         try {
           PadlockNetwork.channel!.sink.add(jsonEncode({
             'type': 'message_read',
             'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
             'targetId': widget.chatData['id']
           }));
-          print('Aviso de leitura retroativo enviado com segurança!');
-        } catch (e) {
-          print('Erro ao enviar recibo na abertura: $e');
+        } catch (e) {}
+      }
+    }
+
+    // 1º Disparo: Imediato mal abres a porta do chat!
+    _forceReadReceipts();
+    
+    // 2º Disparo: Passado 1.5 segundos (Rede de segurança à prova de falhas)
+    Future.delayed(const Duration(milliseconds: 1500), _forceReadReceipts);
+
+    // 3º Limpeza Local: Varre as tuas mensagens todas e assume-as como lidas
+    if (widget.chatData['messages'] != null) {
+      for (var msg in widget.chatData['messages']) {
+        if (msg['isMe'] == false) {
+          msg['status'] = 'read';
         }
       }
-    });
+    }
+    widget.chatData['unread'] = 0;
+    
+    // 4º Tranca o estado de leitura no cofre para as bolhas vermelhas apagarem logo
+    final vault = Hive.box('padlock_vault');
+    final String? chatsJson = vault.get('chats');
+    if (chatsJson != null) {
+      List<dynamic> allChats = jsonDecode(chatsJson);
+      for (int i = 0; i < allChats.length; i++) {
+        if (allChats[i]['id'] == widget.chatData['id']) {
+          allChats[i] = widget.chatData;
+          break;
+        }
+      }
+      vault.put('chats', jsonEncode(allChats));
+    }
+    // Pede às listas de trás para se atualizarem silenciosamente
+    Future.microtask(() => widget.onUpdate());
+    // ----------------------------------------
     // Motor automático que corre a cada 1 segundo
     _destructionTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (mounted) {
@@ -1665,20 +1676,9 @@ SystemSound.play(SystemSoundType.click);
       
       // 2. Empurra o ecrã automaticamente para baixo para não ficar debaixo do telefone!
       _scrollToBottom();
-          // 1. O SEGREDO: Envia recibo de leitura invisível pela rede P2P
-          print('====================================================');
-print('GATILHO ACIONADO: A tentar enviar message_read para a rede!');
-print('Canal aberto? ${PadlockNetwork.channel != null}');
-print('====================================================');
-          try {
-           PadlockNetwork.channel?.sink.add(jsonEncode({
-          'type': 'message_read',
-          'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
-          'targetId': widget.chatData['id']
-        })); 
-          } catch (e) {
-            print('Erro ao enviar recibo: $e');
-          }
+          // 1. O SEGREDO: A Metralhadora dispara os vistos para a nova mensagem recebida!
+        _forceReadReceipts();
+        Future.delayed(const Duration(milliseconds: 1500), _forceReadReceipts);
         }
       }
          
