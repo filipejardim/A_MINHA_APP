@@ -309,7 +309,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
     _loadStoredData(); // Carrega os contactos e mensagens do cofre
     _initNotifications();
     _resetInactivityTimer();
-
+// Gatilho Inteligente de Arranque: Espera o canal abrir e só depois pede as mensagens pendentes
+    Timer.periodic(const Duration(milliseconds: 300), (timer) {
+      if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
+        PadlockNetwork.channel!.sink.add(jsonEncode({
+          'type': 'register',
+          'senderId': _myPrivacyId
+        }));
+        timer.cancel(); // Mensagens pedidas com sucesso, desliga o motor de busca
+      }
+    });
 
     // 2. A REGRA DA DESCONFIANÇA (Cura para o "Ecrã Congelado")
     // Espera meio segundo para o Cofre (Hive) carregar os dados antigos,
@@ -578,8 +587,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
 
   void _resetInactivityTimer() {
     _inactivityTimer?.cancel();
-    _inactivityTimer = Timer(const Duration(minutes: 3), () {
-      print('3 Minutos sem mexer. A forçar Logout.');
+   _inactivityTimer = Timer(const Duration(minutes: 15), () {
+      print('Sessão de 15 Minutos expirada. A forçar Logout.');
       _logout();
     });
   }
@@ -587,26 +596,22 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
-      // 1. Só desliga se a app for mesmo minimizada. IGNORA O INACTIVE (teclados/alertas).
-      PadlockNetwork.disconnect();
-    } 
+      // Deixa o túnel livre. Não corta a ligação para receberes mensagens em segundo plano.
+    }
     else if (state == AppLifecycleState.resumed) {
       // 2. Acordou. Liga a mangueira.
       PadlockNetwork.connect();
 
-      // 3. Dá 2 SEGUNDOS INTEIROS para o túnel abrir e estabilizar antes de registar.
-      Future.delayed(const Duration(milliseconds: 2000), () {
-        if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
-          PadlockNetwork.channel?.sink.add(jsonEncode({
-            'type': 'register',
-            'senderId': _myPrivacyId
-          }));
-
-          if (mounted) {
-            setState(() {});
-          }
-        }
-      });
+      // 3. Registo Inteligente: Tenta registar mal deteta que o canal está vivo
+    Timer.periodic(const Duration(milliseconds: 300), (timer) {
+      if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
+        PadlockNetwork.channel!.sink.add(jsonEncode({
+          'type': 'register',
+          'senderId': _myPrivacyId
+        }));
+        timer.cancel(); // Registo feito, mata o temporizador para não gastar bateria
+      }
+    });
     }
   }
   
@@ -680,7 +685,7 @@ String? chatsData = vault.get('chats');
       setState(() {
         _myPrivacyId = savedId;
       });
-      PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'register', 'senderId': savedId}));
+      
       return;
     }
 
@@ -695,7 +700,7 @@ String? chatsData = vault.get('chats');
     setState(() {
       _myPrivacyId = newId;
     });
-    PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'register', 'senderId': newId}));
+    
   }
 Future<void> _logout() async {
     PadlockNetwork.disconnect();
@@ -966,8 +971,7 @@ Future<void> _logout() async {
     ];
 
      return Listener(
-      onPointerDown: (_) => _resetInactivityTimer(),
-      onPointerMove: (_) => _resetInactivityTimer(),
+      
       behavior: HitTestBehavior.translucent,
       child: Scaffold(
        appBar: AppBar(
