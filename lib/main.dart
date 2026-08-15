@@ -303,6 +303,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
 @override
   void initState() {
     super.initState();
+    PadlockNetwork.connect();
     WidgetsBinding.instance.addObserver(this);
     _generateNewId();
      _loadUsername(); // Chama a função para ler o nome
@@ -350,7 +351,28 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
         }
         Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
         setState(() {});
-      }
+      }else if (data['type'] == 'delete_contact') {
+          final peerId = data['targetId'];
+          setState(() {
+            // 1. Limpeza Forense dos Chats
+            for (var c in _chats) {
+              if (c['id'] == peerId && c['messages'] != null) {
+                for (dynamic m in c['messages']) m['text'] = '0000000000000000';
+                c['messages'].clear();
+              }
+            }
+            // 2. Remove dos Chats e Contactos
+            _chats.removeWhere((c) => c['id'] == peerId);
+            _contacts.removeWhere((c) => c['id'] == peerId || c['name'] == peerId);
+          });
+          
+          // 3. Queima as chaves no Cofre para cortar a ligação permanentemente
+          final vault = Hive.box('padlock_vault');
+          vault.put('contacts', jsonEncode(_contacts));
+          vault.put('chats', jsonEncode(_chats));
+          vault.delete('shared_secret_$peerId');
+          vault.delete('private_key_$peerId');
+        }
               else if (data['type'] == 'contact_accepted') {
                 
                 final String acceptedId = data['senderId'];
@@ -395,6 +417,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
                     }
                   }
                 });
+                Hive.box('padlock_vault').put('contacts', jsonEncode(_contacts));
               }
               else if (data['type'] == 'secure_message') {
                 if (data['senderId'] == Hive.box('padlock_vault').get('user_privacy_id')) return;
@@ -783,7 +806,7 @@ Future<void> _logout() async {
                   'handshake': 'completed',
                 });
               });
-              
+              Hive.box('padlock_vault').put('contacts', jsonEncode(_contacts));
               if (context.mounted) {
                 Navigator.pop(context);
               }
@@ -823,12 +846,35 @@ Future<void> _logout() async {
                     child: const Text('Cancelar'),
                   ),
                   TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _contacts.removeAt(index);
-                      });
-                      Navigator.pop(context);
-                    },
+                   onPressed: () {
+              final cId = _contacts[index]['id'] ?? _contacts[index]['name'];
+              
+              // 1. Corta a ligação e avisa o outro telefone para se apagar
+              if (cId != null && PadlockNetwork.channel != null) {
+                try { PadlockNetwork.channel!.sink.add(jsonEncode({'type': 'delete_contact', 'targetId': cId, 'senderId': Hive.box('padlock_vault').get('user_privacy_id')})); } catch (_) {}
+              }
+
+              setState(() {
+                // 2. Destruição forense: escreve zeros nas mensagens e remove os chats
+                for (var c in _chats) {
+                  if (c['id'] == cId && c['messages'] != null) {
+                    for (var m in c['messages']) m['text'] = '0000000000000000';
+                    c['messages'].clear();
+                  }
+                }
+                _chats.removeWhere((c) => c['id'] == cId);
+                _contacts.removeAt(index);
+              });
+
+              // 3. Grava no disco (adeus fantasmas) e destrói as chaves matemáticas
+              final vault = Hive.box('padlock_vault');
+              vault.put('contacts', jsonEncode(_contacts));
+              vault.put('chats', jsonEncode(_chats));
+              vault.delete('shared_secret_$cId');
+              vault.delete('private_key_$cId');
+
+              Navigator.pop(context);
+            },
                     child: const Text('Apagar', style: TextStyle(color: Colors.red)),
                   ),
                 ],
