@@ -303,6 +303,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
 @override
   void initState() {
     super.initState();
+    PadlockNetwork.connect();
     WidgetsBinding.instance.addObserver(this);
     _generateNewId();
      _loadUsername(); // Chama a função para ler o nome
@@ -359,7 +360,28 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
         }
         Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
         setState(() {});
-      }
+      }else if (data['type'] == 'delete_contact') {
+          final peerId = data['targetId'];
+          setState(() {
+            // 1. Limpeza Forense dos Chats
+            for (var c in _chats) {
+              if (c['id'] == peerId && c['messages'] != null) {
+                for (dynamic m in c['messages']) m['text'] = '0000000000000000';
+                c['messages'].clear();
+              }
+            }
+            // 2. Remove dos Chats e Contactos
+            _chats.removeWhere((c) => c['id'] == peerId);
+            _contacts.removeWhere((c) => c['id'] == peerId || c['name'] == peerId);
+          });
+          
+          // 3. Queima as chaves no Cofre para cortar a ligação permanentemente
+          final vault = Hive.box('padlock_vault');
+          vault.put('contacts', jsonEncode(_contacts));
+          vault.put('chats', jsonEncode(_chats));
+          vault.delete('shared_secret_$peerId');
+          vault.delete('private_key_$peerId');
+        }
               else if (data['type'] == 'contact_accepted') {
                 
                 final String acceptedId = data['senderId'];
@@ -404,11 +426,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
                     }
                   }
                 });
+                Hive.box('padlock_vault').put('contacts', jsonEncode(_contacts));
               }
               else if (data['type'] == 'secure_message') {
                 if (data['senderId'] == Hive.box('padlock_vault').get('user_privacy_id')) return;
             final String peerId = data['senderId'] ?? data['targetId'];
-
+// O SEGURANÇA: Se o ID não existir nos contactos aprovados, a mensagem morre aqui.
+bool isContact = _contacts.any((c) => c['id'] == peerId || c['name'] == peerId);
+if (!isContact) {
+  return; // Bloqueia a execução. Não cria chat, não apita, apenas dropa o pacote.
+}
             if (PadlockNetwork.chatAbertoAtualmente == peerId) {
               return;
             }
@@ -674,25 +701,22 @@ String? chatsData = vault.get('chats');
 }
   
   
-  Future<void> _generateNewId() async {
-    // 1. Acede ao Cofre Blindado (Hive) em vez da gaveta velha
-    final vault = Hive.box('padlock_vault');
-    
-    // 2. Lê o teu ID de privacidade diretamente e em segurança do cofre
-    String? savedId = vault.get('user_privacy_id');
+Future<void> _generateNewId() async {
+  final vault = Hive.box('padlock_vault');
+  String? savedId = vault.get('user_privacy_id');
 
     if (savedId != null && savedId.isNotEmpty) {
       setState(() {
         _myPrivacyId = savedId;
       });
-      
+      PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'register', 'senderId': savedId}));
       return;
     }
 
-    final random = Random();
-    final values = List<int>.generate(16, (i) => random.nextInt(256));
-    final hex = values.map((b) => b.toRadixString(16).padLeft(2, '0')).join('').toUpperCase();
-    final newId = '6432842A-${hex.substring(8, 16)}-${hex.substring(16, 24)}-${hex.substring(24, 32)}';
+  final random = Random();
+  final values = List<int>.generate(16, (i) => random.nextInt(256));
+  final hex = values.map((b) => b.toRadixString(16).padLeft(2, '0')).join('').toUpperCase();
+  final newId = '6432842A-${hex.substring(8, 16)}-${hex.substring(16, 24)}-${hex.substring(24, 32)}';
 
     // 3. Tranca o teu novo ID de privacidade no cofre AES-256
     vault.put('user_privacy_id', newId);
@@ -700,7 +724,7 @@ String? chatsData = vault.get('chats');
     setState(() {
       _myPrivacyId = newId;
     });
-    
+    PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'register', 'senderId': newId}));
   }
 Future<void> _logout() async {
     PadlockNetwork.disconnect();
@@ -791,7 +815,7 @@ Future<void> _logout() async {
                 // Grava a lista de contactos permanentemente no cofre
               Hive.box('padlock_vault').put('contacts', jsonEncode(_contacts));
               });
-              
+              Hive.box('padlock_vault').put('contacts', jsonEncode(_contacts));
               if (context.mounted) {
                 Navigator.pop(context);
               }
@@ -831,12 +855,35 @@ Future<void> _logout() async {
                     child: const Text('Cancelar'),
                   ),
                   TextButton(
-                    onPressed: () {
-                      setState(() {
-                        _contacts.removeAt(index);
-                      });
-                      Navigator.pop(context);
-                    },
+                   onPressed: () async {
+              final cId = _contacts[index]['id'] ?? _contacts[index]['name'];
+                    
+                    if (cId != null && PadlockNetwork.channel != null) {
+                      try { PadlockNetwork.channel!.sink.add(jsonEncode({'type': 'delete_contact', 'targetId': cId, 'senderId': Hive.box('padlock_vault').get('user_privacy_id')})); } catch (_) {}
+                    }
+
+                    setState(() {
+                      for (var c in _chats) {
+                        if ((c['id'] == cId || c['name'] == cId) && c['messages'] != null) {
+                          for (var m in c['messages']) m['text'] = '0000000000000000';
+                          c['messages'].clear();
+                        }
+                      }
+                      
+                      _chats.removeWhere((c) => c['id'] == cId || c['name'] == cId);
+                      _contacts.removeWhere((c) => c['id'] == cId || c['name'] == cId);
+                    });
+
+                    final vault = Hive.box('padlock_vault');
+await vault.put('contacts', jsonEncode(_contacts)); // Espera que grave os contactos
+await vault.put('chats', jsonEncode(_chats));       // Espera que grave os chats
+await vault.delete('shared_secret_$cId');           // Destrói a chave do segredo
+await vault.delete('private_key_$cId');             // Destrói a chave privada
+
+// O "KILL SWITCH": Força o telemóvel a raspar o disco físico na hora
+await vault.flush();
+                    Navigator.pop(context);
+            },
                     child: const Text('Apagar', style: TextStyle(color: Colors.red)),
                   ),
                 ],
@@ -1135,7 +1182,16 @@ Future<void> _logout() async {
                   }
 
                   // 6. Mantém a tua interface visual a funcionar perfeitamente
-                  setState(() {
+                   // Verifica se o ID já existe na lista antes de adicionar
+bool jaExiste = _contacts.any((c) => c['id'] == targetId);
+if (jaExiste) {
+  Navigator.pop(context); // Fecha o pop-up
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Este contacto já está na tua lista!')),
+  );
+  return; // Para a execução aqui e não faz mais nada
+} 
+setState(() {
                     _contacts.add({
                       'name': targetId,
                       'id': targetId,
@@ -1428,7 +1484,7 @@ class ChatsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             
-            Text('[Encrypted P2P Message]', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70)),
+            Text('[Encrypted P2P Message]', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.lightBlueAccent)),
             const SizedBox(height: 4),
             Row(
               children: [
@@ -2035,16 +2091,14 @@ void _sendMessage() {
                   Text(widget.chatData['name'], style: const TextStyle(fontSize: 14, fontFamily: 'monospace', fontWeight: FontWeight.bold)),
                   
                   // TEXTO INTELIGENTE: Lê o estado real e muda a cor (Verde/Laranja/Vermelho)
-                  Text(
-                    widget.chatData['status'] ?? 'A aguardar...', 
-                    style: TextStyle(
-                      fontSize: 10, 
-                      color: widget.chatData['status'] == 'Online' 
-                          ? Colors.greenAccent 
-                          : (widget.chatData['status'] == 'A aguardar...' ? Colors.orangeAccent : Colors.redAccent),
-                      fontWeight: FontWeight.bold
-                    )
-                  ),
+                 Text(
+  'Encrypted P2P Channel', 
+  style: const TextStyle(
+    fontSize: 10, 
+    color: Colors.lightBlueAccent, 
+    fontWeight: FontWeight.bold
+  )
+),
                   
                 ],
               ),
@@ -2108,32 +2162,56 @@ void _sendMessage() {
               onPressed: () => Navigator.pop(context),
               child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
             ),
-            TextButton(
-              onPressed: () {
+           TextButton(
+                      onPressed: () {
+                        final cId = widget.chatData['id'];
 
-      if (widget.chatData['messages'] != null) {
-        for (var i = 0; i < widget.chatData['messages'].length; i++) {
-          widget.chatData['messages'][i]['text'] = '0000000000000000';
-        }
-        widget.chatData['messages'].clear();
-      }
-      widget.chatData['status'] = 'Blocked';
-      // Dispara o Sinal de Morte Global antes de bloquear a comunicação
-      try {
-        PadlockNetwork.channel?.sink.add(jsonEncode({
-          'type': 'wipe_chat',
-          'targetId': widget.chatData['id']
-        }));
-      } catch (e) {
-        print('Erro ao enviar sinal de aniquilação no bloqueio: $e');
-      }
-      
-      widget.onUpdate();
-      Navigator.pop(context);
-       Navigator.pop(context);
-              },
-              child: const Text('Bloquear', style: TextStyle(color: Colors.red)),
-            ),
+                        setState(() {
+                          // 1. Destruição forense total das mensagens na RAM
+                          if (widget.chatData['messages'] != null) {
+                            for (var i = 0; i < widget.chatData['messages'].length; i++) {
+                              widget.chatData['messages'][i]['text'] = '0000000000000000';
+                            }
+                            widget.chatData['messages'].clear();
+                          }
+                          widget.chatData['status'] = 'Blocked';
+                          widget.chatData['unread'] = 0; // Mata as bolhas vermelhas
+                        });
+
+                        // 2. Sinal de Morte Global para o trânsito (Servidor e Remetente)
+                        try {
+                          PadlockNetwork.channel?.sink.add(jsonEncode({
+                            'type': 'wipe_chat',
+                            'targetId': cId
+                          }));
+                        } catch (e) {
+                          print('Erro ao enviar sinal de aniquilação no bloqueio: $e');
+                        }
+
+                        // 3. Queima as chaves criptográficas (Obriga a novo pedido)
+                        final vault = Hive.box('padlock_vault');
+                        vault.delete('shared_secret_$cId');
+                        vault.delete('private_key_$cId');
+
+                        // 4. Grava o bloqueio permanente no cofre local
+                        final String? chatsJson = vault.get('chats');
+                        if (chatsJson != null) {
+                          List<dynamic> allChats = jsonDecode(chatsJson);
+                          for (int i = 0; i < allChats.length; i++) {
+                            if (allChats[i]['id'] == cId) {
+                              allChats[i] = widget.chatData;
+                              break;
+                            }
+                          }
+                          vault.put('chats', jsonEncode(allChats));
+                        }
+
+                        widget.onUpdate();
+                        Navigator.pop(context); // Fecha pop-up confirmação
+                        Navigator.pop(context); // Fecha o chat e volta à lista principal
+                      },
+                      child: const Text('Bloquear', style: TextStyle(color: Colors.red)),
+                    ),
           ],
         ),
       );
@@ -2421,13 +2499,14 @@ class ContactsScreen extends StatelessWidget {
             ),
                           ),
                           title: Text(contact['name']!, style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold)),
-                          subtitle: Text(
-                            contact['status']!,
-                            style: TextStyle(
-                              color: contact['status'] == 'Online' ? Colors.green : Colors.red,
-                              fontSize: 12,
-                            ),
-                          ),
+                          subtitle: const Text(
+  'Encrypted P2P Contact',
+  style: TextStyle(
+    color: Colors.lightBlueAccent, 
+    fontSize: 12,
+    fontWeight: FontWeight.bold
+  ),
+),
                           trailing: IconButton(
           icon: const Icon(Icons.edit, color: Colors.grey),
           onPressed: () => onEditContact(index),
