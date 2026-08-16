@@ -422,7 +422,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
               else if (data['type'] == 'secure_message') {
                 if (data['senderId'] == Hive.box('padlock_vault').get('user_privacy_id')) return;
             final String peerId = data['senderId'] ?? data['targetId'];
-
+// O SEGURANÇA: Se o ID não existir nos contactos aprovados, a mensagem morre aqui.
+bool isContact = _contacts.any((c) => c['id'] == peerId || c['name'] == peerId);
+if (!isContact) {
+  return; // Bloqueia a execução. Não cria chat, não apita, apenas dropa o pacote.
+}
             if (PadlockNetwork.chatAbertoAtualmente == peerId) {
               return;
             }
@@ -847,7 +851,7 @@ Future<void> _logout() async {
                     child: const Text('Cancelar'),
                   ),
                   TextButton(
-                   onPressed: () {
+                   onPressed: () async {
               final cId = _contacts[index]['id'] ?? _contacts[index]['name'];
                     
                     if (cId != null && PadlockNetwork.channel != null) {
@@ -867,11 +871,13 @@ Future<void> _logout() async {
                     });
 
                     final vault = Hive.box('padlock_vault');
-                    vault.put('contacts', jsonEncode(_contacts));
-                    vault.put('chats', jsonEncode(_chats));
-                    vault.delete('shared_secret_$cId');
-                    vault.delete('private_key_$cId');
+await vault.put('contacts', jsonEncode(_contacts)); // Espera que grave os contactos
+await vault.put('chats', jsonEncode(_chats));       // Espera que grave os chats
+await vault.delete('shared_secret_$cId');           // Destrói a chave do segredo
+await vault.delete('private_key_$cId');             // Destrói a chave privada
 
+// O "KILL SWITCH": Força o telemóvel a raspar o disco físico na hora
+await vault.flush();
                     Navigator.pop(context);
             },
                     child: const Text('Apagar', style: TextStyle(color: Colors.red)),
@@ -1173,7 +1179,16 @@ Future<void> _logout() async {
                   }
 
                   // 6. Mantém a tua interface visual a funcionar perfeitamente
-                  setState(() {
+                   // Verifica se o ID já existe na lista antes de adicionar
+bool jaExiste = _contacts.any((c) => c['id'] == targetId);
+if (jaExiste) {
+  Navigator.pop(context); // Fecha o pop-up
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Este contacto já está na tua lista!')),
+  );
+  return; // Para a execução aqui e não faz mais nada
+} 
+setState(() {
                     _contacts.add({
                       'name': targetId,
                       'id': targetId,
@@ -1466,7 +1481,7 @@ class ChatsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             
-            Text('[Encrypted P2P Message]', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70)),
+            Text('[Encrypted P2P Message]', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.lightBlueAccent)),
             const SizedBox(height: 4),
             Row(
               children: [
@@ -2073,16 +2088,14 @@ void _sendMessage() {
                   Text(widget.chatData['name'], style: const TextStyle(fontSize: 14, fontFamily: 'monospace', fontWeight: FontWeight.bold)),
                   
                   // TEXTO INTELIGENTE: Lê o estado real e muda a cor (Verde/Laranja/Vermelho)
-                  Text(
-                    widget.chatData['status'] ?? 'A aguardar...', 
-                    style: TextStyle(
-                      fontSize: 10, 
-                      color: widget.chatData['status'] == 'Online' 
-                          ? Colors.greenAccent 
-                          : (widget.chatData['status'] == 'A aguardar...' ? Colors.orangeAccent : Colors.redAccent),
-                      fontWeight: FontWeight.bold
-                    )
-                  ),
+                 Text(
+  'Encrypted P2P Channel', 
+  style: const TextStyle(
+    fontSize: 10, 
+    color: Colors.lightBlueAccent, 
+    fontWeight: FontWeight.bold
+  )
+),
                   
                 ],
               ),
@@ -2483,13 +2496,14 @@ class ContactsScreen extends StatelessWidget {
             ),
                           ),
                           title: Text(contact['name']!, style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.bold)),
-                          subtitle: Text(
-                            contact['status']!,
-                            style: TextStyle(
-                              color: contact['status'] == 'Online' ? Colors.green : Colors.red,
-                              fontSize: 12,
-                            ),
-                          ),
+                          subtitle: const Text(
+  'Encrypted P2P Contact',
+  style: TextStyle(
+    color: Colors.lightBlueAccent, 
+    fontSize: 12,
+    fontWeight: FontWeight.bold
+  ),
+),
                           trailing: IconButton(
           icon: const Icon(Icons.edit, color: Colors.grey),
           onPressed: () => onEditContact(index),
