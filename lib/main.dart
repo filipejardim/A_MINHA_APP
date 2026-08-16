@@ -1475,15 +1475,8 @@ class ChatsScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ESTADO ONLINE INJETADO AQUI
-            Text(
-              chat['status'] ?? 'Offline',
-              style: TextStyle(
-                color: chat['status'] == 'Online' ? Colors.greenAccent : (chat['status'] == 'A aguardar...' ? Colors.orangeAccent : Colors.redAccent),
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            
+           
             const SizedBox(height: 4),
             
             Text('[Encrypted P2P Message]', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.lightBlueAccent)),
@@ -1492,7 +1485,7 @@ class ChatsScreen extends StatelessWidget {
               children: [
                 const Icon(Icons.timer_outlined, size: 12, color: Colors.redAccent),
                 const SizedBox(width: 4),
-                Text('${local['autodestruct']} $destructTime', style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
+                Text('Auto-destrói em 24h', style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
               ],
             ),
           ],
