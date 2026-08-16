@@ -1485,7 +1485,7 @@ class ChatsScreen extends StatelessWidget {
               children: [
                 const Icon(Icons.timer_outlined, size: 12, color: Colors.redAccent),
                 const SizedBox(width: 4),
-                Text('Auto-destrói em 24h', style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
+                Text('Auto-destructs in 24h', style: const TextStyle(color: Colors.redAccent, fontSize: 11)),
               ],
             ),
           ],
@@ -2844,7 +2844,7 @@ class ProfileScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildActionButton(Icons.qr_code, 'QR Code', () => _showQrDialog(context)),
+              _buildActionButton(Icons.qr_code, 'QR Code', () => _showQrDialog(context), color: Colors.lightBlueAccent),
               _buildActionButton(Icons.copy, 'Copy ID', () {
                 Clipboard.setData(ClipboardData(text: privacyId));
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -2922,7 +2922,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
- Widget _buildActionButton(IconData icon, String label, VoidCallback onTap) {
+ Widget _buildActionButton(IconData icon, String label, VoidCallback onTap, {Color color = Colors.redAccent}) {
   return InkWell(
     onTap: onTap,
     borderRadius: BorderRadius.circular(12),
@@ -2935,7 +2935,7 @@ class ProfileScreen extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Icon(icon, color: Colors.black, size: 26),
+          Icon(icon, color: color, size: 26),
           const SizedBox(height: 6),
           Text(
             label, 
@@ -2958,7 +2958,7 @@ void _showQrDialog(BuildContext context, String id, [dynamic local]) {
           side: const BorderSide(color: Color(0xFF8B0000), width: 1.5),
         ),
         title: const Text(
-          'O seu QR Code',
+          'Your QR Code',
           style: TextStyle(color: Colors.white),
         ),
         content: SizedBox(
