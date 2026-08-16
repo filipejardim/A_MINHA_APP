@@ -786,7 +786,8 @@ Future<void> _logout() async {
                   
                   // 4. Guarda o segredo no cofre (a chave privada desaparece da RAM automaticamente!)
                   final vault = Hive.box('padlock_vault');
-                  vault.put('shared_secret_$incomingId', base64Encode(sharedSecretBytes));
+                  await vault.delete('shared_secret_$incomingId');
+vault.put('shared_secret_$incomingId', base64Encode(sharedSecretBytes));
                 } catch (e) {
                   print('Erro a gerar segredo partilhado: $e');
                 }
@@ -806,9 +807,10 @@ Future<void> _logout() async {
 
               setState(() {
                 _contacts.add({
+                  if (!_contacts.any((c) => c['id'] == incomingId))
                   'name': incomingId,
                   'id': incomingId,
-                  'status': 'Online',
+                  'status': '',
                   'handshake': 'completed',
                 });
                 
