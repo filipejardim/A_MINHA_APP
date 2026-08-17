@@ -7,6 +7,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 // --- NOVAS FERRAMENTAS DE DADOS ---
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -1662,6 +1664,20 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
               return;
             }
     if (decoded['type'] == 'update_timer') {
+      if (decoded['action'] == 'call_offer') {
+      if (mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => ActiveCallScreen(
+              local: widget.local,
+              recipientName: widget.chatData['name'],
+              channel: PadlockNetwork.channel,
+            ),
+          ),
+        );
+      }
+      return;
+    }
       if (mounted) {
         setState(() {
           widget.chatData['destructTime'] = decoded['time'];
@@ -2998,13 +3014,39 @@ class ActiveCallScreen extends StatelessWidget {
     this.channel,
   });
 
-  void startSecureCall(String targetPrivacyId) {
-    final callSignal = {
-      'action': 'call_offer',
-      'to': targetPrivacyId,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    };
-    channel?.sink.add(jsonEncode(callSignal));
+  Future<void> startSecureCall(String targetPrivacyId) async {
+    var status = await Permission.microphone.request();
+    if (status != PermissionStatus.granted) {
+      return;
+    }
+
+    try {
+      final Map<String, dynamic> configuration = {
+        'iceServers': [
+          {'urls': 'stun:stun.l.google.com:19302'}
+        ]
+      };
+
+      RTCPeerConnection peerConnection = await createPeerConnection(configuration);
+      MediaStream localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
+      for (var track in localStream.getTracks()) {
+        peerConnection.addTrack(track, localStream);
+      }
+
+      RTCSessionDescription offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+
+      final callSignal = {
+        'action': 'call_offer',
+        'type': 'offer',
+        'to': targetPrivacyId,
+        'sdp': offer.toMap(),
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+      channel?.sink.add(jsonEncode(callSignal));
+    } catch (e) {
+      print('Erro ao iniciar motor WebRTC P2P: $e');
+    }
   }
 
   void endCall(String targetPrivacyId) {
@@ -3014,73 +3056,131 @@ class ActiveCallScreen extends StatelessWidget {
     };
     channel?.sink.add(jsonEncode(endSignal));
   }
-  @override
+  
+@override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(30.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 140,
-                    height: 140,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: const Color.fromARGB(255, 190, 1, 1).withValues(alpha: 0.3), width: 10),
-                    ),
-                  ),
-                  Container(
-                    width: 110,
-                    height: 110,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF151515),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.shield_outlined, color: Colors.greenAccent, size: 45),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 30),
-              Text(
-                recipientName,
-                style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, fontFamily: 'monospace'),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                local?['call'] ?? 'Secure Call',
-                style: const TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-              const SizedBox(height: 40),
-              Row(
+      body: Stack(
+        children: [
+          // 1. FUNDO MATRIX EM CASCATA SUAVE (Idêntico ao ecrã de login/perfil)
+          Positioned.fill(
+            child: CustomPaint(
+              painter: MatrixBackgroundPainter(),
+            ),
+          ),
+          // Camada escura translúcida para contraste perfeito
+          Positioned.fill(
+            child: Container(
+              color: Colors.black.withValues(alpha: 0.8),
+            ),
+          ),
+
+          // 2. CONTEÚDO CENTRAL COM ESTILO 3D / VIDRO ESCURO
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(30.0),
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  _buildCallButton(icon: Icons.mic_off, color: Colors.white24, onPress: () {}),
-                  const SizedBox(width: 30),
-                  _buildCallButton(
-                    icon: Icons.call_end,
-                    color: const Color.fromARGB(255, 235, 8, 0),
-                    onPress: () {
-  endCall(recipientName);
-  Navigator.pop(context);
-},
+                  // CADEADO COM ANEL BRILHANTE 3D
+                  Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Container(
+                        width: 140,
+                        height: 140,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFF101411).withValues(alpha: 0.9),
+                          border: Border.all(
+                            color: const Color(0xFF00FF66).withValues(alpha: 0.4),
+                            width: 8,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00FF66).withValues(alpha: 0.2),
+                              blurRadius: 25,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFF161C18),
+                          border: Border.all(
+                            color: const Color(0xFF00FF66).withValues(alpha: 0.6),
+                            width: 2,
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.lock,
+                          color: Color(0xFF00FF66),
+                          size: 45,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 30),
-                  _buildCallButton(icon: Icons.volume_up, color: Colors.white24, onPress: () {}),
+
+                  const SizedBox(height: 35),
+
+                  // NOME DO CONTACTO COM ESTILO MONOSPACE
+                  Text(
+                    recipientName,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'monospace',
+                      color: Colors.white,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // TEXTO DE ESTADO COM O VERDE EXATO
+                  const Text(
+                    'Secure Call Encrypted P2P',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF00FF66),
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+
+                  const SizedBox(height: 50),
+
+                  // BOTÕES DE CONTROLO 3D (Mudo, Desligar, Altifalante)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _buildCallButton(icon: Icons.mic_off, color: Colors.white24, onPress: () {}),
+                      const SizedBox(width: 25),
+                      _buildCallButton(
+                        icon: Icons.call_end,
+                        color: const Color(0xFFFF1515),
+                        onPress: () {
+                          endCall(recipientName);
+                          Navigator.pop(context);
+                        },
+                      ),
+                      const SizedBox(width: 25),
+                      _buildCallButton(icon: Icons.volume_up, color: Colors.white24, onPress: () {}),
+                    ],
+                  ),
                 ],
-              )
-            ],
+              ),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
-
   Widget _buildCallButton({required IconData icon, required Color color, required VoidCallback onPress}) {
     return InkWell(
       onTap: onPress,
@@ -3413,6 +3513,35 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
  
+class MatrixBackgroundPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final random = Random(42);
+    const double columnWidth = 22.0;
 
+    for (double x = 0; x < size.width; x += columnWidth) {
+      for (double y = 0; y < size.height; y += 28) {
+        if (random.nextDouble() > 0.65) {
+          final textPainter = TextPainter(
+            text: TextSpan(
+              text: random.nextBool() ? '1' : '0',
+              style: TextStyle(
+                color: const Color(0xFF00FF66).withValues(alpha: random.nextDouble() * 0.3 + 0.05),
+                fontSize: 12,
+                fontFamily: 'monospace',
+              ),
+            ),
+            textDirection: TextDirection.ltr,
+          );
+          textPainter.layout();
+          textPainter.paint(canvas, Offset(x + random.nextDouble() * 4, y));
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
 
   
