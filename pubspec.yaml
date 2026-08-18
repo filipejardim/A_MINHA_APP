@@ -89,6 +89,10 @@ dev_dependencies:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
-flutter:
+
+  flutter:
   uses-material-design: true
   generate: true
+
+dependency_overrides:
+  audioplayers_android: ^6.1.0
