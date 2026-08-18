@@ -43,7 +43,7 @@ dependencies:
   flutter_secure_storage: ^9.0.0
   uuid: ^4.3.3
   
-  screen_protector: ^1.5.3
+  
   encrypt: ^5.0.3
   cryptography: ^2.7.0
   hive: ^2.2.3
