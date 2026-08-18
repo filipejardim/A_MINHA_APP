@@ -42,7 +42,7 @@ dependencies:
   shared_preferences: ^2.2.2
   flutter_secure_storage: ^9.0.0
   uuid: ^4.3.3
-  audioplayers: ^6.1.0
+  
   screen_protector: ^1.2.8
   encrypt: ^5.0.3
   cryptography: ^2.7.0
@@ -91,8 +91,6 @@ dev_dependencies:
   # see https://flutter.dev/to/font-from-package
 
   flutter:
-  uses-material-design: true
-  generate: true
+    uses-material-design: true
+    generate: true
 
-dependency_overrides:
-  audioplayers_android: ^6.1.0
