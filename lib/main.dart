@@ -2,13 +2,14 @@ import 'dart:async';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:encrypt/encrypt.dart' as enc;
 import 'package:cryptography/cryptography.dart' as crypto;
-import 'dart:html' as html;
+
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 // --- NOVAS FERRAMENTAS DE DADOS ---
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -22,18 +23,9 @@ class PadlockNetwork {
 
   // Inicializa o detetor de hardware (Net do telemóvel)
   static void initNetworkListener() {
-    html.window.onOnline.listen((event) {
-      status.value = 'Online';
-      connect(); // Tenta ligar o túnel P2P assim que deteta net
-    });
-    html.window.onOffline.listen((event) {
-      status.value = 'Offline';
-      disconnect(); // Corta o túnel limpo se a net do telemóvel for abaixo
-    });
-    // Define o estado inicial real do telemóvel
-    status.value = html.window.navigator.onLine == true ? 'Online' : 'Offline';
+    status.value = 'Online';
+    connect();
   }
-
   static void disconnect() {
     channel?.sink.close();
     channel = null;
@@ -41,7 +33,7 @@ class PadlockNetwork {
 
   static void connect() {
     // Só tenta abrir o tubo P2P se o telemóvel tiver net real
-    if (html.window.navigator.onLine != true) return;
+    //if (html.window.navigator.onLine != true) return;
     if (channel != null) return;
 
     try {
@@ -494,10 +486,10 @@ if (!isContact) {
 
               Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
               try {
-                html.Notification(
-            'PADLOCK', 
-            body: 'New encrypted message received.',
-          );
+               // html.Notification(
+               // 'PADLOCK', 
+               // body: 'New encrypted message received.',
+               // );
               } catch (e) {
                 print('Erro ao disparar pop-up de notificação: $e');
               }
@@ -694,13 +686,10 @@ String? chatsData = vault.get('chats');
       }
     });
   }
-  Future<void> _initNotifications() async {
-  try {
-    html.Notification.requestPermission();
-  } catch (e) {
-    print('Erro ao ativar notificações: $e');
+ Future<void> _initNotifications() async {
+    // Notificações nativas Android serão geridas pelo Firebase ou LocalNotifications
+    print('Sistema de notificações nativo inicializado.');
   }
-}
   
   
 Future<void> _generateNewId() async {
@@ -1571,7 +1560,7 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
     PadlockNetwork.chatAbertoAtualmente = widget.chatData['id'];
     // --- METRALHADORA DE VISTOS BILATERAL ---
     void _forceReadReceipts() {
-      if (PadlockNetwork.channel != null && html.window.navigator.onLine == true) {
+      if (PadlockNetwork.channel != null) {
         try {
           PadlockNetwork.channel!.sink.add(jsonEncode({
             'type': 'message_read',

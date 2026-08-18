@@ -1,0 +1,40 @@
+name: Build Padlock APK
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clonar o código
+        uses: actions/checkout@v3
+
+      - name: Configurar Java (Motor Android)
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Configurar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Limpar e Instalar Pacotes
+        run: |
+          flutter clean
+          flutter pub get
+
+      - name: Construir o APK
+        run: flutter build apk --release
+
+      - name: Disponibilizar o APK para Download
+        uses: actions/upload-artifact@v3
+        with:
+          name: Padlock-App-Pronta
+          path: build/app/outputs/flutter-apk/app-release.apk
