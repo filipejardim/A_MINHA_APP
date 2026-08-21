@@ -9,7 +9,7 @@
     <!-- Permissão crítica para mostrar a chamada por cima do sistema (app fechada) -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <application
-        android:label="a_minha_app"
+        android:label="Padlock"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
