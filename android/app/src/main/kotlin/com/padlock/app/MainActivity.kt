@@ -1,4 +1,4 @@
-package com.example.a_minha_app
+package com.padlock.app
 
 import io.flutter.embedding.android.FlutterActivity
 

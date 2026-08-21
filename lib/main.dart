@@ -11,9 +11,14 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 // --- NOVAS FERRAMENTAS DE DADOS ---
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 // Serviço de rede para conectar ao servidor
 class PadlockNetwork {
   static String? chatAbertoAtualmente;
@@ -48,9 +53,68 @@ class PadlockNetwork {
     }
   }
 }
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+
+  final FlutterLocalNotificationsPlugin localNotif = FlutterLocalNotificationsPlugin();
+  const AndroidInitializationSettings initSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
+  await localNotif.initialize(const InitializationSettings(android: initSettingsAndroid));
+
+  // Deteta o que o servidor mandou (se é chamada ou mensagem)
+  final bool isCall = message.data['action'] == 'call_offer';
+  final String senderId = message.data['senderId'] ?? 'Unknown';
+
+  if (isCall) {
+    // --- POP-UP DE CHAMADA MILITAR ---
+    const AndroidNotificationDetails callDetails = AndroidNotificationDetails(
+      'padlock_call_channel', 'Secure Calls',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      actions: [
+        AndroidNotificationAction('accept_call', 'Accept', showsUserInterface: true),
+        AndroidNotificationAction('deny_call', 'Deny', showsUserInterface: false),
+      ],
+    );
+
+    await localNotif.show(
+      message.hashCode,
+      'Padlock',
+      'You have an encrypted call',
+      const NotificationDetails(android: callDetails),
+      payload: 'call:$senderId',
+    );
+  } else {
+    // --- POP-UP DE MENSAGEM MILITAR ---
+    const AndroidNotificationDetails msgDetails = AndroidNotificationDetails(
+      'padlock_msg_channel', 'Secure Messages',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+    );
+
+    await localNotif.show(
+      message.hashCode,
+      'Padlock',
+      'You have an encrypted message',
+      const NotificationDetails(android: msgDetails),
+      payload: 'msg:$senderId',
+    );
+  }
+}
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+  await Firebase.initializeApp();
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  final fcmToken = await FirebaseMessaging.instance.getToken();
+  print("O TOKEN (MORADA) DESTE TELEMÓVEL: $fcmToken");
+  const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
+  const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  final AndroidFlutterLocalNotificationsPlugin? androidImplementation = flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+await androidImplementation?.requestNotificationsPermission();
   // 1. Inicializa o motor da Base de Dados Blindada (Hive)
   await Hive.initFlutter();
   
@@ -422,7 +486,24 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
                 });
                 Hive.box('padlock_vault').put('contacts', jsonEncode(_contacts));
               }
+              else if (data['action'] == 'call_offer') {
+                showNotification('Chamada Segura', 'Estão a tentar contactar-te...');
+        if (mounted) {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => ActiveCallScreen(
+                local: t[widget.currentLanguage.toUpperCase()] ?? t['EN']!,
+                recipientName: data['senderId'],
+                targetId: data['senderId'],
+                isIncoming: true,
+                channel: PadlockNetwork.channel,
+              ),
+            ),
+          );
+        }
+      }
               else if (data['type'] == 'secure_message') {
+                showNotification('Nova Mensagem', 'Recebeste uma mensagem encriptada.');
                 if (data['senderId'] == Hive.box('padlock_vault').get('user_privacy_id')) return;
             final String peerId = data['senderId'] ?? data['targetId'];
 // O SEGURANÇA: Se o ID não existir nos contactos aprovados, a mensagem morre aqui.
@@ -1653,20 +1734,6 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
               return;
             }
     if (decoded['type'] == 'update_timer') {
-      if (decoded['action'] == 'call_offer') {
-      if (mounted) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => ActiveCallScreen(
-              local: widget.local,
-              recipientName: widget.chatData['name'],
-              channel: PadlockNetwork.channel,
-            ),
-          ),
-        );
-      }
-      return;
-    }
       if (mounted) {
         setState(() {
           widget.chatData['destructTime'] = decoded['time'];
@@ -1783,9 +1850,10 @@ SystemSound.play(SystemSoundType.click);
         if (mounted) {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => ActiveCallScreen(
+             builder: (context) => ActiveCallScreen(
                 local: widget.local,
                 recipientName: widget.chatData['name'],
+                targetId: widget.chatData['id'], // <--- Adiciona apenas esta linha aqui
                 channel: PadlockNetwork.channel,
               ),
             ),
@@ -2115,7 +2183,7 @@ void _sendMessage() {
                   builder: (context) => ActiveCallScreen(
                     local: widget.local,
                     recipientName: widget.chatData['name'],
-                    
+                    targetId: widget.chatData['id'],
                   ),
                 ),
               );
@@ -2991,17 +3059,77 @@ void _showQrDialog(BuildContext context, String id, [dynamic local]) {
 //---------------------------------------------------
 // ACTIVE CALL SCREEN
 // ----------------------------------------------------
-class ActiveCallScreen extends StatelessWidget {
+class ActiveCallScreen extends StatefulWidget {
   final Map<String, String>? local;
   final String recipientName;
+  final String targetId; // <--- Única coisa nova
+  final bool isIncoming;
   final dynamic channel;
 
   const ActiveCallScreen({
     super.key,
     required this.local,
     required this.recipientName,
+    required this.targetId, // <--- Única coisa nova
+    this.isIncoming = false,
     this.channel,
   });
+
+  @override
+  State<ActiveCallScreen> createState() => _ActiveCallScreenState();
+}
+
+class _ActiveCallScreenState extends State<ActiveCallScreen> {
+  Timer? _callTimeoutTimer;
+  bool _callHandled = false;
+ @override
+  void initState() {
+    super.initState();
+    // Só inicia o motor WebRTC automaticamente se fores tu a ligar.
+    // Se for chamada a entrar, espera pelo clique no botão Verde.
+    if (!widget.isIncoming) {
+      startSecureCall(widget.targetId);
+      }
+      else {
+  _startMissedCallTimer();
+}
+    }
+    void _startMissedCallTimer() {
+    _callTimeoutTimer?.cancel();
+    _callTimeoutTimer = Timer(const Duration(seconds: 60), () {
+      if (mounted && !_callHandled) {
+        _callHandled = true;
+        _logMissedCall();
+        endCall(widget.targetId);
+        Navigator.pop(context);
+      }
+    });
+  }
+
+  void _logMissedCall() {
+    try {
+      final vault = Hive.box('padlock_vault');
+      String? chatsJson = vault.get('chats');
+      List<dynamic> allChats = chatsJson != null ? jsonDecode(chatsJson) : [];
+      
+      int chatIdx = allChats.indexWhere((c) => c['id'] == widget.targetId);
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final timeStr = "${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}";
+      final missedMsg = '📞 Missed Secure Call ($timeStr)';
+
+      if (chatIdx != -1) {
+        if (allChats[chatIdx]['messages'] == null) allChats[chatIdx]['messages'] = [];
+        allChats[chatIdx]['messages'].add({'text': missedMsg, 'isMe': false, 'status': 'missed', 'timestamp': now});
+        allChats[chatIdx]['msg'] = '📞 Missed Secure Call';
+        allChats[chatIdx]['time'] = timeStr;
+        allChats[chatIdx]['unread'] = (allChats[chatIdx]['unread'] ?? 0) + 1;
+      }
+      vault.put('chats', jsonEncode(allChats));
+    } catch (e) {
+      print('Erro ao registar chamada perdida: $e');
+    }
+  }
+  
 
   Future<void> startSecureCall(String targetPrivacyId) async {
     var status = await Permission.microphone.request();
@@ -3028,11 +3156,11 @@ class ActiveCallScreen extends StatelessWidget {
       final callSignal = {
         'action': 'call_offer',
         'type': 'offer',
-        'to': targetPrivacyId,
+        'targetId': targetPrivacyId, // <-- CORREÇÃO: targetId
         'sdp': offer.toMap(),
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       };
-      channel?.sink.add(jsonEncode(callSignal));
+      widget.channel?.sink.add(jsonEncode(callSignal));
     } catch (e) {
       print('Erro ao iniciar motor WebRTC P2P: $e');
     }
@@ -3041,12 +3169,12 @@ class ActiveCallScreen extends StatelessWidget {
   void endCall(String targetPrivacyId) {
     final endSignal = {
       'action': 'call_end',
-      'to': targetPrivacyId,
+      'targetId': targetPrivacyId, // <-- CORREÇÃO: targetId
     };
-    channel?.sink.add(jsonEncode(endSignal));
+    widget.channel?.sink.add(jsonEncode(endSignal));
   }
-  
-@override
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
@@ -3119,7 +3247,7 @@ class ActiveCallScreen extends StatelessWidget {
 
                   // NOME DO CONTACTO COM ESTILO MONOSPACE
                   Text(
-                    recipientName,
+                    widget.recipientName,
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
@@ -3145,23 +3273,49 @@ class ActiveCallScreen extends StatelessWidget {
                   const SizedBox(height: 50),
 
                   // BOTÕES DE CONTROLO 3D (Mudo, Desligar, Altifalante)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildCallButton(icon: Icons.mic_off, color: Colors.white24, onPress: () {}),
-                      const SizedBox(width: 25),
-                      _buildCallButton(
-                        icon: Icons.call_end,
-                        color: const Color(0xFFFF1515),
-                        onPress: () {
-                          endCall(recipientName);
-                          Navigator.pop(context);
-                        },
-                      ),
-                      const SizedBox(width: 25),
-                      _buildCallButton(icon: Icons.volume_up, color: Colors.white24, onPress: () {}),
-                    ],
-                  ),
+                 widget.isIncoming
+    ? Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildCallButton(
+            icon: Icons.call_end,
+            color: const Color(0xFFFF1515),
+            onPress: () {
+              _callHandled = true;
+_callTimeoutTimer?.cancel();
+              endCall(widget.targetId);
+              Navigator.pop(context);
+            },
+          ),
+          const SizedBox(width: 40),
+          _buildCallButton(
+            icon: Icons.call,
+            color: const Color(0xFF00FF66),
+            onPress: () {
+              _callHandled = true;
+_callTimeoutTimer?.cancel();
+              startSecureCall(widget.targetId);
+            },
+          ),
+        ],
+      )
+    : Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildCallButton(icon: Icons.mic_off, color: Colors.white24, onPress: () {}),
+          const SizedBox(width: 25),
+          _buildCallButton(
+            icon: Icons.call_end,
+            color: const Color(0xFFFF1515),
+            onPress: () {
+              endCall(widget.targetId);
+              Navigator.pop(context);
+            },
+          ),
+          const SizedBox(width: 25),
+          _buildCallButton(icon: Icons.volume_up, color: Colors.white24, onPress: () {}),
+        ],
+      ),
                 ],
               ),
             ),
@@ -3170,6 +3324,7 @@ class ActiveCallScreen extends StatelessWidget {
       ),
     );
   }
+
   Widget _buildCallButton({required IconData icon, required Color color, required VoidCallback onPress}) {
     return InkWell(
       onTap: onPress,
@@ -3533,4 +3688,10 @@ class MatrixBackgroundPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-  
+  Future<void> showNotification(String title, String body) async {
+  const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    'padlock_secure_channel', 'Secure Notifications',
+    importance: Importance.max, priority: Priority.high,
+  );
+  await flutterLocalNotificationsPlugin.show(0, title, body, const NotificationDetails(android: androidDetails));
+}

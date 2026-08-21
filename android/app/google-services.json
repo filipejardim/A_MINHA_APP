@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "368722476836",
+    "project_id": "padlock-640f5",
+    "storage_bucket": "padlock-640f5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:368722476836:android:c6f9aef99beab3f2773db1",
+        "android_client_info": {
+          "package_name": "com.padlock.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD12o6IH_dLbuGe2e-PSoZnx54Tp-rS6e8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
