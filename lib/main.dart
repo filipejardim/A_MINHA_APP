@@ -67,12 +67,14 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   final String senderId = message.data['senderId'] ?? 'Unknown';
 
   if (isCall) {
-    // --- POP-UP DE CHAMADA MILITAR ---
+    // --- POP-UP DE CHAMADA MILITAR (ACENDE ECRÃ E TOCA CAMPAINHA) ---
     const AndroidNotificationDetails callDetails = AndroidNotificationDetails(
       'padlock_call_channel', 'Secure Calls',
       importance: Importance.max,
       priority: Priority.high,
       playSound: true,
+      fullScreenIntent: true, // <--- A MÁGICA QUE ACENDE O ECRÃ NO BOLSO
+      category: AndroidNotificationCategory.call, // <--- A MÁGICA QUE FAZ TOCAR COMO CHAMADA E NÃO COMO MENSAGEM
       actions: [
         AndroidNotificationAction('accept_call', 'Accept', showsUserInterface: true),
         AndroidNotificationAction('deny_call', 'Deny', showsUserInterface: false),
@@ -82,7 +84,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await localNotif.show(
       message.hashCode,
       'Padlock',
-      'You have an encrypted call',
+      'Encrypted Call from $senderId',
       const NotificationDetails(android: callDetails),
       payload: 'call:$senderId',
     );
@@ -132,6 +134,8 @@ await androidImplementation?.requestNotificationsPermission();
   // 3. Aplica a Chave Mestra para abrir o Cofre Local com cifra AES-256
   final encryptionKeyUint8List = base64Url.decode(encryptionKeyString);
   await Hive.openBox('padlock_vault', encryptionCipher: HiveAesCipher(encryptionKeyUint8List));
+  // Guarda o FCM Token no cofre para o enviarmos ao Servidor sempre que ligar a net
+  Hive.box('padlock_vault').put('my_fcm_token', fcmToken);
   
   // 4. Arranca a rede e verifica o PIN (acesso visual do utilizador)
   PadlockNetwork.initNetworkListener();
@@ -371,10 +375,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
 // Gatilho Inteligente de Arranque: Espera o canal abrir e só depois pede as mensagens pendentes
     Timer.periodic(const Duration(milliseconds: 300), (timer) {
       if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
-        PadlockNetwork.channel!.sink.add(jsonEncode({
-          'type': 'register',
-          'senderId': _myPrivacyId
-        }));
+       PadlockNetwork.channel!.sink.add(jsonEncode({
+              'type': 'register',
+              'senderId': _myPrivacyId,
+              'fcmToken': Hive.box('padlock_vault').get('my_fcm_token')
+            }));
         timer.cancel(); // Mensagens pedidas com sucesso, desliga o motor de busca
       }
     });
@@ -497,6 +502,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
                 targetId: data['senderId'],
                 isIncoming: true,
                 channel: PadlockNetwork.channel,
+                incomingSdp: data['sdp'], // <--- APANHA O SINAL DE VOZ
               ),
             ),
           );
@@ -708,9 +714,10 @@ if (!isContact) {
     Timer.periodic(const Duration(milliseconds: 300), (timer) {
       if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
         PadlockNetwork.channel!.sink.add(jsonEncode({
-          'type': 'register',
-          'senderId': _myPrivacyId
-        }));
+              'type': 'register',
+              'senderId': _myPrivacyId,
+              'fcmToken': Hive.box('padlock_vault').get('my_fcm_token'),
+            }));
         timer.cancel(); // Registo feito, mata o temporizador para não gastar bateria
       }
     });
@@ -781,7 +788,7 @@ Future<void> _generateNewId() async {
       setState(() {
         _myPrivacyId = savedId;
       });
-      PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'register', 'senderId': savedId}));
+      PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'register', 'senderId': savedId, 'fcmToken': Hive.box('padlock_vault').get('my_fcm_token')}));
       return;
     }
 
@@ -796,7 +803,7 @@ Future<void> _generateNewId() async {
     setState(() {
       _myPrivacyId = newId;
     });
-    PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'register', 'senderId': newId}));
+    PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'register', 'senderId': newId, 'fcmToken': Hive.box('padlock_vault').get('my_fcm_token')}));
   }
 Future<void> _logout() async {
     PadlockNetwork.disconnect();
@@ -1430,7 +1437,8 @@ class ChatsScreen extends StatelessWidget {
           if (myId != null && PadlockNetwork.channel != null) {
             PadlockNetwork.channel?.sink.add(jsonEncode({
               'type': 'register',
-              'senderId': myId
+              'senderId': myId,
+              'fcmToken': Hive.box('padlock_vault').get('my_fcm_token'),
             }));
           }
           
@@ -1850,11 +1858,13 @@ SystemSound.play(SystemSoundType.click);
         if (mounted) {
           Navigator.of(context).push(
             MaterialPageRoute(
-             builder: (context) => ActiveCallScreen(
+              builder: (context) => ActiveCallScreen(
                 local: widget.local,
                 recipientName: widget.chatData['name'],
-                targetId: widget.chatData['id'], // <--- Adiciona apenas esta linha aqui
+                targetId: widget.chatData['id'], 
+                isIncoming: true,
                 channel: PadlockNetwork.channel,
+                incomingSdp: decoded['sdp'], 
               ),
             ),
           );
@@ -1864,10 +1874,10 @@ SystemSound.play(SystemSoundType.click);
           Navigator.of(context).pop();
         }
       }
-      } catch (e) {
-        print('Erro no fluxo de entrada P2P: $e');
-      }
-    });
+    } catch (e) {
+      print('Erro no fluxo de entrada P2P: $e');
+    }
+  });
 
   }
 
@@ -2292,9 +2302,10 @@ void _sendMessage() {
     ),  
         ]
         ),
-      body: Column(
-        children: [
-            GestureDetector(
+      body: SafeArea( // Isto blinda a interface e força-a a subir quando o teclado aparece
+        child: Column(
+          children: [
+              GestureDetector(
       onTap: () {
         showDialog(
           context: context,
@@ -2435,11 +2446,14 @@ void _sendMessage() {
             child: Row(
               children: [
                 Expanded(
-                  child: TextField(
-                    controller: _msgController,
-                    enabled: widget.chatData['status'] != 'Blocked',
-                    decoration: InputDecoration(
-                      hintText: widget.local['send_hint'],
+                    child: TextField(
+                      controller: _msgController,
+                      enabled: widget.chatData['status'] != 'Blocked',
+                      minLines: 1, // Começa com 1 linha
+                      maxLines: 5, // Cresce até 5 linhas para baixo
+                      keyboardType: TextInputType.multiline, // Permite quebras de linha
+                      decoration: InputDecoration(
+                        hintText: widget.local['send_hint'],
                       filled: true,
                       fillColor: const Color(0xFF121212),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
@@ -2459,9 +2473,10 @@ void _sendMessage() {
               ],
             ),
           )
-        ],
-      ),
-    );
+      ],
+    ), // Column
+    ), // FECHA O SAFEAREA
+    ); // FECHA O SCAFFOLD
   }
 }
 
@@ -3062,39 +3077,118 @@ void _showQrDialog(BuildContext context, String id, [dynamic local]) {
 class ActiveCallScreen extends StatefulWidget {
   final Map<String, String>? local;
   final String recipientName;
-  final String targetId; // <--- Única coisa nova
+  final String targetId; 
   final bool isIncoming;
   final dynamic channel;
+  final dynamic incomingSdp; 
 
   const ActiveCallScreen({
     super.key,
     required this.local,
     required this.recipientName,
-    required this.targetId, // <--- Única coisa nova
+    required this.targetId, 
     this.isIncoming = false,
     this.channel,
+    this.incomingSdp,
   });
 
   @override
   State<ActiveCallScreen> createState() => _ActiveCallScreenState();
 }
-
 class _ActiveCallScreenState extends State<ActiveCallScreen> {
   Timer? _callTimeoutTimer;
+  Timer? _activeCallTimer;
+  Timer? _ringingTimer; // Temporizador para o som do tuuu... tuuu
+  int _secondsElapsed = 0;
   bool _callHandled = false;
- @override
+  bool _isMuted = false;
+  bool _isSpeakerOn = false;
+
+  String _callStatusText = 'Connecting...';
+  Color _callStatusColor = Colors.orangeAccent;
+
+  RTCPeerConnection? _peerConnection;
+  MediaStream? _localStream;
+  StreamSubscription? _callSubscription;
+
+  @override
   void initState() {
     super.initState();
-    // Só inicia o motor WebRTC automaticamente se fores tu a ligar.
-    // Se for chamada a entrar, espera pelo clique no botão Verde.
-    if (!widget.isIncoming) {
-      startSecureCall(widget.targetId);
+    
+    // 1. ESCUTA ATIVA: Interceta a Resposta e as Chaves da outra pessoa em tempo real
+    _callSubscription = PadlockNetwork.messageHub.stream.listen((data) {
+      try {
+        final decoded = jsonDecode(data);
+        if (decoded['action'] == 'call_answer' && !widget.isIncoming) {
+          setState(() {
+            _callStatusText = 'Exchanging Encryption Keys...';
+            _callStatusColor = Colors.lightBlueAccent;
+          });
+          RTCSessionDescription remoteDesc = RTCSessionDescription(
+            decoded['sdp']['sdp'],
+            decoded['sdp']['type'],
+          );
+          _peerConnection?.setRemoteDescription(remoteDesc);
+        } else if (decoded['action'] == 'call_candidate') {
+          RTCIceCandidate candidate = RTCIceCandidate(
+            decoded['candidate']['candidate'],
+            decoded['candidate']['sdpMid'],
+            decoded['candidate']['sdpMLineIndex'],
+          );
+          _peerConnection?.addCandidate(candidate);
+        }
+      } catch (e) {
+        print('Erro a processar pacote P2P na chamada: $e');
       }
-      else {
-  _startMissedCallTimer();
-}
+    });
+
+    // 2. MODO DE ARRANQUE: Quem liga vs Quem recebe
+   if (!widget.isIncoming) {
+      setState(() {
+        _callStatusText = 'Connecting Encrypted Call...';
+        _callStatusColor = Colors.orangeAccent;
+      });
+      startSecureCall(widget.targetId);
+      
+      // Passados 2 segundos a tentar ligar, muda para "Ringing" e liga o som
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted && _callStatusText == 'Connecting Encrypted Call...') {
+          setState(() {
+            _callStatusText = 'Ringing...';
+            _callStatusColor = Colors.greenAccent;
+          });
+          
+          // O Loop sonoro do "tuuu... tuuu" para o auricular
+          _ringingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+            if (!mounted || _callStatusText != 'Ringing...') {
+              timer.cancel(); // Pára de apitar se atenderem ou desligarem
+            } else {
+              SystemSound.play(SystemSoundType.click); 
+            }
+          });
+        }
+      });
+    } else {
+      setState(() {
+        _callStatusText = 'Incoming Encrypted Call...';
+        _callStatusColor = const Color(0xFF00FF66);
+      });
+      _startMissedCallTimer();
     }
-    void _startMissedCallTimer() {
+  }
+
+  @override
+  void dispose() {
+    _callSubscription?.cancel();
+    _callTimeoutTimer?.cancel();
+    _activeCallTimer?.cancel();
+    _ringingTimer?.cancel();
+    _localStream?.dispose();
+    _peerConnection?.dispose();
+    super.dispose();
+  }
+
+  void _startMissedCallTimer() {
     _callTimeoutTimer?.cancel();
     _callTimeoutTimer = Timer(const Duration(seconds: 60), () {
       if (mounted && !_callHandled) {
@@ -3102,6 +3196,21 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
         _logMissedCall();
         endCall(widget.targetId);
         Navigator.pop(context);
+      }
+    });
+  }
+
+  void _startActiveTimer() {
+    _callTimeoutTimer?.cancel(); // Cancela o timer de chamada perdida
+    _activeCallTimer?.cancel();
+    _activeCallTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          _secondsElapsed++;
+          final minutes = (_secondsElapsed ~/ 60).toString().padLeft(2, '0');
+          final seconds = (_secondsElapsed % 60).toString().padLeft(2, '0');
+          _callStatusText = 'Connected ($minutes:$seconds)';
+        });
       }
     });
   }
@@ -3129,34 +3238,66 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
       print('Erro ao registar chamada perdida: $e');
     }
   }
-  
+
+  void _setupPeerConnectionListeners() {
+    _peerConnection?.onIceConnectionState = (state) {
+      if (!mounted) return;
+      setState(() {
+        if (state == RTCIceConnectionState.RTCIceConnectionStateConnected) {
+          _callStatusText = 'Connected and Encrypted';
+          _callStatusColor = const Color(0xFF00FF66);
+          _startActiveTimer();
+        } else if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected ||
+                   state == RTCIceConnectionState.RTCIceConnectionStateFailed ||
+                   state == RTCIceConnectionState.RTCIceConnectionStateClosed) {
+          endCall(widget.targetId);
+          Navigator.pop(context);
+        }
+      });
+    };
+
+    // Necessário para furar os firewalls (Sinalização P2P perfeita)
+    _peerConnection?.onIceCandidate = (RTCIceCandidate candidate) {
+      final candidateSignal = {
+        'action': 'call_candidate',
+        'targetId': widget.targetId,
+        'candidate': candidate.toMap(),
+      };
+      widget.channel?.sink.add(jsonEncode(candidateSignal));
+    };
+  }
 
   Future<void> startSecureCall(String targetPrivacyId) async {
     var status = await Permission.microphone.request();
-    if (status != PermissionStatus.granted) {
-      return;
-    }
+    if (status != PermissionStatus.granted) return;
+
+    setState(() {
+      _callStatusText = 'Connecting Encrypted Call...';
+      _callStatusColor = Colors.orangeAccent;
+    });
 
     try {
       final Map<String, dynamic> configuration = {
-        'iceServers': [
-          {'urls': 'stun:stun.l.google.com:19302'}
-        ]
+        'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]
       };
 
-      RTCPeerConnection peerConnection = await createPeerConnection(configuration);
-      MediaStream localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
-      for (var track in localStream.getTracks()) {
-        peerConnection.addTrack(track, localStream);
+      _peerConnection = await createPeerConnection(configuration);
+      _setupPeerConnectionListeners();
+
+      _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
+      // Garante que o som sai pelo auscultador do ouvido (e não pelo altifalante mãos-livres)
+_localStream!.getAudioTracks()[0].enableSpeakerphone(false);
+      for (var track in _localStream!.getTracks()) {
+        _peerConnection!.addTrack(track, _localStream!);
       }
 
-      RTCSessionDescription offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
+      RTCSessionDescription offer = await _peerConnection!.createOffer();
+      await _peerConnection!.setLocalDescription(offer);
 
       final callSignal = {
         'action': 'call_offer',
         'type': 'offer',
-        'targetId': targetPrivacyId, // <-- CORREÇÃO: targetId
+        'targetId': targetPrivacyId,
         'sdp': offer.toMap(),
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       };
@@ -3166,12 +3307,78 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     }
   }
 
+  Future<void> acceptSecureCall() async {
+    var status = await Permission.microphone.request();
+    if (status != PermissionStatus.granted) return;
+
+    setState(() {
+      _callStatusText = 'Exchanging Encryption Keys...';
+      _callStatusColor = Colors.lightBlueAccent;
+    });
+
+    try {
+      final Map<String, dynamic> configuration = {
+        'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]
+      };
+
+      _peerConnection = await createPeerConnection(configuration);
+      _setupPeerConnectionListeners();
+
+      _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
+      for (var track in _localStream!.getTracks()) {
+        _peerConnection!.addTrack(track, _localStream!);
+      }
+
+      if (widget.incomingSdp != null) {
+        RTCSessionDescription remoteDesc = RTCSessionDescription(
+          widget.incomingSdp['sdp'],
+          widget.incomingSdp['type'],
+        );
+        await _peerConnection!.setRemoteDescription(remoteDesc);
+      }
+
+      RTCSessionDescription answer = await _peerConnection!.createAnswer();
+      await _peerConnection!.setLocalDescription(answer);
+
+      final answerSignal = {
+        'action': 'call_answer',
+        'type': 'answer',
+        'targetId': widget.targetId,
+        'sdp': answer.toMap(),
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      };
+      widget.channel?.sink.add(jsonEncode(answerSignal));
+
+    } catch (e) {
+      print('Erro ao aceitar chamada P2P: $e');
+    }
+  }
+
   void endCall(String targetPrivacyId) {
     final endSignal = {
       'action': 'call_end',
-      'targetId': targetPrivacyId, // <-- CORREÇÃO: targetId
+      'targetId': targetPrivacyId,
     };
     widget.channel?.sink.add(jsonEncode(endSignal));
+    _peerConnection?.close();
+  }
+
+  void _toggleMute() {
+    if (_localStream != null) {
+      bool enabled = _localStream!.getAudioTracks()[0].enabled;
+      _localStream!.getAudioTracks()[0].enabled = !enabled;
+      setState(() {
+        _isMuted = !enabled;
+      });
+    }
+  }
+
+  void _toggleSpeaker() {
+    if (_localStream != null) {
+      _isSpeakerOn = !_isSpeakerOn;
+      _localStream!.getAudioTracks()[0].enableSpeakerphone(_isSpeakerOn);
+      setState(() {});
+    }
   }
 
   @override
@@ -3180,143 +3387,148 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 1. FUNDO MATRIX EM CASCATA SUAVE (Idêntico ao ecrã de login/perfil)
+          // 1. Fundo do Matrix em código
           Positioned.fill(
             child: CustomPaint(
               painter: MatrixBackgroundPainter(),
             ),
           ),
-          // Camada escura translúcida para contraste perfeito
-          Positioned.fill(
-            child: Container(
-              color: Colors.black.withValues(alpha: 0.8),
-            ),
-          ),
-
-          // 2. CONTEÚDO CENTRAL COM ESTILO 3D / VIDRO ESCURO
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.all(30.0),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // CADEADO COM ANEL BRILHANTE 3D
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      Container(
-                        width: 140,
-                        height: 140,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: const Color(0xFF101411).withValues(alpha: 0.9),
-                          border: Border.all(
-                            color: const Color(0xFF00FF66).withValues(alpha: 0.4),
-                            width: 8,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF00FF66).withValues(alpha: 0.2),
-                              blurRadius: 25,
-                              spreadRadius: 2,
+          // Camada escura mais transparente para o verde do Matrix brilhar bem
+         
+          
+          // 2. Elementos Visuais do Ecrã de Chamada
+          SafeArea(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Cadeado com duplo anel néon (formato original ligeiramente mais pequeno e proporcional)
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Container(
+                          width: 104,
+                          height: 104,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF101411).withValues(alpha: 0.9),
+                            border: Border.all(
+                              color: _callStatusColor.withValues(alpha: 0.35),
+                              width: 6,
                             ),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        width: 100,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: const Color(0xFF161C18),
-                          border: Border.all(
-                            color: const Color(0xFF00FF66).withValues(alpha: 0.6),
-                            width: 2,
+                            boxShadow: [
+                              BoxShadow(
+                                color: _callStatusColor.withValues(alpha: 0.3),
+                                blurRadius: 22,
+                                spreadRadius: 2,
+                              ),
+                            ],
                           ),
                         ),
-                        child: const Icon(
-                          Icons.lock,
-                          color: Color(0xFF00FF66),
-                          size: 45,
+                        Container(
+                          width: 76,
+                          height: 76,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: const Color(0xFF161C18),
+                            border: Border.all(
+                              color: _callStatusColor.withValues(alpha: 0.7),
+                              width: 2,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.lock,
+                            color: _callStatusColor,
+                            size: 36,
+                          ),
                         ),
+                      ],
+                    ),
+                    const SizedBox(height: 30),
+
+                    // ID / Nome do Contacto
+                    Text(
+                      widget.recipientName,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'monospace',
+                        color: Colors.white,
+                        letterSpacing: 1.2,
                       ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 35),
-
-                  // NOME DO CONTACTO COM ESTILO MONOSPACE
-                  Text(
-                    widget.recipientName,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'monospace',
-                      color: Colors.white,
-                      letterSpacing: 1.2,
                     ),
-                  ),
+                    const SizedBox(height: 12),
 
-                  const SizedBox(height: 12),
-
-                  // TEXTO DE ESTADO COM O VERDE EXATO
-                  const Text(
-                    'Secure Call Encrypted P2P',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Color(0xFF00FF66),
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
+                    // Estado da Chamada e Temporizador
+                    Text(
+                      _callStatusText,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _callStatusColor,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.5,
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 55),
 
-                  const SizedBox(height: 50),
-
-                  // BOTÕES DE CONTROLO 3D (Mudo, Desligar, Altifalante)
-                 widget.isIncoming
-    ? Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _buildCallButton(
-            icon: Icons.call_end,
-            color: const Color(0xFFFF1515),
-            onPress: () {
-              _callHandled = true;
-_callTimeoutTimer?.cancel();
-              endCall(widget.targetId);
-              Navigator.pop(context);
-            },
-          ),
-          const SizedBox(width: 40),
-          _buildCallButton(
-            icon: Icons.call,
-            color: const Color(0xFF00FF66),
-            onPress: () {
-              _callHandled = true;
-_callTimeoutTimer?.cancel();
-              startSecureCall(widget.targetId);
-            },
-          ),
-        ],
-      )
-    : Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _buildCallButton(icon: Icons.mic_off, color: Colors.white24, onPress: () {}),
-          const SizedBox(width: 25),
-          _buildCallButton(
-            icon: Icons.call_end,
-            color: const Color(0xFFFF1515),
-            onPress: () {
-              endCall(widget.targetId);
-              Navigator.pop(context);
-            },
-          ),
-          const SizedBox(width: 25),
-          _buildCallButton(icon: Icons.volume_up, color: Colors.white24, onPress: () {}),
-        ],
-      ),
-                ],
+                    // Botões dinâmicos (Recebidas vs Feitas/Ativas)
+                    widget.isIncoming && !_callHandled
+                        ? Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _buildCallButton(
+                                icon: Icons.call_end,
+                                color: const Color(0xFFFF1515),
+                                onPress: () {
+                                  _callHandled = true;
+                                  _callTimeoutTimer?.cancel();
+                                  endCall(widget.targetId);
+                                  Navigator.pop(context);
+                                },
+                              ),
+                              const SizedBox(width: 40),
+                              _buildCallButton(
+                                icon: Icons.call,
+                                color: const Color(0xFF00FF66),
+                                onPress: () {
+                                  _callHandled = true;
+                                  _callTimeoutTimer?.cancel();
+                                  acceptSecureCall();
+                                },
+                              ),
+                            ],
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              _buildCallButton(
+                                icon: _isMuted ? Icons.mic_off : Icons.mic,
+                                color: _isMuted ? Colors.redAccent : Colors.white24,
+                                onPress: _toggleMute,
+                              ),
+                              const SizedBox(width: 25),
+                              _buildCallButton(
+                                icon: Icons.call_end,
+                                color: const Color(0xFFFF1515),
+                                onPress: () {
+                                  endCall(widget.targetId);
+                                  Navigator.pop(context);
+                                },
+                              ),
+                              const SizedBox(width: 25),
+                              _buildCallButton(
+                                icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_down,
+                                color: _isSpeakerOn ? Colors.lightBlueAccent : Colors.white24,
+                                onPress: _toggleSpeaker,
+                              ),
+                            ],
+                          ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -3665,12 +3877,13 @@ class MatrixBackgroundPainter extends CustomPainter {
 
     for (double x = 0; x < size.width; x += columnWidth) {
       for (double y = 0; y < size.height; y += 28) {
-        if (random.nextDouble() > 0.65) {
+        if (random.nextDouble() > 0.55) {
           final textPainter = TextPainter(
             text: TextSpan(
               text: random.nextBool() ? '1' : '0',
               style: TextStyle(
-                color: const Color(0xFF00FF66).withValues(alpha: random.nextDouble() * 0.3 + 0.05),
+                // Variação suave de opacidade: umas partes mais visíveis, outras mais apagadas
+                color: const Color(0xFF00FF66).withValues(alpha: random.nextDouble() * 0.7 + 0.3),
                 fontSize: 12,
                 fontFamily: 'monospace',
               ),
