@@ -65,6 +65,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Deteta o que o servidor mandou (se é chamada ou mensagem)
   final bool isCall = message.data['action'] == 'call_offer';
   final String senderId = message.data['senderId'] ?? 'Unknown';
+  final int notificationId = senderId.hashCode;
 
   if (isCall) {
     // --- POP-UP DE CHAMADA MILITAR (ACENDE ECRÃ E TOCA CAMPAINHA) ---
@@ -82,7 +83,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     );
 
     await localNotif.show(
-      message.hashCode,
+      notificationId,
       'Padlock',
       'Encrypted Call from $senderId',
       const NotificationDetails(android: callDetails),
@@ -98,7 +99,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     );
 
     await localNotif.show(
-      message.hashCode,
+      notificationId,
       'Padlock',
       'You have an encrypted message',
       const NotificationDetails(android: msgDetails),
@@ -509,7 +510,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
         }
       }
               else if (data['type'] == 'secure_message') {
-                showNotification('Nova Mensagem', 'Recebeste uma mensagem encriptada.');
+                
                 if (data['senderId'] == Hive.box('padlock_vault').get('user_privacy_id')) return;
             final String peerId = data['senderId'] ?? data['targetId'];
 // O SEGURANÇA: Se o ID não existir nos contactos aprovados, a mensagem morre aqui.
@@ -520,7 +521,7 @@ if (!isContact) {
             if (PadlockNetwork.chatAbertoAtualmente == peerId) {
               return;
             }
-
+showNotification('Nova Mensagem', 'Recebeste uma mensagem encriptada.');
             int chatIdx = _chats.indexWhere((c) => c['id'] == peerId);
 
         if (chatIdx == -1) {
@@ -2187,13 +2188,13 @@ void _sendMessage() {
           IconButton(
             icon: const Icon(Icons.phone, color: Colors.greenAccent),
             onPressed: () {
-              
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => ActiveCallScreen(
                     local: widget.local,
                     recipientName: widget.chatData['name'],
                     targetId: widget.chatData['id'],
+                    channel: PadlockNetwork.channel, // <--- A PEÇA QUE FALTAVA PARA O SINAL SAIR DO TELEMÓVEL!
                   ),
                 ),
               );
@@ -3295,12 +3296,13 @@ _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
       await _peerConnection!.setLocalDescription(offer);
 
       final callSignal = {
-        'action': 'call_offer',
-        'type': 'offer',
-        'targetId': targetPrivacyId,
-        'sdp': offer.toMap(),
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-      };
+          'action': 'call_offer',
+          'type': 'offer',
+          'senderId': Hive.box('padlock_vault').get('user_privacy_id'), 
+          'targetId': targetPrivacyId,
+          'sdp': offer.toMap(),
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        };
       widget.channel?.sink.add(jsonEncode(callSignal));
     } catch (e) {
       print('Erro ao iniciar motor WebRTC P2P: $e');
@@ -3341,12 +3343,13 @@ _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
       await _peerConnection!.setLocalDescription(answer);
 
       final answerSignal = {
-        'action': 'call_answer',
-        'type': 'answer',
-        'targetId': widget.targetId,
-        'sdp': answer.toMap(),
-        'timestamp': DateTime.now().millisecondsSinceEpoch,
-      };
+  'action': 'call_answer',
+  'type': 'answer',
+  'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
+  'targetId': widget.targetId,
+  'sdp': answer.toMap(),
+  'timestamp': DateTime.now().millisecondsSinceEpoch,
+};
       widget.channel?.sink.add(jsonEncode(answerSignal));
 
     } catch (e) {
@@ -3365,19 +3368,19 @@ _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
 
   void _toggleMute() {
     if (_localStream != null) {
-      bool enabled = _localStream!.getAudioTracks()[0].enabled;
-      _localStream!.getAudioTracks()[0].enabled = !enabled;
       setState(() {
-        _isMuted = !enabled;
+        _isMuted = !_isMuted;
+        _localStream!.getAudioTracks()[0].enabled = !_isMuted;
       });
     }
   }
 
   void _toggleSpeaker() {
     if (_localStream != null) {
-      _isSpeakerOn = !_isSpeakerOn;
-      _localStream!.getAudioTracks()[0].enableSpeakerphone(_isSpeakerOn);
-      setState(() {});
+      setState(() {
+        _isSpeakerOn = !_isSpeakerOn;
+        _localStream!.getAudioTracks()[0].enableSpeakerphone(_isSpeakerOn);
+      });
     }
   }
 
@@ -3505,26 +3508,63 @@ _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
                         : Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              _buildCallButton(
-                                icon: _isMuted ? Icons.mic_off : Icons.mic,
-                                color: _isMuted ? Colors.redAccent : Colors.white24,
-                                onPress: _toggleMute,
-                              ),
-                              const SizedBox(width: 25),
-                              _buildCallButton(
-                                icon: Icons.call_end,
-                                color: const Color(0xFFFF1515),
-                                onPress: () {
-                                  endCall(widget.targetId);
-                                  Navigator.pop(context);
-                                },
-                              ),
-                              const SizedBox(width: 25),
-                              _buildCallButton(
-                                icon: _isSpeakerOn ? Icons.volume_up : Icons.volume_down,
-                                color: _isSpeakerOn ? Colors.lightBlueAccent : Colors.white24,
-                                onPress: _toggleSpeaker,
-                              ),
+                              // Botão MUTE (Microfone)
+                      GestureDetector(
+                        onTap: _toggleMute,
+                        child: Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _isMuted ? Colors.redAccent.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.1),
+                            border: Border.all(
+                              color: _isMuted ? Colors.redAccent : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
+                          child: Icon(
+                            _isMuted ? Icons.mic_off : Icons.mic, 
+                            color: _isMuted ? Colors.redAccent : Colors.white,
+                            size: 32,
+                          ),
+                        ),
+                      ),
+                      
+                      const SizedBox(width: 25),
+                      
+                      // Botão Desligar (Vermelho Fixo)
+                      GestureDetector(
+                        onTap: () => endCall(widget.targetId),
+                        child: Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.redAccent,
+                            boxShadow: [
+                              BoxShadow(color: Colors.redAccent, blurRadius: 15, spreadRadius: 2),
+                            ],
+                          ),
+                          child: const Icon(Icons.call_end, color: Colors.white, size: 36),
+                        ),
+                      ),
+                      
+                      const SizedBox(width: 25),
+                      
+                      // Botão Altifalante (Coluna Mãos-Livres)
+                      GestureDetector(
+                        onTap: _toggleSpeaker,
+                        child: Container(
+                          padding: const EdgeInsets.all(18),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _isSpeakerOn ? Colors.white : Colors.white.withValues(alpha: 0.1),
+                          ),
+                          child: Icon(
+                            _isSpeakerOn ? Icons.volume_up : Icons.volume_down,
+                            color: _isSpeakerOn ? Colors.black : Colors.white,
+                            size: 32,
+                          ),
+                        ),
+                      ),
                             ],
                           ),
                   ],
