@@ -18,7 +18,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
+import 'package:audioplayers/audioplayers.dart';
 // Serviço de rede para conectar ao servidor
 class PadlockNetwork {
   static String? chatAbertoAtualmente;
@@ -53,6 +53,7 @@ class PadlockNetwork {
     }
   }
 }
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -142,7 +143,41 @@ await androidImplementation?.requestNotificationsPermission();
   PadlockNetwork.initNetworkListener();
   String? savedPin = await secureStorage.read(key: 'user_pin');
   bool isFirstTime = (savedPin == null);
-  
+  FirebaseMessaging.instance.getInitialMessage().then((message) {
+    if (message != null && message.data['action'] == 'call_offer') {
+      final senderId = message.data['senderId'] ?? 'Unknown';
+      Future.delayed(const Duration(seconds: 1), () {
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (context) => ActiveCallScreen(
+              local: t['EN']!,
+              recipientName: senderId,
+              targetId: senderId,
+              isIncoming: true,
+              channel: PadlockNetwork.channel,
+            ),
+          ),
+        );
+      });
+    }
+  });
+
+  FirebaseMessaging.onMessageOpenedApp.listen((message) {
+    if (message.data['action'] == 'call_offer') {
+      final senderId = message.data['senderId'] ?? 'Unknown';
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (context) => ActiveCallScreen(
+            local: t['EN']!,
+            recipientName: senderId,
+            targetId: senderId,
+            isIncoming: true,
+            channel: PadlockNetwork.channel,
+          ),
+        ),
+      );
+    }
+  });
   runApp(PadlockApp(isFirstTime: isFirstTime));
 }
 
@@ -167,6 +202,7 @@ class _PadlockAppState extends State<PadlockApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'PADLOCK',
       
@@ -493,6 +529,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
                 Hive.box('padlock_vault').put('contacts', jsonEncode(_contacts));
               }
               else if (data['action'] == 'call_offer') {
+                // VERIFICAÇÃO TEMPORAL: Bloqueia a chamada se já passou mais de 60 segundos
+        final int callTimestamp = data['timestamp'] ?? DateTime.now().millisecondsSinceEpoch;
+        final int callAge = DateTime.now().millisecondsSinceEpoch - callTimestamp;
+        
+        if (callAge > 60000) {
+          print('Chamada fantasma bloqueada (Tinha $callAge milissegundos de atraso)');
+          return; // Aborta o ecrã de chamada aqui mesmo
+        }
                 showNotification('Chamada Segura', 'Estão a tentar contactar-te...');
         if (mounted) {
           Navigator.of(context).push(
@@ -3104,6 +3148,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   bool _callHandled = false;
   bool _isMuted = false;
   bool _isSpeakerOn = false;
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   String _callStatusText = 'Connecting...';
   Color _callStatusColor = Colors.orangeAccent;
@@ -3125,6 +3170,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
             _callStatusText = 'Exchanging Encryption Keys...';
             _callStatusColor = Colors.lightBlueAccent;
           });
+          _audioPlayer.play(AssetSource('sounds/morse.mp3'));
           RTCSessionDescription remoteDesc = RTCSessionDescription(
             decoded['sdp']['sdp'],
             decoded['sdp']['type'],
@@ -3150,6 +3196,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
         _callStatusColor = Colors.orangeAccent;
       });
       startSecureCall(widget.targetId);
+      _audioPlayer.play(AssetSource('sounds/morse.mp3'));
       
       // Passados 2 segundos a tentar ligar, muda para "Ringing" e liga o som
       Future.delayed(const Duration(seconds: 2), () {
@@ -3164,7 +3211,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
             if (!mounted || _callStatusText != 'Ringing...') {
               timer.cancel(); // Pára de apitar se atenderem ou desligarem
             } else {
-              SystemSound.play(SystemSoundType.click); 
+              _audioPlayer.play(AssetSource('sounds/ringing.mp3'));
             }
           });
         }
@@ -3184,6 +3231,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     _callTimeoutTimer?.cancel();
     _activeCallTimer?.cancel();
     _ringingTimer?.cancel();
+    _audioPlayer.dispose();
     _localStream?.dispose();
     _peerConnection?.dispose();
     super.dispose();
@@ -3248,6 +3296,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
           _callStatusText = 'Connected and Encrypted';
           _callStatusColor = const Color(0xFF00FF66);
           _startActiveTimer();
+          _audioPlayer.stop();
         } else if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected ||
                    state == RTCIceConnectionState.RTCIceConnectionStateFailed ||
                    state == RTCIceConnectionState.RTCIceConnectionStateClosed) {
@@ -3278,8 +3327,15 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     });
 
     try {
-      final Map<String, dynamic> configuration = {
-        'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]
+  final Map<String, dynamic> configuration = {
+        'iceServers': [
+          {'urls': 'stun:stun.l.google.com:19302'},
+          {
+            'urls': 'turn:openrelay.metered.ca:80',
+            'username': 'openrelayproject',
+            'credential': 'openrelayproject'
+          }
+        ]
       };
 
       _peerConnection = await createPeerConnection(configuration);
@@ -3319,8 +3375,15 @@ _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
     });
 
     try {
-      final Map<String, dynamic> configuration = {
-        'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]
+    final Map<String, dynamic> configuration = {
+        'iceServers': [
+          {'urls': 'stun:stun.l.google.com:19302'},
+          {
+            'urls': 'turn:openrelay.metered.ca:80',
+            'username': 'openrelayproject',
+            'credential': 'openrelayproject'
+          }
+        ]
       };
 
       _peerConnection = await createPeerConnection(configuration);
@@ -3364,6 +3427,8 @@ _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
     };
     widget.channel?.sink.add(jsonEncode(endSignal));
     _peerConnection?.close();
+    _audioPlayer.stop();
+    _audioPlayer.play(AssetSource('sounds/end_call.mp3'));
   }
 
   void _toggleMute() {
