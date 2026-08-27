@@ -3177,7 +3177,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
             _callStatusText = 'Exchanging Encryption Keys...';
             _callStatusColor = Colors.lightBlueAccent;
           });
-          _audioPlayer.play(AssetSource('sounds/morse.mp3'));
+          _audioPlayer.play(AssetSource('sounds/morse.mp3')).catchError((e) => print('Erro audio: $e'));
           RTCSessionDescription remoteDesc = RTCSessionDescription(
             decoded['sdp']['sdp'],
             decoded['sdp']['type'],
@@ -3203,7 +3203,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
               if (!mounted || _callStatusText != 'Ringing...') {
                 timer.cancel();
               } else {
-                _audioPlayer.play(AssetSource('sounds/ringing.mp3'));
+                _audioPlayer.play(AssetSource('sounds/ringing.mp3')).catchError((e) => print('Erro audio: $e'));
               }
             });
           }
@@ -3221,7 +3221,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
       });
       startSecureCall(widget.targetId);
       try {
-  _audioPlayer.play(AssetSource('sounds/morse.mp3'));
+  _audioPlayer.play(AssetSource('sounds/morse.mp3')).catchError((e) => print('Erro audio: $e'));
 } catch (e) {
   print('Erro audio: $e');
 }
