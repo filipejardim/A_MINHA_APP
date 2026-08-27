@@ -119,7 +119,7 @@ void main() async {
   const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
   final AndroidFlutterLocalNotificationsPlugin? androidImplementation = flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-await androidImplementation?.requestNotificationsPermission();
+androidImplementation?.requestNotificationsPermission();
   // 1. Inicializa o motor da Base de Dados Blindada (Hive)
   await Hive.initFlutter();
   
@@ -3220,7 +3220,11 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
         _callStatusColor = Colors.orangeAccent;
       });
       startSecureCall(widget.targetId);
-      _audioPlayer.play(AssetSource('sounds/morse.mp3'));
+      try {
+  _audioPlayer.play(AssetSource('sounds/morse.mp3'));
+} catch (e) {
+  print('Erro audio: $e');
+}
       
       
     } else {
@@ -3311,9 +3315,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
           _startActiveTimer();
           _audioPlayer.stop(); // Corta o Morse/Ringing imediatamente assim que atende!
           // A chamada atendeu! Agora sim, passa o som da voz para o ouvido
-          if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
-            _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
-          }
+        if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
+  _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
+}
         } else if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
           // EFEITO TÚNEL: Net caiu. Não desliga a chamada, espera que recupere.
           _callStatusText = 'Reconnecting...';
@@ -3345,7 +3349,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   Future<void> startSecureCall(String targetPrivacyId) async {
     var status = await Permission.microphone.request();
     if (status != PermissionStatus.granted) return;
-
+    if (!mounted) return;
     setState(() {
       _callStatusText = 'Connecting Encrypted Call...';
       _callStatusColor = Colors.orangeAccent;
@@ -3385,7 +3389,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
 
       _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
       // Garante que o som sai pelo auscultador do ouvido (e não pelo altifalante mãos-livres)
-_localStream!.getAudioTracks()[0].enableSpeakerphone(false);
+if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
+  _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
+}
       for (var track in _localStream!.getTracks()) {
         _peerConnection!.addTrack(track, _localStream!);
       }
