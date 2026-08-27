@@ -71,15 +71,16 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   if (isCall) {
     // --- POP-UP DE CHAMADA MILITAR (ACENDE ECRÃ E TOCA CAMPAINHA) ---
     const AndroidNotificationDetails callDetails = AndroidNotificationDetails(
-      'padlock_call_channel', 'Secure Calls',
+      'padlock_call_v2', 'Chamadas Seguras', // Mudar para v2 força o Android a mostrar o ecrã inteiro
       importance: Importance.max,
       priority: Priority.high,
       playSound: true,
       fullScreenIntent: true, // <--- A MÁGICA QUE ACENDE O ECRÃ NO BOLSO
-      category: AndroidNotificationCategory.call, // <--- A MÁGICA QUE FAZ TOCAR COMO CHAMADA E NÃO COMO MENSAGEM
+      category: AndroidNotificationCategory.call, // <--- A MÁGICA QUE FAZ TOCAR COMO CHAMADA
+      audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
       actions: [
-        AndroidNotificationAction('accept_call', 'Accept', showsUserInterface: true),
-        AndroidNotificationAction('deny_call', 'Deny', showsUserInterface: false),
+        AndroidNotificationAction('accept_call', '✅ ATENDER', showsUserInterface: true),
+        AndroidNotificationAction('deny_call', '❌ REJEITAR', showsUserInterface: false),
       ],
     );
 
@@ -154,6 +155,7 @@ await androidImplementation?.requestNotificationsPermission();
               recipientName: senderId,
               targetId: senderId,
               isIncoming: true,
+              incomingSdp: message.data['sdp'],
               channel: PadlockNetwork.channel,
             ),
           ),
@@ -386,6 +388,7 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> with WidgetsBindingObserver {
    final _storage = const FlutterSecureStorage();
+   int _lastNotifiedTimestamp = 0;
   String _username = "Carregando...";
   int _currentIndex = 0;
   String _myPrivacyId = '';
@@ -565,7 +568,11 @@ if (!isContact) {
             if (PadlockNetwork.chatAbertoAtualmente == peerId) {
               return;
             }
-showNotification('Nova Mensagem', 'Recebeste uma mensagem encriptada.');
+final int msgTimestamp = data['timestamp'] ?? 0;
+    if (msgTimestamp > _lastNotifiedTimestamp) {
+      _lastNotifiedTimestamp = msgTimestamp;
+      showNotification('New Message', 'You have received an encrypted message.');
+    }
             int chatIdx = _chats.indexWhere((c) => c['id'] == peerId);
 
         if (chatIdx == -1) {
@@ -3183,6 +3190,23 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
             decoded['candidate']['sdpMLineIndex'],
           );
           _peerConnection?.addCandidate(candidate);
+        } else if (decoded['action'] == 'call_ringing' && !widget.isIncoming) {
+          if (mounted) {
+            setState(() {
+              _callStatusText = 'Ringing...';
+              _callStatusColor = Colors.greenAccent;
+            });
+            _audioPlayer.stop(); // Cala o código Morse na hora!
+            
+            _ringingTimer?.cancel();
+            _ringingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+              if (!mounted || _callStatusText != 'Ringing...') {
+                timer.cancel();
+              } else {
+                _audioPlayer.play(AssetSource('sounds/ringing.mp3'));
+              }
+            });
+          }
         }
       } catch (e) {
         print('Erro a processar pacote P2P na chamada: $e');
@@ -3198,30 +3222,18 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
       startSecureCall(widget.targetId);
       _audioPlayer.play(AssetSource('sounds/morse.mp3'));
       
-      // Passados 2 segundos a tentar ligar, muda para "Ringing" e liga o som
-      Future.delayed(const Duration(seconds: 2), () {
-        if (mounted && _callStatusText == 'Connecting Encrypted Call...') {
-          setState(() {
-            _callStatusText = 'Ringing...';
-            _callStatusColor = Colors.greenAccent;
-          });
-          
-          // O Loop sonoro do "tuuu... tuuu" para o auricular
-          _ringingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-            if (!mounted || _callStatusText != 'Ringing...') {
-              timer.cancel(); // Pára de apitar se atenderem ou desligarem
-            } else {
-              _audioPlayer.play(AssetSource('sounds/ringing.mp3'));
-            }
-          });
-        }
-      });
+      
     } else {
       setState(() {
         _callStatusText = 'Incoming Encrypted Call...';
         _callStatusColor = const Color(0xFF00FF66);
       });
       _startMissedCallTimer();
+      final ringingSignal = {
+        'action': 'call_ringing',
+        'targetId': widget.targetId,
+      };
+      widget.channel?.sink.add(jsonEncode(ringingSignal));
     }
   }
 
@@ -3292,16 +3304,29 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     _peerConnection?.onIceConnectionState = (state) {
       if (!mounted) return;
       setState(() {
-        if (state == RTCIceConnectionState.RTCIceConnectionStateConnected) {
+        if (state == RTCIceConnectionState.RTCIceConnectionStateConnected || 
+            state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
           _callStatusText = 'Connected and Encrypted';
           _callStatusColor = const Color(0xFF00FF66);
           _startActiveTimer();
-          _audioPlayer.stop();
-        } else if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected ||
-                   state == RTCIceConnectionState.RTCIceConnectionStateFailed ||
+          _audioPlayer.stop(); // Corta o Morse/Ringing imediatamente assim que atende!
+          // A chamada atendeu! Agora sim, passa o som da voz para o ouvido
+          if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
+            _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
+          }
+        } else if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
+          // EFEITO TÚNEL: Net caiu. Não desliga a chamada, espera que recupere.
+          _callStatusText = 'Reconnecting...';
+          _callStatusColor = Colors.orangeAccent;
+          _audioPlayer.play(AssetSource('sounds/morse_tone.mp3')); // Toca Morse no túnel
+        } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed ||
                    state == RTCIceConnectionState.RTCIceConnectionStateClosed) {
-          endCall(widget.targetId);
-          Navigator.pop(context);
+          // Falha crítica irrecuperável ou chamada terminada
+          _audioPlayer.stop();
+          endCall(widget.targetId); // Isto chama o som puup que já corrigiste em baixo
+          if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+            Navigator.pop(context);
+          }
         }
       });
     };
@@ -3327,16 +3352,33 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     });
 
     try {
-  final Map<String, dynamic> configuration = {
-        'iceServers': [
-          {'urls': 'stun:stun.l.google.com:19302'},
-          {
-            'urls': 'turn:openrelay.metered.ca:80',
-            'username': 'openrelayproject',
-            'credential': 'openrelayproject'
-          }
-        ]
-      };
+ final Map<String, dynamic> configuration = {
+  'iceServers': [
+    {
+      'urls': 'stun:stun.relay.metered.ca:80',
+    },
+    {
+      'urls': 'turn:global.relay.metered.ca:80',
+      'username': '399188860007a1bf69aabc93',
+      'credential': '8W09AX9jch39sZ2Z',
+    },
+    {
+      'urls': 'turn:global.relay.metered.ca:80?transport-tcp',
+      'username': '399188860007a1bf69aabc93',
+      'credential': '8W09AX9jch39sZ2Z',
+    },
+    {
+      'urls': 'turn:global.relay.metered.ca:443',
+      'username': '399188860007a1bf69aabc93',
+      'credential': '8W09AX9jch39sZ2Z',
+    },
+    {
+      'urls': 'turn:global.relay.metered.ca:443?transport-tcp',
+      'username': '399188860007a1bf69aabc93',
+      'credential': '8W09AX9jch39sZ2Z',
+    },
+  ]
+};
 
       _peerConnection = await createPeerConnection(configuration);
       _setupPeerConnectionListeners();
@@ -3376,15 +3418,32 @@ _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
 
     try {
     final Map<String, dynamic> configuration = {
-        'iceServers': [
-          {'urls': 'stun:stun.l.google.com:19302'},
-          {
-            'urls': 'turn:openrelay.metered.ca:80',
-            'username': 'openrelayproject',
-            'credential': 'openrelayproject'
-          }
-        ]
-      };
+  'iceServers': [
+    {
+      'urls': 'stun:stun.relay.metered.ca:80',
+    },
+    {
+      'urls': 'turn:global.relay.metered.ca:80',
+      'username': '399188860007a1bf69aabc93',
+      'credential': '8W09AX9jch39sZ2Z',
+    },
+    {
+      'urls': 'turn:global.relay.metered.ca:80?transport-tcp',
+      'username': '399188860007a1bf69aabc93',
+      'credential': '8W09AX9jch39sZ2Z',
+    },
+    {
+      'urls': 'turn:global.relay.metered.ca:443',
+      'username': '399188860007a1bf69aabc93',
+      'credential': '8W09AX9jch39sZ2Z',
+    },
+    {
+      'urls': 'turn:global.relay.metered.ca:443?transport-tcp',
+      'username': '399188860007a1bf69aabc93',
+      'credential': '8W09AX9jch39sZ2Z',
+    },
+  ]
+};
 
       _peerConnection = await createPeerConnection(configuration);
       _setupPeerConnectionListeners();
@@ -3427,10 +3486,15 @@ _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
     };
     widget.channel?.sink.add(jsonEncode(endSignal));
     _peerConnection?.close();
+
+    if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
+      _localStream!.getAudioTracks()[0].enableSpeakerphone(true);
+    }
+
     _audioPlayer.stop();
     _audioPlayer.play(AssetSource('sounds/end_call.mp3'));
-  }
-
+    if (mounted && Navigator.canPop(context)) Navigator.pop(context);
+  } 
   void _toggleMute() {
     if (_localStream != null) {
       setState(() {
@@ -3555,7 +3619,9 @@ _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
                                   _callHandled = true;
                                   _callTimeoutTimer?.cancel();
                                   endCall(widget.targetId);
-                                  Navigator.pop(context);
+                                if (mounted && ModalRoute.of(context)?.isCurrent == true) {
+              Navigator.pop(context);
+            }
                                 },
                               ),
                               const SizedBox(width: 40),
