@@ -1105,6 +1105,7 @@ await vault.flush();
       final chat = _chats.removeAt(existingIndex);
       _chats.insert(0, chat);
       existingIndex = 0;
+      Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
     }
 
           setState(() {
@@ -3220,11 +3221,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
         _callStatusColor = Colors.orangeAccent;
       });
       startSecureCall(widget.targetId);
-      try {
-  _audioPlayer.play(AssetSource('sounds/morse.mp3')).catchError((e) => print('Erro audio: $e'));
-} catch (e) {
-  print('Erro audio: $e');
-}
+      
       
       
     } else {
@@ -3388,6 +3385,11 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
       _setupPeerConnectionListeners();
 
       _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
+      Future.delayed(const Duration(seconds: 1), () {
+        try {
+          _audioPlayer.play(AssetSource('sounds/morse.mp3')).catchError((e) => print('Erro audio: $e'));
+        } catch (e) {}
+      });
       // Garante que o som sai pelo auscultador do ouvido (e não pelo altifalante mãos-livres)
 if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
   _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
