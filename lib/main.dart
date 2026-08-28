@@ -858,6 +858,10 @@ Future<void> _generateNewId() async {
     PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'register', 'senderId': newId, 'fcmToken': Hive.box('padlock_vault').get('my_fcm_token')}));
   }
 Future<void> _logout() async {
+    final vault = Hive.box('padlock_vault');
+    vault.put('chats', jsonEncode(_chats));
+    await vault.flush();
+
     PadlockNetwork.disconnect();
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
@@ -1086,27 +1090,27 @@ await vault.flush();
             ),
           );
         },
-        onSelectContact: (contactName) {
+       onSelectContact: (contactName) {
           int existingIndex = _chats.indexWhere((c) => c['name'] == contactName);
-          if (existingIndex == -1)  {
+          
+          if (existingIndex == -1) {
             _chats.insert(0, {
-          'name': contactName,
-          'id': contactName,
-          'msg': 'Secure channel established.',
-          'time': 'Just Now',
-          'unread': 0,
-          'messages': [
-            {'text': 'Secure channel established.', 'isMe': false}
-          ]
-        });
+              'name': contactName,
+              'id': contactName,
+              'msg': 'Secure channel established.',
+              'time': 'Just Now',
+              'unread': 0,
+              'messages': [] // Deixa vazio para evitar erros de leitura fantasma
+            });
+            existingIndex = 0;
+          } else {
+            final chat = _chats.removeAt(existingIndex);
+            _chats.insert(0, chat);
             existingIndex = 0;
           }
-          else {
-      final chat = _chats.removeAt(existingIndex);
-      _chats.insert(0, chat);
-      existingIndex = 0;
-      Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
-    }
+          
+          // A REDE DE SEGURANÇA: Grava SEMPRE o cofre, seja chat novo ou antigo!
+          Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
 
           setState(() {
             _currentIndex = 0;
@@ -1731,17 +1735,23 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
     
     // 4º Tranca o estado de leitura no cofre para as bolhas vermelhas apagarem logo
     final vault = Hive.box('padlock_vault');
-    final String? chatsJson = vault.get('chats');
-    if (chatsJson != null) {
-      List<dynamic> allChats = jsonDecode(chatsJson);
-      for (int i = 0; i < allChats.length; i++) {
-        if (allChats[i]['id'] == widget.chatData['id']) {
-          allChats[i] = widget.chatData;
-          break;
+      final String? chatsJson = vault.get('chats');
+      if (chatsJson != null) {
+        List<dynamic> allChats = jsonDecode(chatsJson);
+        bool found = false;
+        for (int i = 0; i < allChats.length; i++) {
+          if (allChats[i]['id'] == widget.chatData['id']) {
+            allChats[i] = widget.chatData;
+            found = true;
+            break;
+          }
         }
+        // SE NÃO ENCONTRAR O CHAT, CRIA-O!
+        if (!found) allChats.insert(0, widget.chatData); 
+        vault.put('chats', jsonEncode(allChats));
+      } else {
+        vault.put('chats', jsonEncode([widget.chatData]));
       }
-      vault.put('chats', jsonEncode(allChats));
-    }
     // Pede às listas de trás para se atualizarem silenciosamente
     Future.microtask(() => widget.onUpdate());
     // ----------------------------------------
@@ -1987,17 +1997,24 @@ void _checkExpiredMessages() {
     // Só atualiza o ecrã e a base de dados se tiver efetivamente destruído alguma coisa
     if (apagouAlgumaCoisa) {
       widget.onUpdate();
-      final vault = Hive.box('padlock_vault');
+   final vault = Hive.box('padlock_vault');
       final String? chatsJson = vault.get('chats');
       if (chatsJson != null) {
         List<dynamic> allChats = jsonDecode(chatsJson);
+        bool found = false;
         for (int i = 0; i < allChats.length; i++) {
           if (allChats[i]['id'] == widget.chatData['id']) {
             allChats[i] = widget.chatData;
+            found = true;
             break;
           }
         }
+        // SE NÃO ENCONTRAR O CHAT, CRIA-O!
+        if (!found) allChats.insert(0, widget.chatData); 
         vault.put('chats', jsonEncode(allChats));
+      } else {
+        vault.put('chats', jsonEncode([widget.chatData]));
+      
       }
     }
   }
@@ -2162,18 +2179,24 @@ void _sendMessage() {
     _msgController.clear();
     widget.onUpdate();
     
-    final vault = Hive.box('padlock_vault');
-    final String? chatsJson = vault.get('chats');
-    if (chatsJson != null) {
-      List<dynamic> allChats = jsonDecode(chatsJson);
-      for (int i = 0; i < allChats.length; i++) {
-        if (allChats[i]['id'] == widget.chatData['id']) {
-          allChats[i] = widget.chatData;
-          break;
+   final vault = Hive.box('padlock_vault');
+      final String? chatsJson = vault.get('chats');
+      if (chatsJson != null) {
+        List<dynamic> allChats = jsonDecode(chatsJson);
+        bool found = false;
+        for (int i = 0; i < allChats.length; i++) {
+          if (allChats[i]['id'] == widget.chatData['id']) {
+            allChats[i] = widget.chatData;
+            found = true;
+            break;
+          }
         }
+        // SE NÃO ENCONTRAR O CHAT, CRIA-O!
+        if (!found) allChats.insert(0, widget.chatData); 
+        vault.put('chats', jsonEncode(allChats));
+      } else {
+        vault.put('chats', jsonEncode([widget.chatData]));
       }
-      vault.put('chats', jsonEncode(allChats));
-    }
     _scrollToBottom();
   }
 
@@ -2325,19 +2348,24 @@ void _sendMessage() {
                         vault.delete('private_key_$cId');
 
                         // 4. Grava o bloqueio permanente no cofre local
-                        final String? chatsJson = vault.get('chats');
-                        if (chatsJson != null) {
-                          List<dynamic> allChats = jsonDecode(chatsJson);
-                          for (int i = 0; i < allChats.length; i++) {
-                            if (allChats[i]['id'] == cId) {
-                              allChats[i] = widget.chatData;
-                              break;
-                            }
-                          }
-                          vault.put('chats', jsonEncode(allChats));
-                        }
-
-                        widget.onUpdate();
+                       
+      final String? chatsJson = vault.get('chats');
+      if (chatsJson != null) {
+        List<dynamic> allChats = jsonDecode(chatsJson);
+        bool found = false;
+        for (int i = 0; i < allChats.length; i++) {
+          if (allChats[i]['id'] == widget.chatData['id']) {
+            allChats[i] = widget.chatData;
+            found = true;
+            break;
+          }
+        }
+        // SE NÃO ENCONTRAR O CHAT, CRIA-O!
+        if (!found) allChats.insert(0, widget.chatData); 
+        vault.put('chats', jsonEncode(allChats));
+      } else {
+        vault.put('chats', jsonEncode([widget.chatData]));
+      }
                         Navigator.pop(context); // Fecha pop-up confirmação
                         Navigator.pop(context); // Fecha o chat e volta à lista principal
                       },
@@ -3354,46 +3382,41 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
 
     try {
  final Map<String, dynamic> configuration = {
-  'iceServers': [
-    {
-      'urls': 'stun:stun.relay.metered.ca:80',
-    },
-    {
-      'urls': 'turn:global.relay.metered.ca:80',
-      'username': '399188860007a1bf69aabc93',
-      'credential': '8W09AX9jch39sZ2Z',
-    },
-    {
-      'urls': 'turn:global.relay.metered.ca:80?transport-tcp',
-      'username': '399188860007a1bf69aabc93',
-      'credential': '8W09AX9jch39sZ2Z',
-    },
-    {
-      'urls': 'turn:global.relay.metered.ca:443',
-      'username': '399188860007a1bf69aabc93',
-      'credential': '8W09AX9jch39sZ2Z',
-    },
-    {
-      'urls': 'turn:global.relay.metered.ca:443?transport-tcp',
-      'username': '399188860007a1bf69aabc93',
-      'credential': '8W09AX9jch39sZ2Z',
-    },
-  ]
-};
+        'iceServers': [
+          { 'urls': 'stun:stun.relay.metered.ca:80' },
+          {
+            'urls': 'turn:global.relay.metered.ca:80',
+            'username': '399188860007a1bf69aabc93',
+            'credential': '8W09AX9jch39sZ2Z',
+          },
+          {
+            'urls': 'turn:global.relay.metered.ca:80?transport=tcp', // <--- CORRIGIDO AQUI
+            'username': '399188860007a1bf69aabc93',
+            'credential': '8W09AX9jch39sZ2Z',
+          },
+          {
+            'urls': 'turn:global.relay.metered.ca:443',
+            'username': '399188860007a1bf69aabc93',
+            'credential': '8W09AX9jch39sZ2Z',
+          },
+          {
+            'urls': 'turn:global.relay.metered.ca:443?transport=tcp', // <--- CORRIGIDO AQUI
+            'username': '399188860007a1bf69aabc93',
+            'credential': '8W09AX9jch39sZ2Z',
+          },
+        ]
+      };
 
       _peerConnection = await createPeerConnection(configuration);
       _setupPeerConnectionListeners();
 
       _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
-      Future.delayed(const Duration(seconds: 1), () {
-        try {
-          _audioPlayer.play(AssetSource('sounds/morse.mp3')).catchError((e) => print('Erro audio: $e'));
-        } catch (e) {}
-      });
-      // Garante que o som sai pelo auscultador do ouvido (e não pelo altifalante mãos-livres)
+
+// Garante que o som sai pelo auscultador do ouvido (e não pelo altifalante mãos-livres)
 if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
   _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
 }
+
       for (var track in _localStream!.getTracks()) {
         _peerConnection!.addTrack(track, _localStream!);
       }
@@ -3426,32 +3449,30 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
 
     try {
     final Map<String, dynamic> configuration = {
-  'iceServers': [
-    {
-      'urls': 'stun:stun.relay.metered.ca:80',
-    },
-    {
-      'urls': 'turn:global.relay.metered.ca:80',
-      'username': '399188860007a1bf69aabc93',
-      'credential': '8W09AX9jch39sZ2Z',
-    },
-    {
-      'urls': 'turn:global.relay.metered.ca:80?transport-tcp',
-      'username': '399188860007a1bf69aabc93',
-      'credential': '8W09AX9jch39sZ2Z',
-    },
-    {
-      'urls': 'turn:global.relay.metered.ca:443',
-      'username': '399188860007a1bf69aabc93',
-      'credential': '8W09AX9jch39sZ2Z',
-    },
-    {
-      'urls': 'turn:global.relay.metered.ca:443?transport-tcp',
-      'username': '399188860007a1bf69aabc93',
-      'credential': '8W09AX9jch39sZ2Z',
-    },
-  ]
-};
+        'iceServers': [
+          { 'urls': 'stun:stun.relay.metered.ca:80' },
+          {
+            'urls': 'turn:global.relay.metered.ca:80',
+            'username': '399188860007a1bf69aabc93',
+            'credential': '8W09AX9jch39sZ2Z',
+          },
+          {
+            'urls': 'turn:global.relay.metered.ca:80?transport=tcp', // <--- CORRIGIDO AQUI
+            'username': '399188860007a1bf69aabc93',
+            'credential': '8W09AX9jch39sZ2Z',
+          },
+          {
+            'urls': 'turn:global.relay.metered.ca:443',
+            'username': '399188860007a1bf69aabc93',
+            'credential': '8W09AX9jch39sZ2Z',
+          },
+          {
+            'urls': 'turn:global.relay.metered.ca:443?transport=tcp', // <--- CORRIGIDO AQUI
+            'username': '399188860007a1bf69aabc93',
+            'credential': '8W09AX9jch39sZ2Z',
+          },
+        ]
+      };
 
       _peerConnection = await createPeerConnection(configuration);
       _setupPeerConnectionListeners();
