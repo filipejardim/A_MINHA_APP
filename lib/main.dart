@@ -3225,16 +3225,9 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
               _callStatusText = 'Ringing...';
               _callStatusColor = Colors.greenAccent;
             });
-            _audioPlayer.stop(); // Cala o código Morse na hora!
-            
-            _ringingTimer?.cancel();
-            _ringingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
-              if (!mounted || _callStatusText != 'Ringing...') {
-                timer.cancel();
-              } else {
-                _audioPlayer.play(AssetSource('sounds/ringing.mp3')).catchError((e) => print('Erro audio: $e'));
-              }
-            });
+            _audioPlayer.stop();
+    _audioPlayer.setReleaseMode(ReleaseMode.loop);
+    _audioPlayer.play(AssetSource('sounds/ringing.mp3')).catchError((e) => print('Erro audio: $e'));
           }
         }
       } catch (e) {
@@ -3383,17 +3376,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     try {
  final Map<String, dynamic> configuration = {
         'iceServers': [
-          { 'urls': 'stun:stun.relay.metered.ca:80' },
-          {
-            'urls': 'turn:global.relay.metered.ca:80',
-            'username': '399188860007a1bf69aabc93',
-            'credential': '8W09AX9jch39sZ2Z',
-          },
-          {
-            'urls': 'turn:global.relay.metered.ca:80?transport=tcp', // <--- CORRIGIDO AQUI
-            'username': '399188860007a1bf69aabc93',
-            'credential': '8W09AX9jch39sZ2Z',
-          },
+          {'url': 'stun:stun.l.google.com:19302'},
           {
             'urls': 'turn:global.relay.metered.ca:443',
             'username': '399188860007a1bf69aabc93',
@@ -3450,17 +3433,7 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
     try {
     final Map<String, dynamic> configuration = {
         'iceServers': [
-          { 'urls': 'stun:stun.relay.metered.ca:80' },
-          {
-            'urls': 'turn:global.relay.metered.ca:80',
-            'username': '399188860007a1bf69aabc93',
-            'credential': '8W09AX9jch39sZ2Z',
-          },
-          {
-            'urls': 'turn:global.relay.metered.ca:80?transport=tcp', // <--- CORRIGIDO AQUI
-            'username': '399188860007a1bf69aabc93',
-            'credential': '8W09AX9jch39sZ2Z',
-          },
+         {'url': 'stun:stun.l.google.com:19302'},
           {
             'urls': 'turn:global.relay.metered.ca:443',
             'username': '399188860007a1bf69aabc93',
@@ -3476,6 +3449,19 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
 
       _peerConnection = await createPeerConnection(configuration);
       _setupPeerConnectionListeners();
+      _peerConnection!.onIceConnectionState = (RTCIceConnectionState state) {
+  if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
+    // A rede falhou. O WebRTC aguenta a chamada e tenta reconectar durante ~30s.
+    if (mounted) {
+      setState(() { _callStatusText = 'Reconectando...'; });
+    }
+  } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
+    // Passaram os 30s e a internet não voltou. A chamada cai em definitivo.
+    if (mounted) {
+      Navigator.pop(context); // Substitui por outra função de fechar se usares diferente
+    }
+  }
+};
 
       _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
       for (var track in _localStream!.getTracks()) {
@@ -3508,7 +3494,7 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
     }
   }
 
-  void endCall(String targetPrivacyId) {
+  Future<void> endCall(String targetPrivacyId) async {
     final endSignal = {
       'action': 'call_end',
       'targetId': targetPrivacyId,
@@ -3521,7 +3507,8 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
     }
 
     _audioPlayer.stop();
-    _audioPlayer.play(AssetSource('sounds/end_call.mp3'));
+    await _audioPlayer.play(AssetSource('sounds/end_call.mp3'));
+    await Future.delayed(const Duration(milliseconds: 500));
     if (mounted && Navigator.canPop(context)) Navigator.pop(context);
   } 
   void _toggleMute() {
