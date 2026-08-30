@@ -54,6 +54,7 @@ dependencies:
   firebase_core: ^4.13.0
   firebase_messaging: ^16.5.0
   audioplayers: ^6.8.1
+  flutter_ringtone_player: ^4.0.0+4
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -101,7 +102,9 @@ flutter:
   generate: true
   assets:
     - assets/imagem_chamada.png.png
-    - assets/sounds/
+    - assets/sounds/ringing.mp3
+    - assets/sounds/morse.mp3
+    - assets/sounds/end_call.mp3
 
 flutter_launcher_icons:
   android: true

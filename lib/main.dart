@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:encrypt/encrypt.dart' as enc;
 import 'package:cryptography/cryptography.dart' as crypto;
@@ -3251,6 +3252,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
         _callStatusColor = const Color(0xFF00FF66);
       });
       _startMissedCallTimer();
+      FlutterRingtonePlayer().playRingtone(looping: true);
       final ringingSignal = {
         'action': 'call_ringing',
         'targetId': widget.targetId,
@@ -3387,7 +3389,8 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
             'username': '399188860007a1bf69aabc93',
             'credential': '8W09AX9jch39sZ2Z',
           },
-        ]
+        ],
+        'iceTransportPolicy': 'relay',
       };
 
       _peerConnection = await createPeerConnection(configuration);
@@ -3416,6 +3419,8 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
           'timestamp': DateTime.now().millisecondsSinceEpoch,
         };
       widget.channel?.sink.add(jsonEncode(callSignal));
+      _audioPlayer.setReleaseMode(ReleaseMode.loop);
+_audioPlayer.play(AssetSource('sounds/ringing.mp3'));
     } catch (e) {
       print('Erro ao iniciar motor WebRTC P2P: $e');
     }
@@ -3444,24 +3449,14 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
             'username': '399188860007a1bf69aabc93',
             'credential': '8W09AX9jch39sZ2Z',
           },
-        ]
+        ],
+        'iceTransportPolicy': 'relay',
       };
+      
 
       _peerConnection = await createPeerConnection(configuration);
       _setupPeerConnectionListeners();
-      _peerConnection!.onIceConnectionState = (RTCIceConnectionState state) {
-  if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
-    // A rede falhou. O WebRTC aguenta a chamada e tenta reconectar durante ~30s.
-    if (mounted) {
-      setState(() { _callStatusText = 'Reconectando...'; });
-    }
-  } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
-    // Passaram os 30s e a internet não voltou. A chamada cai em definitivo.
-    if (mounted) {
-      Navigator.pop(context); // Substitui por outra função de fechar se usares diferente
-    }
-  }
-};
+     
 
       _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
       for (var track in _localStream!.getTracks()) {
@@ -3469,6 +3464,8 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
       }
 
       if (widget.incomingSdp != null) {
+        
+  _audioPlayer.stop();
         RTCSessionDescription remoteDesc = RTCSessionDescription(
           widget.incomingSdp['sdp'],
           widget.incomingSdp['type'],
@@ -3488,7 +3485,8 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
   'timestamp': DateTime.now().millisecondsSinceEpoch,
 };
       widget.channel?.sink.add(jsonEncode(answerSignal));
-
+      _audioPlayer.stop();
+FlutterRingtonePlayer().stop();
     } catch (e) {
       print('Erro ao aceitar chamada P2P: $e');
     }
@@ -3507,6 +3505,7 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
     }
 
     _audioPlayer.stop();
+    FlutterRingtonePlayer().stop();
     await _audioPlayer.play(AssetSource('sounds/end_call.mp3'));
     await Future.delayed(const Duration(milliseconds: 500));
     if (mounted && Navigator.canPop(context)) Navigator.pop(context);
