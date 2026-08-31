@@ -592,17 +592,22 @@ final int msgTimestamp = data['timestamp'] ?? 0;
                   final vault = Hive.box('padlock_vault');
                   final sharedSecretBase64 = vault.get('shared_secret_$peerId');
 
-                  enc.Key key;
-                  if (sharedSecretBase64 != null) {
-                    key = enc.Key.fromBase64(sharedSecretBase64);
-                  } else {
-                    key = enc.Key.fromUtf8('Chave_Provisoria_P2P_AES_256_GCM');
-                  }
+                  if (sharedSecretBase64 == null) {
+  print('ALERTA: Pacote ignorado. Sem chave militar partilhada válida.');
+  return; // Bloqueio total. A execução morre aqui e o atacante fica no escuro.
+}
+final enc.Key key = enc.Key.fromBase64(sharedSecretBase64);
 
                   final iv = enc.IV.fromBase64(payloadParts[0]);
                   final encryptedData = enc.Encrypted.fromBase64(payloadParts[1]);
                   final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
                   decryptedText = encrypter.decrypt(encryptedData, iv: iv);
+                  // --- 1.3 RATCHET GLOBAL: Faz a chave avançar na receção ---
+    final rawBytes = base64Decode(sharedSecretBase64);
+    crypto.Sha256().hash(rawBytes).then((newDigest) {
+      final newSecretBase64 = base64Encode(newDigest.bytes);
+      vault.put('shared_secret_$peerId', newSecretBase64);
+    });
                 } catch (e) {
                   print('Falha na decifragem global: $e');
                 }
@@ -702,6 +707,29 @@ final int msgTimestamp = data['timestamp'] ?? 0;
           }
           
           // 3. O COFRE DE ESPERA: Dispara as mensagens que falharam antes!
+          // --- 1.2 O SNIPER: Dispara ordens de destruição pendentes só quando o alvo fica Online ---
+          final vault = Hive.box('padlock_vault');
+          final pendingStr = vault.get('pending_kills');
+          if (pendingStr != null) {
+            List<dynamic> pendingKills = jsonDecode(pendingStr);
+            List<dynamic> bulletsToKeep = [];
+            
+            for (var killSignal in pendingKills) {
+               bool isTargetOnline = false;
+               for (var c in _contacts) {
+                 if (c['id'] == killSignal['targetId'] && c['status'] == 'Online') {
+                   isTargetOnline = true; break;
+                 }
+               }
+               
+               if (isTargetOnline) {
+                 PadlockNetwork.channel!.sink.add(jsonEncode(killSignal)); // Fogo!
+               } else {
+                 bulletsToKeep.add(killSignal); // Alvo offline. Guarda a bala no carregador.
+               }
+            }
+            vault.put('pending_kills', jsonEncode(bulletsToKeep)); // Atualiza o carregador físico
+          }
           final myId = Hive.box('padlock_vault').get('user_privacy_id');
           bool salvouAlguma = false;
           for (var chat in _chats) {
@@ -1020,8 +1048,11 @@ await vault.delete('private_key_$cId');             // Destrói a chave privada
 
 // O "KILL SWITCH": Força o telemóvel a raspar o disco físico na hora
 await vault.flush();
-                    Navigator.pop(context);
-            },
+await vault.compact(); // <--- TRITURADORA FORENSE: Obriga o disco físico a apagar o rasto das chaves antigas
+if (context.mounted) {
+  Navigator.pop(context);
+}
+},
                     child: const Text('Apagar', style: TextStyle(color: Colors.red)),
                   ),
                 ],
@@ -1833,22 +1864,24 @@ SystemSound.play(SystemSoundType.click);
             final vault = Hive.box('padlock_vault');
             final sharedSecretBase64 = vault.get('shared_secret_$targetId');
             
-            enc.Key key;
-            if (sharedSecretBase64 != null) {
-              // 2. MAGIA: Destranca com o Segredo Absoluto gerado no Handshake
-              key = enc.Key.fromBase64(sharedSecretBase64);
-            } else {
-              // (Fallback de segurança caso seja um contacto antigo na transição)
-              key = enc.Key.fromUtf8('Chave_Provisoria_P2P_AES_256_GCM');
-            }
-            
-            // 3. Prepara os dados matemáticos do pacote
-            final iv = enc.IV.fromBase64(payloadParts[0]);
-            final encryptedData = enc.Encrypted.fromBase64(payloadParts[1]);
+           if (sharedSecretBase64 == null) {
+      throw Exception('FALHA CRÍTICA: Sem chave absoluta. Abortando cifra P2P.');
+    }
+    final enc.Key key = enc.Key.fromBase64(sharedSecretBase64);
+
+    // 3. Prepara os dados matemáticos do pacote
+    final iv = enc.IV.fromBase64(payloadParts[0]);
+    final encryptedData = enc.Encrypted.fromBase64(payloadParts[1]);
             
             // 4. Executa a decifragem AES-256-GCM com nível militar
             final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
             decryptedText = encrypter.decrypt(encryptedData, iv: iv);
+            // --- 1.3 RATCHET LOCAL: Faz a chave avançar na receção dentro do chat ---
+    final rawBytes = base64Decode(sharedSecretBase64);
+    crypto.Sha256().hash(rawBytes).then((newDigest) {
+      final newSecretBase64 = base64Encode(newDigest.bytes);
+      vault.put('shared_secret_$targetId', newSecretBase64);
+    });
           } catch (e) {
             print('Falha na decifragem forense: $e');
           }
@@ -2033,16 +2066,25 @@ void _checkExpiredMessages() {
     });
 
     // Sinal de Morte Bilateral para o outro telemóvel
+    final killSignal = {
+      'type': 'delete_message',
+      'timestamp': timestamp,
+      'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
+      'targetId': widget.chatData['id']
+    };
+
     try {
-      PadlockNetwork.channel?.sink.add(jsonEncode({
-        'type': 'delete_message',
-        'timestamp': timestamp,
-        'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
-        'targetId': widget.chatData['id']
-      }));
+      PadlockNetwork.channel?.sink.add(jsonEncode(killSignal));
     } catch (e) {
       print('Erro ao enviar sinal de destruição: $e');
     }
+
+    // --- 1.2 FILA DE MORTE: Guarda a ordem no cofre ---
+    final vault = Hive.box('padlock_vault');
+    String? pendingStr = vault.get('pending_kills');
+    List<dynamic> pendingKills = pendingStr != null ? jsonDecode(pendingStr) : [];
+    pendingKills.add(killSignal);
+    vault.put('pending_kills', jsonEncode(pendingKills));
 
     // Limpeza Local
     setState(() {
@@ -2050,6 +2092,22 @@ void _checkExpiredMessages() {
     });
     
     widget.onUpdate();
+    
+    // GRAVAÇÃO E TRITURAÇÃO FÍSICA NO DISCO
+    
+    final String? chatsJson = vault.get('chats');
+    if (chatsJson != null) {
+      List<dynamic> allChats = jsonDecode(chatsJson);
+      for (int i = 0; i < allChats.length; i++) {
+        if (allChats[i]['id'] == widget.chatData['id']) {
+          allChats[i] = widget.chatData;
+          break;
+        }
+      }
+      vault.put('chats', jsonEncode(allChats));
+      vault.compact(); // <--- Destrói fisicamente a versão antiga da mensagem no chip do telemóvel
+    }
+  
   }
 
   // 2. O MENU ESTILO TELEGRAM / SIGNAL (Aparece quando ficas a carregar na mensagem)
@@ -2112,7 +2170,7 @@ void _checkExpiredMessages() {
       },
     );
   }
-String _encryptAES256(String plainText) {
+Future<String> _encryptAES256(String plainText) async {
     // 1. Identifica o contacto com quem estás a falar
     final targetId = widget.chatData['id'];
     
@@ -2120,14 +2178,16 @@ String _encryptAES256(String plainText) {
     final vault = Hive.box('padlock_vault');
     final sharedSecretBase64 = vault.get('shared_secret_$targetId');
     
-    enc.Key key;
-    if (sharedSecretBase64 != null) {
-      // 3. SUCESSO: Usa a chave militar inquebrável (O Handshake funcionou)
-      key = enc.Key.fromBase64(sharedSecretBase64);
-    } else {
-      // (Fallback de segurança) Se for um contacto antigo que ainda não fez o novo handshake
-      key = enc.Key.fromUtf8('Chave_Provisoria_P2P_AES_256_GCM');
-    }
+   if (sharedSecretBase64 == null) {
+  throw Exception('FALHA CRÍTICA: Sem chave absoluta. Abortando cifra P2P.');
+}
+final enc.Key key = enc.Key.fromBase64(sharedSecretBase64);
+// --- 1.3 RATCHET: Faz a chave avançar para a frente e destrói a antiga no cofre ---
+    final rawBytes = base64Decode(sharedSecretBase64);
+    crypto.Sha256().hash(rawBytes).then((newDigest) {
+      final newSecretBase64 = base64Encode(newDigest.bytes);
+      vault.put('shared_secret_$targetId', newSecretBase64);
+    });
 
     // 4. Vetor de Inicialização (IV) Seguro e Aleatório
     final iv = enc.IV.fromSecureRandom(16);
@@ -2139,11 +2199,11 @@ String _encryptAES256(String plainText) {
     // 6. Retorna o pacote blindado (e aproveitamos para limpar aquela linha azul de aviso do VS Code)
     return '${iv.base64}:${encrypted.base64}';
   }
-void _sendMessage() {
+Future<void> _sendMessage() async {
     if (_msgController.text.trim().isEmpty) return;
     
     final rawText = _msgController.text.trim();
-    final encryptedPayload = _encryptAES256(rawText);
+    final encryptedPayload = await _encryptAES256(rawText);
     final currentTimestamp = DateTime.now().millisecondsSinceEpoch;
     final destId = widget.chatData['id'] ?? widget.chatData['peerId'] ?? widget.chatData['targetId'] ?? widget.chatData['contactId'] ?? widget.chatData.values.firstWhere((v) => v.toString().length > 30, orElse: () => '');
     
@@ -3342,7 +3402,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
           // EFEITO TÚNEL: Net caiu. Não desliga a chamada, espera que recupere.
           _callStatusText = 'Reconnecting...';
           _callStatusColor = Colors.orangeAccent;
-          _audioPlayer.play(AssetSource('sounds/morse_tone.mp3')); // Toca Morse no túnel
+          _audioPlayer.play(AssetSource('sounds/morse.mp3')); // Toca Morse no túnel
         } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed ||
                    state == RTCIceConnectionState.RTCIceConnectionStateClosed) {
           // Falha crítica irrecuperável ou chamada terminada
