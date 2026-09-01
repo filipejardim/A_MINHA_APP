@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.padlock.app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 34 
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -23,7 +23,7 @@ android {
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         multiDexEnabled = true
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
