@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
+import 'dart:typed_data';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:encrypt/encrypt.dart' as enc;
 import 'package:cryptography/cryptography.dart' as crypto;
@@ -3312,7 +3312,16 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
         _callStatusColor = const Color(0xFF00FF66);
       });
       _startMissedCallTimer();
-      FlutterRingtonePlayer().playRingtone(looping: true);
+    flutterLocalNotificationsPlugin.show(
+  99, 'Padlock', 'Chamada a entrar...',
+  NotificationDetails(android: AndroidNotificationDetails(
+    'padlock_call_v2', 'Chamadas Seguras',
+    importance: Importance.max, priority: Priority.high, playSound: true,
+    category: AndroidNotificationCategory.call,
+    audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
+    additionalFlags: Int32List.fromList(<int>[4]),
+  )),
+);
       final ringingSignal = {
         'action': 'call_ringing',
         'targetId': widget.targetId,
@@ -3546,7 +3555,7 @@ _audioPlayer.play(AssetSource('sounds/ringing.mp3'));
 };
       widget.channel?.sink.add(jsonEncode(answerSignal));
       _audioPlayer.stop();
-FlutterRingtonePlayer().stop();
+flutterLocalNotificationsPlugin.cancel(99);
     } catch (e) {
       print('Erro ao aceitar chamada P2P: $e');
     }
@@ -3565,7 +3574,7 @@ FlutterRingtonePlayer().stop();
     }
 
     _audioPlayer.stop();
-    FlutterRingtonePlayer().stop();
+    flutterLocalNotificationsPlugin.cancel(99);
     await _audioPlayer.play(AssetSource('sounds/end_call.mp3'));
     await Future.delayed(const Duration(milliseconds: 500));
     if (mounted && Navigator.canPop(context)) Navigator.pop(context);

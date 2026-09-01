@@ -54,7 +54,7 @@ dependencies:
   firebase_core: ^4.13.0
   firebase_messaging: ^16.5.0
   audioplayers: ^6.8.1
-  flutter_ringtone_player: any
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter
