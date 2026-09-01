@@ -32,14 +32,14 @@ tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
 gradle.projectsEvaluated {
-    subprojects {
-        val androidExt = extensions.findByName("android")
-        if (androidExt != null) {
-            try {
-                val method = androidExt.javaClass.getMethod("setCompileSdkVersion", Int::class.javaPrimitiveType)
-                method.invoke(androidExt, 34)
-            } catch (e: Exception) {
-                // Ignora silenciosamente se o módulo não usar o Android Extension
+   allprojects {
+    configurations.all {
+        resolutionStrategy {
+            eachDependency {
+                if (requested.group == "androidx.annotation" && requested.name == "annotation-experimental") {
+                    useVersion("1.3.0")
+                    because("Evita a exigência de compileSdk 34 em plugins legados")
+                }
             }
         }
     }
