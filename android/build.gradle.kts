@@ -31,11 +31,16 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
-subprojects {
-    afterEvaluate {
-        val android = extensions.findByName("android")
-        if (android != null) {
-            (android as com.android.build.gradle.BaseExtension).compileSdkVersion(34)
+gradle.projectsEvaluated {
+    subprojects {
+        val androidExt = extensions.findByName("android")
+        if (androidExt != null) {
+            try {
+                val method = androidExt.javaClass.getMethod("setCompileSdkVersion", Int::class.javaPrimitiveType)
+                method.invoke(androidExt, 34)
+            } catch (e: Exception) {
+                // Ignora silenciosamente se o módulo não usar o Android Extension
+            }
         }
     }
 }
