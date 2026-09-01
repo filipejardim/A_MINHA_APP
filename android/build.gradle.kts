@@ -37,7 +37,12 @@ allprojects {
             eachDependency {
                 if (requested.group == "androidx.annotation" && requested.name == "annotation-experimental") {
                     useVersion("1.3.0")
-                    because("Evita a exigência de compileSdk 34 em plugins legados")
+                }
+                if (requested.group == "androidx.lifecycle" && requested.name == "lifecycle-process") {
+                    useVersion("2.6.2")
+                }
+                if (requested.group == "androidx.exifinterface" && requested.name == "exifinterface") {
+                    useVersion("1.3.6")
                 }
             }
         }
