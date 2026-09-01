@@ -31,20 +31,3 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
-allprojects {
-    configurations.all {
-        resolutionStrategy {
-            eachDependency {
-                if (requested.group == "androidx.annotation" && requested.name == "annotation-experimental") {
-                    useVersion("1.3.0")
-                }
-                if (requested.group == "androidx.lifecycle" && requested.name == "lifecycle-process") {
-                    useVersion("2.6.2")
-                }
-                if (requested.group == "androidx.exifinterface" && requested.name == "exifinterface") {
-                    useVersion("1.3.6")
-                }
-            }
-        }
-    }
-}
