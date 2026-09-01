@@ -31,8 +31,7 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
-gradle.projectsEvaluated {
-   allprojects {
+allprojects {
     configurations.all {
         resolutionStrategy {
             eachDependency {
