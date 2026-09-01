@@ -31,3 +31,11 @@ subprojects {
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
+subprojects {
+    afterEvaluate {
+        val android = extensions.findByName("android")
+        if (android != null) {
+            (android as com.android.build.gradle.BaseExtension).compileSdkVersion(34)
+        }
+    }
+}
