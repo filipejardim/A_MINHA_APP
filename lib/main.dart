@@ -3253,13 +3253,14 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   RTCPeerConnection? _peerConnection;
   MediaStream? _localStream;
   StreamSubscription? _callSubscription;
-
+  final List<RTCIceCandidate> _candidateQueue = [];
+bool _isRemoteSet = false;
   @override
   void initState() {
     super.initState();
     
     // 1. ESCUTA ATIVA: Interceta a Resposta e as Chaves da outra pessoa em tempo real
-    _callSubscription = PadlockNetwork.messageHub.stream.listen((data) {
+    _callSubscription = PadlockNetwork.messageHub.stream.listen((data) async {
       try {
         final decoded = jsonDecode(data);
         if (decoded['action'] == 'call_answer' && !widget.isIncoming) {
@@ -3272,14 +3273,24 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
             decoded['sdp']['sdp'],
             decoded['sdp']['type'],
           );
-          _peerConnection?.setRemoteDescription(remoteDesc);
+          await _peerConnection?.setRemoteDescription(remoteDesc);
+          _isRemoteSet = true;
+          for (var candidate in _candidateQueue) {
+            await _peerConnection?.addCandidate(candidate);
+          }
+          _candidateQueue.clear();
+          _isRemoteSet = true;
         } else if (decoded['action'] == 'call_candidate') {
           RTCIceCandidate candidate = RTCIceCandidate(
             decoded['candidate']['candidate'],
             decoded['candidate']['sdpMid'],
             decoded['candidate']['sdpMLineIndex'],
           );
-          _peerConnection?.addCandidate(candidate);
+         if (_peerConnection != null && _isRemoteSet) {
+            _peerConnection!.addCandidate(candidate);
+          } else {
+            _candidateQueue.add(candidate);
+          }
         } else if (decoded['action'] == 'call_ringing' && !widget.isIncoming) {
           if (mounted) {
             setState(() {
@@ -3447,7 +3458,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
     try {
  final Map<String, dynamic> configuration = {
         'iceServers': [
-          {'url': 'stun:stun.l.google.com:19302'},
+          {'urls': 'stun:stun.l.google.com:19302'},
           {
             'urls': 'turn:global.relay.metered.ca:443',
             'username': '399188860007a1bf69aabc93',
@@ -3533,13 +3544,18 @@ _audioPlayer.play(AssetSource('sounds/ringing.mp3'));
       }
 
       if (widget.incomingSdp != null) {
-        
-  _audioPlayer.stop();
+        _audioPlayer.stop();
+        final sdpMap = (widget.incomingSdp is String) ? jsonDecode(widget.incomingSdp) : widget.incomingSdp;
         RTCSessionDescription remoteDesc = RTCSessionDescription(
-          widget.incomingSdp['sdp'],
-          widget.incomingSdp['type'],
+          sdpMap['sdp'],
+          sdpMap['type'],
         );
         await _peerConnection!.setRemoteDescription(remoteDesc);
+
+        for (var candidate in _candidateQueue) {
+          await _peerConnection!.addCandidate(candidate);
+        }
+        _candidateQueue.clear();
       }
 
       RTCSessionDescription answer = await _peerConnection!.createAnswer();
