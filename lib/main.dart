@@ -26,7 +26,7 @@ class PadlockNetwork {
   static WebSocketChannel? channel;
   static final StreamController<dynamic> messageHub = StreamController<dynamic>.broadcast();
   static ValueNotifier<String> status = ValueNotifier<String>('Offline');
-
+static final List<dynamic> earlyCandidates = [];
   // Inicializa o detetor de hardware (Net do telemóvel)
   static void initNetworkListener() {
     status.value = 'Online';
@@ -451,7 +451,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
                 // Vai dar ERRO VERMELHO aqui! Ignora e avança, vamos consertar a seguir.
                 mostrarPedidoDeConexao(senderId, senderPubKey);
               } 
-              
+              else if (data['action'] == 'call_candidate') {
+          PadlockNetwork.earlyCandidates.add(data);
+        }
       else if (data['type'] == 'wipe_chat') {
         final peerId = data['senderId'] ?? data['targetId'];
         for (var chat in _chats) {
@@ -3258,7 +3260,18 @@ bool _isRemoteSet = false;
   @override
   void initState() {
     super.initState();
-    
+    for (var candData in PadlockNetwork.earlyCandidates) {
+      final candMap = candData['candidate'];
+      if (candMap != null) {
+        RTCIceCandidate candidate = RTCIceCandidate(
+          candMap['candidate']?.toString() ?? '',
+          candMap['sdpMid']?.toString(),
+          candMap['sdpMLineIndex'] != null ? int.tryParse(candMap['sdpMLineIndex'].toString()) ?? 0 : 0,
+        );
+        _candidateQueue.add(candidate);
+      }
+    }
+    PadlockNetwork.earlyCandidates.clear();
     // 1. ESCUTA ATIVA: Interceta a Resposta e as Chaves da outra pessoa em tempo real
     _callSubscription = PadlockNetwork.messageHub.stream.listen((data) async {
       try {
@@ -3281,15 +3294,18 @@ bool _isRemoteSet = false;
           _candidateQueue.clear();
           _isRemoteSet = true;
         } else if (decoded['action'] == 'call_candidate') {
-          RTCIceCandidate candidate = RTCIceCandidate(
-            decoded['candidate']['candidate'],
-            decoded['candidate']['sdpMid'],
-            decoded['candidate']['sdpMLineIndex'],
-          );
-         if (_peerConnection != null && _isRemoteSet) {
-            _peerConnection!.addCandidate(candidate);
-          } else {
-            _candidateQueue.add(candidate);
+          final candMap = decoded['candidate'];
+          if (candMap != null) {
+            RTCIceCandidate candidate = RTCIceCandidate(
+              candMap['candidate']?.toString() ?? '',
+              candMap['sdpMid']?.toString(),
+              candMap['sdpMLineIndex'] != null ? int.tryParse(candMap['sdpMLineIndex'].toString()) ?? 0 : 0,
+            );
+            if (_peerConnection != null && _isRemoteSet) {
+              _peerConnection!.addCandidate(candidate);
+            } else {
+              _candidateQueue.add(candidate);
+            }
           }
         } else if (decoded['action'] == 'call_ringing' && !widget.isIncoming) {
           if (mounted) {
@@ -3470,7 +3486,7 @@ bool _isRemoteSet = false;
             'credential': '8W09AX9jch39sZ2Z',
           },
         ],
-        'iceTransportPolicy': 'relay',
+        
       };
 
       _peerConnection = await createPeerConnection(configuration);
@@ -3518,7 +3534,7 @@ _audioPlayer.play(AssetSource('sounds/ringing.mp3'));
     try {
     final Map<String, dynamic> configuration = {
         'iceServers': [
-         {'url': 'stun:stun.l.google.com:19302'},
+         {'urls': 'stun:stun.l.google.com:19302'},
           {
             'urls': 'turn:global.relay.metered.ca:443',
             'username': '399188860007a1bf69aabc93',
@@ -3530,7 +3546,7 @@ _audioPlayer.play(AssetSource('sounds/ringing.mp3'));
             'credential': '8W09AX9jch39sZ2Z',
           },
         ],
-        'iceTransportPolicy': 'relay',
+        
       };
       
 
@@ -3551,7 +3567,7 @@ _audioPlayer.play(AssetSource('sounds/ringing.mp3'));
           sdpMap['type'],
         );
         await _peerConnection!.setRemoteDescription(remoteDesc);
-
+_isRemoteSet = true;
         for (var candidate in _candidateQueue) {
           await _peerConnection!.addCandidate(candidate);
         }
