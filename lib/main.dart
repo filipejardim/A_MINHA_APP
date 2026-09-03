@@ -23,6 +23,7 @@ import 'package:audioplayers/audioplayers.dart';
 // Serviço de rede para conectar ao servidor
 class PadlockNetwork {
   static String? chatAbertoAtualmente;
+  static bool emChamada = false;
   static WebSocketChannel? channel;
   static final StreamController<dynamic> messageHub = StreamController<dynamic>.broadcast();
   static ValueNotifier<String> status = ValueNotifier<String>('Offline');
@@ -147,6 +148,7 @@ androidImplementation?.requestNotificationsPermission();
   bool isFirstTime = (savedPin == null);
   FirebaseMessaging.instance.getInitialMessage().then((message) {
     if (message != null && message.data['action'] == 'call_offer') {
+      if (PadlockNetwork.emChamada) return;
       final senderId = message.data['senderId'] ?? 'Unknown';
       Future.delayed(const Duration(seconds: 1), () {
         navigatorKey.currentState?.push(
@@ -167,6 +169,7 @@ androidImplementation?.requestNotificationsPermission();
 
   FirebaseMessaging.onMessageOpenedApp.listen((message) {
     if (message.data['action'] == 'call_offer') {
+      if (PadlockNetwork.emChamada) return;
       final senderId = message.data['senderId'] ?? 'Unknown';
       navigatorKey.currentState?.push(
         MaterialPageRoute(
@@ -542,7 +545,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
         if (callAge > 60000) {
           print('Chamada fantasma bloqueada (Tinha $callAge milissegundos de atraso)');
           return; // Aborta o ecrã de chamada aqui mesmo
-        }
+          }
+          if (PadlockNetwork.emChamada) return;
+        
                 showNotification('Chamada Segura', 'Estão a tentar contactar-te...');
         if (mounted) {
           Navigator.of(context).push(
@@ -611,7 +616,28 @@ final enc.Key key = enc.Key.fromBase64(sharedSecretBase64);
       vault.put('shared_secret_$peerId', newSecretBase64);
     });
                 } catch (e) {
-                  print('Falha na decifragem global: $e');
+                  try {
+                    final cureVault = Hive.box('padlock_vault');
+                    final cureSecret = cureVault.get('shared_secret_$peerId');
+                    if (cureSecret != null) {
+                      List<int> currentHash = base64Decode(cureSecret);
+      for (int i = 1; i <= 50; i++) {
+        final tempDigest = await crypto.Sha256().hash(currentHash);
+        currentHash = tempDigest.bytes;
+        final testKey = enc.Key.fromBase64(base64Encode(currentHash));
+        try {
+          decryptedText = enc.Encrypter(enc.AES(testKey, mode: enc.AESMode.gcm))
+              .decrypt(enc.Encrypted.fromBase64(payloadParts[1]), iv: enc.IV.fromBase64(payloadParts[0]));
+          break;
+        } catch (ignored) {}
+      }
+                          
+                      final finalDigest = await crypto.Sha256().hash(currentHash);
+                      cureVault.put('shared_secret_$peerId', base64Encode(finalDigest.bytes));
+                    }
+                  } catch (e2) {
+                    print('Falha irreparável: $e2');
+                  }
                 }
               }
 
@@ -632,6 +658,7 @@ final enc.Key key = enc.Key.fromBase64(sharedSecretBase64);
               });
 
               Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
+              Future.delayed(const Duration(seconds: 3), () => Hive.box('padlock_vault').compact());
               try {
                // html.Notification(
                // 'PADLOCK', 
@@ -1796,7 +1823,7 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
       }
     });
     // Escuta bilateral de mensagens recebidas via WebSocket P2P
-    _chatSubscription = PadlockNetwork.messageHub.stream.listen((data) {
+    _chatSubscription = PadlockNetwork.messageHub.stream.listen((data) async {
      print('TESTE DE ENTRADA DO WEBSOCKET: $data');
      
       try {
@@ -1885,7 +1912,21 @@ SystemSound.play(SystemSoundType.click);
       vault.put('shared_secret_$targetId', newSecretBase64);
     });
           } catch (e) {
-            print('Falha na decifragem forense: $e');
+            try {
+              final cureVault = Hive.box('padlock_vault');
+              final targetId = widget.chatData['id'];
+              final cureSecret = cureVault.get('shared_secret_$targetId');
+              if (cureSecret != null) {
+                final cureDigest = await crypto.Sha256().hash(base64Decode(cureSecret));
+                final cureKey = enc.Key.fromBase64(base64Encode(cureDigest.bytes));
+                decryptedText = enc.Encrypter(enc.AES(cureKey, mode: enc.AESMode.gcm))
+                    .decrypt(enc.Encrypted.fromBase64(payloadParts[1]), iv: enc.IV.fromBase64(payloadParts[0]));
+                final finalDigest = await crypto.Sha256().hash(cureDigest.bytes);
+                cureVault.put('shared_secret_$targetId', base64Encode(finalDigest.bytes));
+              }
+            } catch (e2) {
+              print('Falha forense irreparável: $e2');
+            }
           }
 }
        setState(() {
@@ -1913,6 +1954,7 @@ SystemSound.play(SystemSoundType.click);
       
       // 2. Empurra o ecrã automaticamente para baixo para não ficar debaixo do telefone!
       _scrollToBottom();
+      Future.delayed(const Duration(seconds: 3), () => Hive.box('padlock_vault').compact());
           // 1. O SEGREDO: A Metralhadora dispara os vistos para a nova mensagem recebida!
         _forceReadReceipts();
         Future.delayed(const Duration(milliseconds: 1500), _forceReadReceipts);
@@ -2261,6 +2303,7 @@ Future<void> _sendMessage() async {
         vault.put('chats', jsonEncode([widget.chatData]));
       }
     _scrollToBottom();
+    Future.delayed(const Duration(seconds: 3), () => Hive.box('padlock_vault').compact());
   }
 
  void _scrollToBottom() {
@@ -3245,6 +3288,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   Timer? _ringingTimer; // Temporizador para o som do tuuu... tuuu
   int _secondsElapsed = 0;
   bool _callHandled = false;
+  bool _isEnding = false;
   bool _isMuted = false;
   bool _isSpeakerOn = false;
   final AudioPlayer _audioPlayer = AudioPlayer();
@@ -3260,6 +3304,7 @@ bool _isRemoteSet = false;
   @override
   void initState() {
     super.initState();
+    PadlockNetwork.emChamada = true;
     for (var candData in PadlockNetwork.earlyCandidates) {
       final candMap = candData['candidate'];
       if (candMap != null) {
@@ -3360,6 +3405,7 @@ bool _isRemoteSet = false;
   @override
   void dispose() {
     _callSubscription?.cancel();
+    PadlockNetwork.emChamada = false;
     _callTimeoutTimer?.cancel();
     _activeCallTimer?.cancel();
     _ringingTimer?.cancel();
@@ -3486,7 +3532,8 @@ bool _isRemoteSet = false;
             'credential': '8W09AX9jch39sZ2Z',
           },
         ],
-        
+        'bundlePolicy': 'max-bundle',
+        'rtcpMuxPolicy': 'require',
       };
 
       _peerConnection = await createPeerConnection(configuration);
@@ -3546,7 +3593,8 @@ _audioPlayer.play(AssetSource('sounds/ringing.mp3'));
             'credential': '8W09AX9jch39sZ2Z',
           },
         ],
-        
+        'bundlePolicy': 'max-bundle',
+        'rtcpMuxPolicy': 'require',
       };
       
 
@@ -3594,16 +3642,27 @@ flutterLocalNotificationsPlugin.cancel(99);
   }
 
   Future<void> endCall(String targetPrivacyId) async {
+    if (_isEnding) return;
+    _isEnding = true;
     final endSignal = {
       'action': 'call_end',
       'targetId': targetPrivacyId,
     };
     widget.channel?.sink.add(jsonEncode(endSignal));
-    _peerConnection?.close();
+    try {
+      _peerConnection?.close();
+      _peerConnection?.dispose();
+      _peerConnection = null;
+    } catch (e) {}
 
-    if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
-      _localStream!.getAudioTracks()[0].enableSpeakerphone(true);
-    }
+    try {
+      if (_localStream != null) {
+        for (var track in _localStream!.getTracks()) track.stop();
+        if (_localStream!.getAudioTracks().isNotEmpty) _localStream!.getAudioTracks()[0].enableSpeakerphone(true);
+        _localStream!.dispose();
+        _localStream = null;
+      }
+    } catch (e) {}
 
     _audioPlayer.stop();
     flutterLocalNotificationsPlugin.cancel(99);
