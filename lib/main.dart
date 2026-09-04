@@ -10,15 +10,15 @@ import 'package:flutter/services.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+
 // --- NOVAS FERRAMENTAS DE DADOS ---
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 import 'package:audioplayers/audioplayers.dart';
 // Serviço de rede para conectar ao servidor
 class PadlockNetwork {
@@ -719,6 +719,16 @@ final enc.Key key = enc.Key.fromBase64(sharedSecretBase64);
             
        // --- 2. O RADAR: PERGUNTA AO RENDER A CADA 10 SEGUNDOS ---
     _statusTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
+      if (PadlockNetwork.channel == null) {
+        PadlockNetwork.connect();
+        Future.delayed(const Duration(seconds: 1), () {
+          final myId = Hive.box('padlock_vault').get('user_privacy_id');
+          if (myId != null && PadlockNetwork.channel != null) {
+            PadlockNetwork.channel!.sink.add(jsonEncode({'type': 'register', 'senderId': myId}));
+          }
+        });
+        return; 
+      }
       if (PadlockNetwork.channel != null) {
         // 1. O Batimento Cardíaco para não deixar a net cair
         PadlockNetwork.channel!.sink.add(jsonEncode({'type': 'ping'}));
@@ -1907,10 +1917,10 @@ SystemSound.play(SystemSoundType.click);
             decryptedText = encrypter.decrypt(encryptedData, iv: iv);
             // --- 1.3 RATCHET LOCAL: Faz a chave avançar na receção dentro do chat ---
     final rawBytes = base64Decode(sharedSecretBase64);
-    crypto.Sha256().hash(rawBytes).then((newDigest) {
-      final newSecretBase64 = base64Encode(newDigest.bytes);
-      vault.put('shared_secret_$targetId', newSecretBase64);
-    });
+   final newDigest = await crypto.Sha256().hash(rawBytes);
+final newSecretBase64 = base64Encode(newDigest.bytes);
+await vault.put('shared_secret_$targetId', newSecretBase64);
+
           } catch (e) {
             try {
               final cureVault = Hive.box('padlock_vault');
@@ -1918,11 +1928,18 @@ SystemSound.play(SystemSoundType.click);
               final cureSecret = cureVault.get('shared_secret_$targetId');
               if (cureSecret != null) {
                 final cureDigest = await crypto.Sha256().hash(base64Decode(cureSecret));
-                final cureKey = enc.Key.fromBase64(base64Encode(cureDigest.bytes));
-                decryptedText = enc.Encrypter(enc.AES(cureKey, mode: enc.AESMode.gcm))
-                    .decrypt(enc.Encrypted.fromBase64(payloadParts[1]), iv: enc.IV.fromBase64(payloadParts[0]));
-                final finalDigest = await crypto.Sha256().hash(cureDigest.bytes);
-                cureVault.put('shared_secret_$targetId', base64Encode(finalDigest.bytes));
+                List<int> currentHash = base64Decode(cureSecret);
+                    for (int i = 1; i <= 50; i++) {
+                      final tempDigest = await crypto.Sha256().hash(currentHash);
+                      currentHash = tempDigest.bytes;
+                      final testKey = enc.Key.fromBase64(base64Encode(currentHash));
+                      try {
+                        decryptedText = enc.Encrypter(enc.AES(testKey, mode: enc.AESMode.gcm)).decrypt(enc.Encrypted.fromBase64(payloadParts[1]), iv: enc.IV.fromBase64(payloadParts[0]));
+                        break;
+                      } catch (ignored) {}
+                    }
+                    final finalDigest = await crypto.Sha256().hash(currentHash);
+                    cureVault.put('shared_secret_$targetId', base64Encode(finalDigest.bytes));
               }
             } catch (e2) {
               print('Falha forense irreparável: $e2');
@@ -1995,26 +2012,7 @@ SystemSound.play(SystemSoundType.click);
           widget.onUpdate(); // Força as listas de trás a atualizarem-se também
         }
       }
-      else if (decoded['action'] == 'call_offer') {
-        if (mounted) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => ActiveCallScreen(
-                local: widget.local,
-                recipientName: widget.chatData['name'],
-                targetId: widget.chatData['id'], 
-                isIncoming: true,
-                channel: PadlockNetwork.channel,
-                incomingSdp: decoded['sdp'], 
-              ),
-            ),
-          );
-        }
-      } else if (decoded['action'] == 'call_end') {
-        if (mounted) {
-          Navigator.of(context).pop();
-        }
-      }
+     
     } catch (e) {
       print('Erro no fluxo de entrada P2P: $e');
     }
@@ -2228,10 +2226,9 @@ Future<String> _encryptAES256(String plainText) async {
 final enc.Key key = enc.Key.fromBase64(sharedSecretBase64);
 // --- 1.3 RATCHET: Faz a chave avançar para a frente e destrói a antiga no cofre ---
     final rawBytes = base64Decode(sharedSecretBase64);
-    crypto.Sha256().hash(rawBytes).then((newDigest) {
-      final newSecretBase64 = base64Encode(newDigest.bytes);
-      vault.put('shared_secret_$targetId', newSecretBase64);
-    });
+   final newDigest = await crypto.Sha256().hash(rawBytes);
+    final newSecretBase64 = base64Encode(newDigest.bytes);
+    await vault.put('shared_secret_$targetId', newSecretBase64);
 
     // 4. Vetor de Inicialização (IV) Seguro e Aleatório
     final iv = enc.IV.fromSecureRandom(16);
@@ -3363,6 +3360,16 @@ bool _isRemoteSet = false;
     _audioPlayer.play(AssetSource('sounds/ringing.mp3')).catchError((e) => print('Erro audio: $e'));
           }
         }
+        else if (decoded['action'] == 'call_end') {
+          if (mounted) {
+            _audioPlayer.stop();
+            flutterLocalNotificationsPlugin.cancel(99);
+            _audioPlayer.play(AssetSource('sounds/end_call.mp3'));
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (mounted && Navigator.canPop(context)) Navigator.pop(context);
+            });
+          }
+        }
       } catch (e) {
         print('Erro a processar pacote P2P na chamada: $e');
       }
@@ -3485,6 +3492,7 @@ bool _isRemoteSet = false;
           _callStatusText = 'Reconnecting...';
           _callStatusColor = Colors.orangeAccent;
           _audioPlayer.play(AssetSource('sounds/morse.mp3')); // Toca Morse no túnel
+          _peerConnection?.restartIce(); // Força a religação à nova rede (Wi-Fi -> 5G)
         } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed ||
                    state == RTCIceConnectionState.RTCIceConnectionStateClosed) {
           // Falha crítica irrecuperável ou chamada terminada
@@ -3521,13 +3529,14 @@ bool _isRemoteSet = false;
  final Map<String, dynamic> configuration = {
         'iceServers': [
           {'urls': 'stun:stun.l.google.com:19302'},
+          {'urls': 'stun:global.relay.metered.ca:80'},
           {
-            'urls': 'turn:global.relay.metered.ca:443',
+            'urls': 'turn:global.relay.metered.ca:80',
             'username': '399188860007a1bf69aabc93',
             'credential': '8W09AX9jch39sZ2Z',
           },
           {
-            'urls': 'turn:global.relay.metered.ca:443?transport=tcp', // <--- CORRIGIDO AQUI
+            'urls': 'turns:global.relay.metered.ca:443?transport=tcp',
             'username': '399188860007a1bf69aabc93',
             'credential': '8W09AX9jch39sZ2Z',
           },
@@ -3580,15 +3589,16 @@ _audioPlayer.play(AssetSource('sounds/ringing.mp3'));
 
     try {
     final Map<String, dynamic> configuration = {
-        'iceServers': [
-         {'urls': 'stun:stun.l.google.com:19302'},
+      'iceServers': [
+          {'urls': 'stun:stun.l.google.com:19302'},
+          {'urls': 'stun:global.relay.metered.ca:80'},
           {
-            'urls': 'turn:global.relay.metered.ca:443',
+            'urls': 'turn:global.relay.metered.ca:80',
             'username': '399188860007a1bf69aabc93',
             'credential': '8W09AX9jch39sZ2Z',
           },
           {
-            'urls': 'turn:global.relay.metered.ca:443?transport=tcp', // <--- CORRIGIDO AQUI
+            'urls': 'turns:global.relay.metered.ca:443?transport=tcp',
             'username': '399188860007a1bf69aabc93',
             'credential': '8W09AX9jch39sZ2Z',
           },
