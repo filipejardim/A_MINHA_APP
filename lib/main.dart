@@ -20,6 +20,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 // Serviço de rede para conectar ao servidor
 class PadlockNetwork {
   static String? chatAbertoAtualmente;
@@ -621,6 +622,7 @@ final enc.Key key = enc.Key.fromBase64(sharedSecretBase64);
                     final cureSecret = cureVault.get('shared_secret_$peerId');
                     if (cureSecret != null) {
                       List<int> currentHash = base64Decode(cureSecret);
+                      bool recuperou = false;
       for (int i = 1; i <= 50; i++) {
         final tempDigest = await crypto.Sha256().hash(currentHash);
         currentHash = tempDigest.bytes;
@@ -628,10 +630,12 @@ final enc.Key key = enc.Key.fromBase64(sharedSecretBase64);
         try {
           decryptedText = enc.Encrypter(enc.AES(testKey, mode: enc.AESMode.gcm))
               .decrypt(enc.Encrypted.fromBase64(payloadParts[1]), iv: enc.IV.fromBase64(payloadParts[0]));
+              recuperou = true;
           break;
         } catch (ignored) {}
       }
-                          
+                          if (recuperou) {
+                            }
                       final finalDigest = await crypto.Sha256().hash(currentHash);
                       cureVault.put('shared_secret_$peerId', base64Encode(finalDigest.bytes));
                     }
@@ -1929,15 +1933,19 @@ await vault.put('shared_secret_$targetId', newSecretBase64);
               if (cureSecret != null) {
                 final cureDigest = await crypto.Sha256().hash(base64Decode(cureSecret));
                 List<int> currentHash = base64Decode(cureSecret);
+                bool recuperou = false;
                     for (int i = 1; i <= 50; i++) {
                       final tempDigest = await crypto.Sha256().hash(currentHash);
                       currentHash = tempDigest.bytes;
                       final testKey = enc.Key.fromBase64(base64Encode(currentHash));
                       try {
                         decryptedText = enc.Encrypter(enc.AES(testKey, mode: enc.AESMode.gcm)).decrypt(enc.Encrypted.fromBase64(payloadParts[1]), iv: enc.IV.fromBase64(payloadParts[0]));
+                        recuperou = true;
                         break;
                       } catch (ignored) {}
                     }
+                    if (recuperou) {
+                      }
                     final finalDigest = await crypto.Sha256().hash(currentHash);
                     cureVault.put('shared_secret_$targetId', base64Encode(finalDigest.bytes));
               }
@@ -3302,6 +3310,7 @@ bool _isRemoteSet = false;
   void initState() {
     super.initState();
     PadlockNetwork.emChamada = true;
+    WakelockPlus.enable();
     for (var candData in PadlockNetwork.earlyCandidates) {
       final candMap = candData['candidate'];
       if (candMap != null) {
@@ -3413,6 +3422,7 @@ bool _isRemoteSet = false;
   void dispose() {
     _callSubscription?.cancel();
     PadlockNetwork.emChamada = false;
+    WakelockPlus.disable();
     _callTimeoutTimer?.cancel();
     _activeCallTimer?.cancel();
     _ringingTimer?.cancel();
