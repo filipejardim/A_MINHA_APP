@@ -55,6 +55,7 @@ dependencies:
   firebase_messaging: ^16.5.0
   audioplayers: ^6.8.1
   wakelock_plus: ^1.5.2
+  flutter_callkit_incoming: ^2.0.1
   
 dev_dependencies:
   flutter_test:

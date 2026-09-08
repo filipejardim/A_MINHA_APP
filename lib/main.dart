@@ -3,7 +3,8 @@ import 'dart:typed_data';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:encrypt/encrypt.dart' as enc;
 import 'package:cryptography/cryptography.dart' as crypto;
-
+import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
+import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -410,6 +411,26 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
 @override
   void initState() {
     super.initState();
+    FlutterCallkitIncoming.onEvent.listen((event) {
+      if (event!.event == Event.actionCallAccept) {
+        final targetId = event.body['extra']['targetId'];
+        final sdp = jsonDecode(event.body['extra']['sdp']);
+
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(
+            builder: (context) => ActiveCallScreen(
+              local: t[widget.currentLanguage.toUpperCase()] ?? t['EN']!,
+              recipientName: targetId,
+              targetId: targetId,
+              isIncoming: true,
+              channel: PadlockNetwork.channel,
+              incomingSdp: sdp,
+              acceptedViaCallKit: true,
+            ),
+          ),
+        );
+      }
+    });
     PadlockNetwork.connect();
     WidgetsBinding.instance.addObserver(this);
     _generateNewId();
@@ -549,22 +570,29 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
           }
           if (PadlockNetwork.emChamada) return;
         
-                showNotification('Chamada Segura', 'Estão a tentar contactar-te...');
-        if (mounted) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => ActiveCallScreen(
-                local: t[widget.currentLanguage.toUpperCase()] ?? t['EN']!,
-                recipientName: data['senderId'],
-                targetId: data['senderId'],
-                isIncoming: true,
-                channel: PadlockNetwork.channel,
-                incomingSdp: data['sdp'], // <--- APANHA O SINAL DE VOZ
-              ),
-            ),
-          );
-        }
-      }
+               if (mounted) {
+   FlutterCallkitIncoming.showCallkitIncoming(
+    CallKitParams(
+      id: data['senderId'],
+      nameCaller: data['senderId'],
+      appName: 'Padlock',
+      avatar: '',
+      handle: 'You have an encrypted call',
+      type: 0,
+      duration: 30000,
+      textAccept: 'Atender',
+      textDecline: 'Recusar',
+      extra: {'targetId': data['senderId'], 'sdp': jsonEncode(data['sdp'])},
+      android: AndroidParams(
+        isCustomNotification: true,
+        isShowLogo: true,
+        backgroundColor: '#000000',
+        actionColor: '#00FF66',
+      ),
+    ),
+  );
+}
+}
               else if (data['type'] == 'secure_message') {
                 
                 if (data['senderId'] == Hive.box('padlock_vault').get('user_privacy_id')) return;
@@ -719,7 +747,7 @@ final enc.Key key = enc.Key.fromBase64(sharedSecretBase64);
               }
             });
           }
-            }); // Fim do listen do messageHub
+        }); // Fim do listen do messageHub
             
        // --- 2. O RADAR: PERGUNTA AO RENDER A CADA 10 SEGUNDOS ---
     _statusTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
@@ -821,6 +849,7 @@ final enc.Key key = enc.Key.fromBase64(sharedSecretBase64);
     _inactivityTimer?.cancel();
    _inactivityTimer = Timer(const Duration(minutes: 15), () {
       print('Sessão de 15 Minutos expirada. A forçar Logout.');
+      if (PadlockNetwork.emChamada == true) return;
       _logout();
     });
   }
@@ -3273,6 +3302,7 @@ class ActiveCallScreen extends StatefulWidget {
   final bool isIncoming;
   final dynamic channel;
   final dynamic incomingSdp; 
+  final bool acceptedViaCallKit;
 
   const ActiveCallScreen({
     super.key,
@@ -3282,6 +3312,7 @@ class ActiveCallScreen extends StatefulWidget {
     this.isIncoming = false,
     this.channel,
     this.incomingSdp,
+    this.acceptedViaCallKit = false,
   });
 
   @override
@@ -3366,6 +3397,15 @@ bool _isRemoteSet = false;
             });
             _audioPlayer.stop();
     _audioPlayer.setReleaseMode(ReleaseMode.loop);
+    await _audioPlayer.setAudioContext(AudioContext(
+  android: AudioContextAndroid(
+    isSpeakerphoneOn: true,
+    stayAwake: true,
+    contentType: AndroidContentType.music,
+    usageType: AndroidUsageType.voiceCommunicationSignalling,
+    audioFocus: AndroidAudioFocus.gainTransient,
+  ),
+));
     _audioPlayer.play(AssetSource('sounds/ringing.mp3')).catchError((e) => print('Erro audio: $e'));
           }
         }
@@ -3400,21 +3440,17 @@ bool _isRemoteSet = false;
         _callStatusColor = const Color(0xFF00FF66);
       });
       _startMissedCallTimer();
-    flutterLocalNotificationsPlugin.show(
-  99, 'Padlock', 'Chamada a entrar...',
-  NotificationDetails(android: AndroidNotificationDetails(
-    'padlock_call_v2', 'Chamadas Seguras',
-    importance: Importance.max, priority: Priority.high, playSound: true,
-    category: AndroidNotificationCategory.call,
-    audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
-    additionalFlags: Int32List.fromList(<int>[4]),
-  )),
-);
+    
       final ringingSignal = {
         'action': 'call_ringing',
         'targetId': widget.targetId,
       };
       widget.channel?.sink.add(jsonEncode(ringingSignal));
+      if (widget.acceptedViaCallKit) {
+        _callHandled = true;
+        _callTimeoutTimer?.cancel();
+        acceptSecureCall();
+      }
     }
   }
 
@@ -3582,6 +3618,15 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
         };
       widget.channel?.sink.add(jsonEncode(callSignal));
       _audioPlayer.setReleaseMode(ReleaseMode.loop);
+      await _audioPlayer.setAudioContext(AudioContext(
+  android: AudioContextAndroid(
+    isSpeakerphoneOn: true,
+    stayAwake: true,
+    contentType: AndroidContentType.music,
+    usageType: AndroidUsageType.voiceCommunicationSignalling,
+    audioFocus: AndroidAudioFocus.gainTransient,
+  ),
+));
 _audioPlayer.play(AssetSource('sounds/ringing.mp3'));
     } catch (e) {
       print('Erro ao iniciar motor WebRTC P2P: $e');
@@ -3662,6 +3707,7 @@ flutterLocalNotificationsPlugin.cancel(99);
   }
 
   Future<void> endCall(String targetPrivacyId) async {
+    PadlockNetwork.emChamada = false;
     if (_isEnding) return;
     _isEnding = true;
     final endSignal = {
