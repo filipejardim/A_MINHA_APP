@@ -116,6 +116,27 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  FlutterCallkitIncoming.onEvent.listen((event) {
+    if (event!.event == Event.actionCallAccept) {
+      if (PadlockNetwork.emChamada) return;
+      PadlockNetwork.emChamada = true;
+      final targetId = event.body['extra']['targetId'];
+      final sdp = jsonDecode(event.body['extra']['sdp']);
+      navigatorKey.currentState?.push(
+        MaterialPageRoute(
+          builder: (context) => ActiveCallScreen(
+            local: t['EN']!,
+            recipientName: targetId,
+            targetId: targetId,
+            isIncoming: true,
+            channel: PadlockNetwork.channel,
+            incomingSdp: sdp,
+            acceptedViaCallKit: true,
+          ),
+        ),
+      );
+    }
+  });
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   final fcmToken = await FirebaseMessaging.instance.getToken();
   print("O TOKEN (MORADA) DESTE TELEMÓVEL: $fcmToken");
@@ -413,6 +434,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
     super.initState();
     FlutterCallkitIncoming.onEvent.listen((event) {
       if (event!.event == Event.actionCallAccept) {
+        if (PadlockNetwork.emChamada) return;
+      PadlockNetwork.emChamada = true;
         final targetId = event.body['extra']['targetId'];
         final sdp = jsonDecode(event.body['extra']['sdp']);
 
@@ -640,10 +663,9 @@ final enc.Key key = enc.Key.fromBase64(sharedSecretBase64);
                   decryptedText = encrypter.decrypt(encryptedData, iv: iv);
                   // --- 1.3 RATCHET GLOBAL: Faz a chave avançar na receção ---
     final rawBytes = base64Decode(sharedSecretBase64);
-    crypto.Sha256().hash(rawBytes).then((newDigest) {
-      final newSecretBase64 = base64Encode(newDigest.bytes);
-      vault.put('shared_secret_$peerId', newSecretBase64);
-    });
+    final newDigest = await crypto.Sha256().hash(rawBytes);
+final newSecretBase64 = base64Encode(newDigest.bytes);
+await vault.put('shared_secret_$peerId', newSecretBase64);
                 } catch (e) {
                   try {
                     final cureVault = Hive.box('padlock_vault');
@@ -3399,7 +3421,7 @@ bool _isRemoteSet = false;
     _audioPlayer.setReleaseMode(ReleaseMode.loop);
     await _audioPlayer.setAudioContext(AudioContext(
   android: AudioContextAndroid(
-    isSpeakerphoneOn: true,
+    isSpeakerphoneOn: false,
     stayAwake: true,
     contentType: AndroidContentType.music,
     usageType: AndroidUsageType.voiceCommunicationSignalling,
@@ -3620,7 +3642,7 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
       _audioPlayer.setReleaseMode(ReleaseMode.loop);
       await _audioPlayer.setAudioContext(AudioContext(
   android: AudioContextAndroid(
-    isSpeakerphoneOn: true,
+   isSpeakerphoneOn: false,
     stayAwake: true,
     contentType: AndroidContentType.music,
     usageType: AndroidUsageType.voiceCommunicationSignalling,
