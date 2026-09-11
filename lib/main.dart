@@ -261,7 +261,7 @@ class _PadlockAppState extends State<PadlockApp> {
         primaryColor: const Color(0xFF8B0000),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: Color(0xFF0F0F0F),
-          selectedItemColor: Color(0xFF8B0000),
+          selectedItemColor: const Color(0xFF00FF66),
           unselectedItemColor: Colors.grey,
         ),
       ),
@@ -1622,7 +1622,7 @@ setState(() {
             child: Container(
               padding: const EdgeInsets.all(4),
               decoration: const BoxDecoration(
-                color: Color(0xFF880000),
+                color: const Color(0xFF00FF66),
                 shape: BoxShape.circle,
               ),
               constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
@@ -3303,10 +3303,10 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildPremiumTile(BuildContext context) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.diamond, color: Colors.amber, size: 28),
+      leading: const Text('💎', style: TextStyle(fontSize: 24)),
       title: const Row(
         children: [
-          Text('Secure Crypto Vault', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 15)),
+          Text('Secure Crypto Vault', style: TextStyle(color: Colors.lightBlueAccent, fontWeight: FontWeight.bold, fontSize: 15)),
           SizedBox(width: 8),
           Icon(Icons.lock, color: Colors.greenAccent, size: 16),
         ],
@@ -3315,21 +3315,21 @@ class SettingsScreen extends StatelessWidget {
         padding: EdgeInsets.only(top: 4.0),
         child: Text('Maximum security storage for your digital assets.', style: TextStyle(color: Colors.white60, fontSize: 11)),
       ),
-      trailing: const Icon(Icons.chevron_right, color: Colors.amber),
+      trailing: const Icon(Icons.chevron_right, color: Colors.lightBlueAccent),
       onTap: () {
         showDialog(
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: const Color(0xFF151515),
             shape: RoundedRectangleBorder(
-              side: const BorderSide(color: Colors.amber, width: 1.5),
+              side: const BorderSide(color: Colors.lightBlueAccent, width: 1.5),
               borderRadius: BorderRadius.circular(12),
             ),
             title: const Row(
               children: [
-                Icon(Icons.diamond, color: Colors.amber),
+                Text('💎', style: TextStyle(fontSize: 22)),
                 SizedBox(width: 10),
-                Text('PREMIUM REQUIRED', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 14)),
+                Text('PREMIUM REQUIRED', style: TextStyle(color: Colors.lightBlueAccent, fontWeight: FontWeight.bold, fontSize: 14)),
               ],
             ),
             content: const Text(
@@ -3655,7 +3655,7 @@ Widget build(BuildContext context) {
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   width: 82,
-                  padding: const EdgeInsets.only(top: 4, bottom: 8),
+                  height: 66,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     gradient: const LinearGradient(
@@ -3683,7 +3683,7 @@ Widget build(BuildContext context) {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // O Diamante gigante
-                      Text('💎', style: TextStyle(fontSize: 34)), 
+                      Text('💎', style: TextStyle(fontSize: 22)), 
                       SizedBox(height: 2),
                       // O texto em Branco Pérola no fundo
                       Text(
@@ -3713,7 +3713,7 @@ Widget build(BuildContext context) {
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
                     width: 82,
-                    padding: const EdgeInsets.only(top: 4, bottom: 8),
+                  height: 66,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       gradient: const LinearGradient(
