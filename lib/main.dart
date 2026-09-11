@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:flutter_barcode_scanner/flutter_barcode_scanner.dart';
 import 'package:encrypt/encrypt.dart' as enc;
 import 'package:cryptography/cryptography.dart' as crypto;
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
@@ -73,27 +75,26 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   final int notificationId = senderId.hashCode;
 
   if (isCall) {
-    // --- POP-UP DE CHAMADA MILITAR (ACENDE ECRÃ E TOCA CAMPAINHA) ---
-    const AndroidNotificationDetails callDetails = AndroidNotificationDetails(
-      'padlock_call_v2', 'Chamadas Seguras', // Mudar para v2 força o Android a mostrar o ecrã inteiro
-      importance: Importance.max,
-      priority: Priority.high,
-      playSound: true,
-      fullScreenIntent: true, // <--- A MÁGICA QUE ACENDE O ECRÃ NO BOLSO
-      category: AndroidNotificationCategory.call, // <--- A MÁGICA QUE FAZ TOCAR COMO CHAMADA
-      audioAttributesUsage: AudioAttributesUsage.notificationRingtone,
-      actions: [
-        AndroidNotificationAction('accept_call', '✅ ATENDER', showsUserInterface: true),
-        AndroidNotificationAction('deny_call', '❌ REJEITAR', showsUserInterface: false),
-      ],
-    );
-
-    await localNotif.show(
-      notificationId,
-      'Padlock',
-      'Encrypted Call from $senderId',
-      const NotificationDetails(android: callDetails),
-      payload: 'call:$senderId',
+    // DISPARA O ECRÃ NATIVO DE CHAMADA DO TELEMÓVEL
+    await FlutterCallkitIncoming.showCallkitIncoming(
+      CallKitParams(
+        id: senderId,
+        nameCaller: senderId,
+        appName: 'Padlock',
+        avatar: '',
+        handle: 'Encrypted Call',
+        type: 0,
+        duration: 30000,
+        textAccept: 'Atender',
+        textDecline: 'Recusar',
+        extra: {'targetId': senderId, 'sdp': message.data['sdp']},
+        android: const AndroidParams(
+          isCustomNotification: true,
+          isShowLogo: true,
+          backgroundColor: '#000000',
+          actionColor: '#00FF66',
+        ),
+      ),
     );
   } else {
     // --- POP-UP DE MENSAGEM MILITAR ---
@@ -135,8 +136,27 @@ void main() async {
           ),
         ),
       );
-    }
+    } else if (event.event == Event.actionCallDecline) {
+        final targetId = event.body['extra']['targetId'];
+        final tempChannel = WebSocketChannel.connect(Uri.parse('wss://servidor-padlock.onrender.com'));
+        tempChannel.sink.add(jsonEncode({'action': 'call_end', 'targetId': targetId}));
+        Future.delayed(const Duration(milliseconds: 1500), () => tempChannel.sink.close());
+      
+      } else if (event!.event == Event.actionCallTimeout) {
+        final targetId = event.body['extra']['targetId'];
+        final vault = Hive.box('padlock_vault');
+        List allChats = jsonDecode(vault.get('chats') ?? '[]');
+        int idx = allChats.indexWhere((c) => c['id'] == targetId);
+        if (idx != -1) {
+          final timeStr = "${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}";
+          allChats[idx]['messages'].add({'text': '📞 Missed Call ($timeStr)', 'isMe': false, 'status': 'missed', 'timestamp': DateTime.now().millisecondsSinceEpoch});
+          allChats[idx]['msg'] = '📞 Missed Call';
+          allChats[idx]['unread'] = (allChats[idx]['unread'] ?? 0) + 1;
+          vault.put('chats', jsonEncode(allChats));
+        }
+        }
   });
+  
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   final fcmToken = await FirebaseMessaging.instance.getToken();
   print("O TOKEN (MORADA) DESTE TELEMÓVEL: $fcmToken");
@@ -452,6 +472,23 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
             ),
           ),
         );
+      } else if (event.event == Event.actionCallDecline) {
+        final targetId = event.body['extra']['targetId'];
+        final tempChannel = WebSocketChannel.connect(Uri.parse('wss://servidor-padlock.onrender.com'));
+        tempChannel.sink.add(jsonEncode({'action': 'call_end', 'targetId': targetId}));
+        Future.delayed(const Duration(milliseconds: 1500), () => tempChannel.sink.close());
+      } else if (event.event == Event.actionCallTimeout) {
+        final targetId = event.body['extra']['targetId'];
+        final vault = Hive.box('padlock_vault');
+        List allChats = jsonDecode(vault.get('chats') ?? '[]');
+        int idx = allChats.indexWhere((c) => c['id'] == targetId);
+        if (idx != -1) {
+          final timeStr = "${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}";
+          allChats[idx]['messages'].add({'text': '📞 Missed Call ($timeStr)', 'isMe': false, 'status': 'missed', 'timestamp': DateTime.now().millisecondsSinceEpoch});
+          allChats[idx]['msg'] = '📞 Missed Call';
+          allChats[idx]['unread'] = (allChats[idx]['unread'] ?? 0) + 1;
+          vault.put('chats', jsonEncode(allChats));
+        }
       }
     });
     PadlockNetwork.connect();
@@ -591,7 +628,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
           print('Chamada fantasma bloqueada (Tinha $callAge milissegundos de atraso)');
           return; // Aborta o ecrã de chamada aqui mesmo
           }
-          if (PadlockNetwork.emChamada) return;
+          if (PadlockNetwork.emChamada) {
+          PadlockNetwork.channel?.sink.add(jsonEncode({'action': 'call_end', 'targetId': data['senderId']}));
+          return;
+        }
         
                if (mounted) {
    FlutterCallkitIncoming.showCallkitIncoming(
@@ -643,7 +683,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
     }
 
         if (chatIdx != -1) {
-              String decryptedText = '[Erro de Segurança - Mensagem Ilegível]';
+              String decryptedText = '[Message not decrypted]';
               final payloadParts = data['payload'].toString().split(':');
 
               if (payloadParts.length == 2) {
@@ -1289,18 +1329,32 @@ if (context.mounted) {
       behavior: HitTestBehavior.translucent,
       child: Scaffold(
        appBar: AppBar(
-         title: Text(() {
-                final padlock = context.findAncestorStateOfType<_PadlockAppState>();
-                final lang = padlock?._currentLanguage ?? 'EN';
-                final currentT = t[lang] ?? {};
-                return _currentIndex == 0
-                    ? (currentT['chats'] as String? ?? 'Chats')
-                    : _currentIndex == 1
-                    ? (currentT['contacts'] as String? ?? 'Contacts')
-                    : _currentIndex == 2
-                    ? (currentT['settings'] as String? ?? 'Settings')
-                    : (currentT['profile'] as String? ?? 'Profile');
-              }()),
+        backgroundColor: Colors.transparent,
+flexibleSpace: Container(
+  decoration: const BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color(0xFF1e4d2b), // O verde suave
+        Color(0xFF0a1a12), // O verde muito escuro/preto
+      ],
+    ),
+  ),
+),
+elevation: 8, // Cria a densidade e a sombra (igual aos botões)
+shadowColor: Colors.black, // Escurece a sombra para o efeito Matrix
+centerTitle: true,
+title: const Text(
+  'PADLOCK',
+  style: TextStyle(
+    color: Color(0xFF00FF66), // Verde Neon
+    fontSize: 13, 
+    fontWeight: FontWeight.bold,
+    letterSpacing: 2,
+  ),
+),
+            
         actions: [
           
           PopupMenuButton<String>(
@@ -1401,20 +1455,55 @@ if (context.mounted) {
                   onPressed: () {
                     TextEditingController controller = TextEditingController();
                     showDialog(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Adicionar Contacto'),
-                        content: TextField(
-                          controller: controller,
-                          decoration: const InputDecoration(labelText: 'ID de Privacidade'),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Cancelar'),
-                          ),
-                          TextButton(
-                           onPressed: () async {
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF151515), // Fundo cinzento muito escuro (estilo Padlock)
+          shape: RoundedRectangleBorder(
+            side: const BorderSide(color: Color(0xFF1e4d2b), width: 1.0),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: const Text('Add Contact', style: TextStyle(color: Colors.white)),
+          content: TextField(
+            controller: controller,
+            style: const TextStyle(color: Colors.black87), // Texto escuro para ler bem no fundo claro
+            decoration: InputDecoration(
+              hintText: 'Privacy ID',
+              hintStyle: const TextStyle(color: Colors.black54),
+              filled: true,
+              fillColor: const Color(0xFFe4efe6), // O teu famoso "branco pérola / verde claro" do chat!
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(20), 
+                borderSide: BorderSide.none
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF1e4d2b)), // Ícone verde escuro para combinar
+                onPressed: () async {
+                  try {
+                    String qrResult = await FlutterBarcodeScanner.scanBarcode(
+                      '#00FF66', // A linha laser da câmara em Verde Matrix
+                      'Cancel', 
+                      false, 
+                      ScanMode.QR,
+                    );
+                    
+                    if (qrResult != '-1') {
+                      controller.text = qrResult;
+                    }
+                  } catch (e) {
+                    print('Scan Error: $e');
+                  }
+                },
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            TextButton(
+              onPressed: () async {
                 final targetId = controller.text.trim();
                 if (targetId.isNotEmpty) {
                   try {
@@ -1474,8 +1563,35 @@ setState(() {
                   },
                 )
               : null,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF1e4d2b), // Tom mais claro/reflexo do espelho
+              Color(0xFF0a1a12), // Tom mais escuro/sombra
+            ],
+          ),
+          border: Border(
+            top: BorderSide(
+              color: Colors.greenAccent.withValues(alpha: 0.3),
+              width: 1.0,
+            ),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.greenAccent.withValues(alpha: 0.2),
+              blurRadius: 12,
+              spreadRadius: 1,
+              offset: const Offset(0, -3),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          backgroundColor: Colors.transparent, // Transparente para o gradiente espelho brilhar
+          currentIndex: _currentIndex,
+         
         type: BottomNavigationBarType.fixed,
         onTap: (index) {
           setState(() {
@@ -1509,7 +1625,7 @@ setState(() {
           ),
       ],
     ),
-          activeIcon: const Icon(Icons.chat_bubble, color: Color(0xFF8B0000)),
+          activeIcon: const Icon(Icons.chat_bubble, color: Color(0xFF00FF66)),
           label: (() {
             final padlock = context.findAncestorStateOfType<_PadlockAppState>();
             final lang = padlock?._currentLanguage ?? 'EN';
@@ -1518,7 +1634,7 @@ setState(() {
         ),
         BottomNavigationBarItem(
           icon: const Icon(Icons.people_outline),
-          activeIcon: const Icon(Icons.people, color: Color(0xFF8B0000)),
+          activeIcon: const Icon(Icons.chat_bubble, color: Color(0xFF00FF66)),
           label: (() {
             final padlock = context.findAncestorStateOfType<_PadlockAppState>();
             final lang = padlock?._currentLanguage ?? 'EN';
@@ -1527,7 +1643,7 @@ setState(() {
         ),
         BottomNavigationBarItem(
           icon: const Icon(Icons.settings_outlined),
-          activeIcon: const Icon(Icons.settings, color: Color(0xFF8B0000)),
+          activeIcon: const Icon(Icons.chat_bubble, color: Color(0xFF00FF66)),
           label: (() {
             final padlock = context.findAncestorStateOfType<_PadlockAppState>();
             final lang = padlock?._currentLanguage ?? 'EN';
@@ -1536,7 +1652,7 @@ setState(() {
         ),
         BottomNavigationBarItem(
           icon: const Icon(Icons.person_outline),
-          activeIcon: const Icon(Icons.person, color: Color(0xFF8B0000)),
+          activeIcon: const Icon(Icons.chat_bubble, color: Color(0xFF00FF66)),
           label: (() {
             final padlock = context.findAncestorStateOfType<_PadlockAppState>();
             final lang = padlock?._currentLanguage ?? 'EN';
@@ -1546,7 +1662,7 @@ setState(() {
   ],
           ),
         ), // <-- Fecha o Scaffold
-      );   // <-- Fecha o GestureDetector que abrimos na linha 962
+     ));   // <-- Fecha o GestureDetector que abrimos na linha 962
       }
     }
 
@@ -1571,9 +1687,17 @@ class ChatsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final activeChats = chats.where((c) => c['status'] != 'Blocked').toList();
     final searchQuery = ValueNotifier<String>('');
-    return Padding(
-      padding: const EdgeInsets.all(15.0),
-      child: Column(
+   return Container(
+          decoration: const BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage('assets/fundo matrix.png'),
+              fit: BoxFit.cover,
+              colorFilter: ColorFilter.mode(Colors.black87, BlendMode.darken),
+            ),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(15.0),
+            child: Column(
         children: [
           TextField(
             onChanged: (val) => searchQuery.value = val,
@@ -1659,7 +1783,7 @@ class ChatsScreen extends StatelessWidget {
                       border: Border.all(color: Colors.white10),
                     ),
                     child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                        leading: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -1796,7 +1920,7 @@ trailing: Row(
         ),// Fecha o Expanded
       ], // Fecha os children da Column
     ), // Fecha a Column
-  ); // Fecha o layout principal
+   ));// Fecha o layout principal
   } // Fecha o método build
 } // Fecha a classe ChatsScreen
 // ----------------------------------------------------
@@ -1825,7 +1949,7 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
   final ScrollController _scrollController = ScrollController();
   Timer? _destructionTimer;
   StreamSubscription? _chatSubscription;
-
+Future<void> _processoMensagem = Future.value();
   @override
   void initState() {
     super.initState();
@@ -1942,11 +2066,13 @@ class _SingleChatScreenState extends State<SingleChatScreen> {
     }
         if (widget.chatData['status'] != 'Blocked' && decoded['type'] == 'secure_message') {
           if (decoded['senderId'] == Hive.box('padlock_vault').get('user_privacy_id')) return;
+          _processoMensagem = _processoMensagem.then((_) async {
+            
           if (mounted) {
             HapticFeedback.lightImpact();
 SystemSound.play(SystemSoundType.click);
           // 1. Prepara a variável de segurança (se falhar, não mostra nada comprometedor)
-          String decryptedText = '[Erro de Segurança - Mensagem Ilegível]';
+          String decryptedText = '[Message not decrypted]';
           
           // 2. Separa o Vetor Aleatório (IV) da Mensagem Cifrada
           final payloadParts = decoded['payload'].toString().split(':');
@@ -2035,6 +2161,7 @@ await vault.put('shared_secret_$targetId', newSecretBase64);
         _forceReadReceipts();
         Future.delayed(const Duration(milliseconds: 1500), _forceReadReceipts);
         }
+        });
       }
          
 
@@ -2210,7 +2337,20 @@ void _checkExpiredMessages() {
     }
   
   }
+String _getTimeLeft(int timestamp) {
+    final limitStr = widget.chatData['destructTime'] ?? '24h';
+    int limitMillis = 24 * 60 * 60 * 1000;
+    if (limitStr == '1m') limitMillis = 60 * 1000;
+    else if (limitStr == '5m') limitMillis = 5 * 60 * 1000;
+    else if (limitStr == '1h') limitMillis = 60 * 60 * 1000;
 
+    int timeLeft = (timestamp + limitMillis) - DateTime.now().millisecondsSinceEpoch;
+    if (timeLeft <= 0) return '0s';
+
+    if (timeLeft < 60000) return '${(timeLeft / 1000).floor()}s';
+    if (timeLeft < 3600000) return '${(timeLeft / 60000).floor()}m';
+    return '${(timeLeft / 3600000).floor()}h';
+  }
   // 2. O MENU ESTILO TELEGRAM / SIGNAL (Aparece quando ficas a carregar na mensagem)
   void _showLongPressMenu(BuildContext context, Map<String, dynamic> msg) {
     showDialog(
@@ -2379,7 +2519,24 @@ Future<void> _sendMessage() async {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0F0F0F),
+        backgroundColor: Colors.transparent, // Fica transparente para mostrar o degradê abaixo
+elevation: 8,
+shadowColor: Colors.black,
+flexibleSpace: Container(
+  decoration: const BoxDecoration(
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color(0xFF1e4d2b), // O verde suave
+        Color(0xFF0a1a12), // O verde muito escuro/preto (efeito de sombra)
+      ],
+    ),
+  ),
+),
+
+
+       
         title: Row(
           children: [
             Container(
@@ -2637,14 +2794,14 @@ Future<void> _sendMessage() async {
                     padding: const EdgeInsets.all(12),
                     constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
                     decoration: BoxDecoration(
-                      color: isMe ? const Color(0xFF8B0000).withValues(alpha: 0.9) : const Color(0xFF1E2C3A),
+                      color: isMe ? const Color(0xFF1e4d2b) : const Color(0xFFd8f3dc),
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(12),
                         topRight: const Radius.circular(12),
                         bottomLeft: isMe ? const Radius.circular(12) : Radius.zero,
                         bottomRight: isMe ? Radius.zero : const Radius.circular(12),
                       ),
-                      border: Border.all(color: isMe ? Colors.redAccent.withValues(alpha: 0.3) : Colors.white10),
+                      border: Border.all(color: isMe ? Colors.greenAccent.withValues(alpha: 0.4) : Colors.greenAccent.withValues(alpha: 0.2)),
                     ),
                     
                   child: Column(
@@ -2652,12 +2809,28 @@ Future<void> _sendMessage() async {
   children: [
     Text(
       m['text'],
-      style: const TextStyle(color: Colors.white, fontSize: 14),
+      style: TextStyle(
+        color: m['text'] == '[Message not decrypted]' ? Colors.white54 : (isMe ? Colors.white : Colors.black87),
+        fontSize: m['text'] == '[Message not decrypted]' ? 11 : 14,
+        fontStyle: m['text'] == '[Message not decrypted]' ? FontStyle.italic : FontStyle.normal,
+      ),
     ),
     const SizedBox(height: 3),
     Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    const Icon(Icons.av_timer, size: 11, color: Colors.redAccent),
+    const SizedBox(width: 2),
+    Text(
+      _getTimeLeft(m['timestamp'] ?? DateTime.now().millisecondsSinceEpoch),
+      style: const TextStyle(color: Colors.redAccent, fontSize: 9, fontWeight: FontWeight.bold),
+    ),
+    const SizedBox(width: 6),
+                    Text(
+                  DateTime.fromMillisecondsSinceEpoch(m['timestamp'] ?? DateTime.now().millisecondsSinceEpoch).toString().substring(11, 16),
+                  style: const TextStyle(color: Colors.white38, fontSize: 9),
+                ),
+                const SizedBox(width: 5),
                     if (isMe) ...[
                       // Lógica APENAS para as tuas mensagens (Bolhas vermelhas)
                       Icon(
@@ -2692,13 +2865,15 @@ Future<void> _sendMessage() async {
                     child: TextField(
                       controller: _msgController,
                       enabled: widget.chatData['status'] != 'Blocked',
+                      style: const TextStyle(color: Colors.black87),
                       minLines: 1, // Começa com 1 linha
                       maxLines: 5, // Cresce até 5 linhas para baixo
                       keyboardType: TextInputType.multiline, // Permite quebras de linha
                       decoration: InputDecoration(
                         hintText: widget.local['send_hint'],
+                        hintStyle: const TextStyle(color: Colors.black54),
                       filled: true,
-                      fillColor: const Color(0xFF121212),
+                      fillColor: const Color(0xFFe4efe6),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     ),
@@ -2707,7 +2882,7 @@ Future<void> _sendMessage() async {
                 ),
                 const SizedBox(width: 8),
                 CircleAvatar(
-                  backgroundColor: const Color(0xFF8B0000),
+                  backgroundColor: const Color(0xFF1e4d2b),
                   child: IconButton(
                     icon: const Icon(Icons.send, color: Colors.white, size: 18),
                     onPressed: _sendMessage,
@@ -2745,9 +2920,17 @@ class ContactsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ValueNotifier<String> searchNotifier = ValueNotifier('');
-    return Padding(
-      padding: const EdgeInsets.all(15.0),
-      child: Column(
+    return Container(
+      decoration: BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/fundo matrix.png'),
+          fit: BoxFit.cover,
+          colorFilter: ColorFilter.mode(Colors.black87, BlendMode.darken),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(15.0),
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
@@ -2847,15 +3030,18 @@ class ContactsScreen extends StatelessWidget {
                   ),
                 ),
         ],
-            ));
+            )));
           }
        }   
 // ----------------------------------------------------
-// 3. SETTINGS SCREEN
+// 3. SETTINGS SCREEN (LIMPA, PREMIUM E BLINDADA)
 // ----------------------------------------------------
 class SettingsScreen extends StatelessWidget {
   final Map<String, String> local;
   final String currentLang;
+  
+  // Mantemos as variáveis no construtor para o MainNavigationScreen não dar erro,
+  // mesmo as que passaram a ser regras automáticas do sistema.
   final String destructTime;
   final bool notificationsActive;
   final bool silentMode;
@@ -2888,102 +3074,338 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currentT = t[currentLang] ?? {};
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-      child: ListView(
+    return Container(
+      decoration: const BoxDecoration(
+        image: DecorationImage(
+          image: AssetImage('assets/fundo matrix.png'),
+          fit: BoxFit.cover,
+          colorFilter: ColorFilter.mode(Colors.black87, BlendMode.darken),
+        ),
+      ),
+      child: Column(
         children: [
-          _buildSectionTitle('Chat Settings'),
-          ListTile(
-            leading: const Icon(Icons.timer, color: Color(0xFF8B0000)),
-            title: Text(currentT['autodestruct']!),
-            trailing: DropdownButton<String>(
-              value: destructTime,
-              dropdownColor: const Color(0xFF1A1A1A),
-              underline: const SizedBox(),
-              onChanged: (newValue) {
-                if (newValue != null) {
-                  onDestructChange(newValue);
-                }
-              },
-              items: <String>['1 Min', '5 Mins', '1 Hour', '1 Day', '7 Days']
-                  .map<DropdownMenuItem<String>>((String value) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-                );
-              }).toList(),
+          // CABEÇALHO VERDE ESPELHADO
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF1e4d2b), // O teu verde espelhado suave
+                  Color(0xFF0a1a12),
+                ],
+              ),
+              border: Border(bottom: BorderSide(color: Colors.greenAccent.withValues(alpha: 0.3), width: 1.5)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.greenAccent.withValues(alpha: 0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: const Center(
+              child: Text(
+                'SETTINGS',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 3.0,
+                  fontFamily: 'monospace',
+                ),
+              ),
             ),
           ),
-          const Divider(color: Colors.white10),
 
-          _buildSectionTitle('Privacy & Security'),
-          SwitchListTile(
-            secondary: const Icon(Icons.lock, color: Color(0xFF8B0000)),
-            title: Text(currentT['app_lock']!),
-            value: passcodeLock,
-            activeTrackColor: const Color(0xFF8B0000),
-            onChanged: onPasscodeChange,
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.screen_lock_portrait, color: Color(0xFF8B0000)),
-            title: Text(currentT['screen_security']!),
-            value: blockScreenshots,
-            activeTrackColor: const Color(0xFF8B0000),
-            onChanged: onScreenshotsChange,
-          ),
-          const Divider(color: Colors.white10),
+          // LISTA DE CONFIGURAÇÕES
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+              children: [
+                _buildSectionTitle('Core Security Protocols', Colors.greenAccent),
+                _buildInfoTile(Icons.shield, 'Military-Grade Encryption', 'AES-256-GCM and Curve25519 standard.'),
+                _buildInfoTile(Icons.wifi_tethering, 'True Peer-to-Peer', 'Direct voice & data. Zero server routing.'),
+                _buildInfoTile(Icons.timer_off, 'Forensic Auto-Destruct', 'All messages shred within 24 hours max.'),
+                _buildInfoTile(Icons.phonelink_erase, 'Screenshot Protection', 'Screen capture is globally blocked across the app to prevent unauthorized data leaks.'),
+                _buildInfoTile(Icons.lock_clock, 'Safe Timeout', 'App closes automatically after 15 minutes of use for your security. Login is required to resume. Active calls bypass this rule to maintain connection.'),
+                
+                const Divider(color: Colors.white10, height: 35),
 
-          _buildSectionTitle(currentT['notifications']!),
-          SwitchListTile(
-            secondary: const Icon(Icons.notifications_active, color: Color(0xFF8B0000)),
-            title: Text(currentT['notifications']!),
-            subtitle: Text(currentT['sounds_desc']!, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-            value: notificationsActive,
-            activeTrackColor: const Color(0xFF8B0000),
-            onChanged: onNotificationsChange,
-          ),
-          SwitchListTile(
-            secondary: const Icon(Icons.volume_off, color: Color(0xFF8B0000)),
-            title: Text(currentT['silent_mode']!),
-            value: silentMode,
-            activeTrackColor: const Color(0xFF8B0000),
-            onChanged: onSilentChange,
-          ),
-          ListTile(
-            leading: const Icon(Icons.music_note, color: Colors.grey),
-            title: Text(currentT['custom_sound']!),
-            subtitle: const Text('Default P2P Alert Tone', style: TextStyle(fontSize: 11, color: Colors.grey)),
-            enabled: false,
-          ),
-          const Divider(color: Colors.white10),
+                _buildSectionTitle('Padlock Premium', Colors.amber),
+                _buildPremiumTile(context),
 
-          _buildSectionTitle('Data & Keys'),
-          ListTile(
-            leading: const Icon(Icons.delete_forever, color: Colors.redAccent),
-            title: Text(currentT['clear_keys']!, style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(currentT['keys_purged']!), backgroundColor: const Color(0xFF8B0000)),
-              );
-            },
+                const Divider(color: Colors.white10, height: 35),
+
+                _buildSectionTitle('Help Center / How to Use', Colors.greenAccent),
+                _buildHelpTile(
+      context, 
+      Icons.folder_copy_rounded, 
+      'How to use Secure Vault Files?', 
+      'To access this section, you must create a dedicated encrypted key. Whenever you open the vault, it will prompt you for this key to log in, working just like the app security login.\n\n'
+      '• All photos taken directly within Padlock are saved here automatically.\n'
+      '• Documents and photos sent by contacts to your ID are routed directly to this vault instead of normal chats. You will receive a notification alert that media was sent, and you must access it inside the vault to view.\n'
+      '• Files remain 100% encrypted and secure until manually deleted, exported, or re-sent.'
+    ),
+                _buildHelpTile(context, Icons.person_add, 'How to add a contact?', 'Go to the "Contacts" tab, tap the blue (+) button, and either paste a Privacy ID or use the green QR scanner.'),
+                _buildHelpTile(context, Icons.share, 'How to share my ID?', 'Go to the "Profile" tab. Tap "Copy ID" to paste it securely anywhere, or "QR Code" to let someone scan your screen.'),
+                _buildHelpTile(context, Icons.edit, 'How to rename a contact?', 'In the "Contacts" tab, tap the Edit (pencil) icon next to any contact to change their display name.'),
+                _buildHelpTile(context, Icons.person_remove, 'How to delete a contact?', 'In the "Contacts" tab, long-press on any contact. This will permanently delete them and shred the shared encryption keys.'),
+                _buildHelpTile(context, Icons.delete_sweep, 'How to wipe a conversation?', 'Inside any active chat, tap the menu (three dots) in the top right corner and select "Wipe Conversation" to obliterate all messages on both devices.'),
+                
+                const Divider(color: Colors.white10, height: 35),
+
+                _buildSectionTitle('App Preferences', Colors.greenAccent),
+                ListTile(
+                  leading: const Icon(Icons.language, color: Color(0xFF1e4d2b)),
+                  title: const Text('App Language', style: TextStyle(color: Colors.white)),
+                  subtitle: Text('Current: $currentLang', style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                  onTap: () => _showLanguageDialog(context),
+                ),
+                SwitchListTile(
+                  secondary: const Icon(Icons.notifications_active, color: Color(0xFF1e4d2b)),
+                  title: const Text('Push Notifications', style: TextStyle(color: Colors.white)),
+                  subtitle: const Text('System uses exclusive encrypted tones.', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  value: notificationsActive,
+                  activeTrackColor: const Color(0xFF1e4d2b),
+                  onChanged: onNotificationsChange,
+                ),
+                SwitchListTile(
+                  secondary: const Icon(Icons.volume_off, color: Color(0xFF1e4d2b)),
+                  title: const Text('Silent Mode', style: TextStyle(color: Colors.white)),
+                  subtitle: const Text('Mutes all incoming P2P alerts.', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  value: silentMode,
+                  activeTrackColor: const Color(0xFF1e4d2b),
+                  onChanged: onSilentChange,
+                ),
+
+                const Divider(color: Colors.white10, height: 35),
+
+                _buildSectionTitle('Panic Room', Colors.redAccent),
+                ListTile(
+                  leading: const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 30),
+                  title: const Text('NUKE VAULT: PURGE & DESTROY EVERYTHING', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 14)),
+                  subtitle: const Padding(
+                    padding: EdgeInsets.only(top: 6.0),
+                    child: Text('This action will permanently shred your Privacy ID, crypto funds, and all chats. It clears everything and sends you back to the activation screen.', style: TextStyle(color: Colors.grey, fontSize: 11, height: 1.4)),
+                  ),
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (ctx) => AlertDialog(
+                        backgroundColor: const Color(0xFF151515),
+                        shape: RoundedRectangleBorder(
+                          side: const BorderSide(color: Colors.redAccent, width: 2.0),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        title: const Row(
+                          children: [
+                            Icon(Icons.dangerous, color: Colors.redAccent),
+                            SizedBox(width: 10),
+                            Text('CRITICAL WARNING', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 16)),
+                          ],
+                        ),
+                        content: const Text(
+                          'Are you sure you want to NUKE the vault?\n\n'
+                          '⚠️ WITHDRAW ALL CRYPTO FUNDS AND SAVE YOUR FILES BEFORE PROCEEDING.\n\n'
+                          'This action is irreversible. The application will be wiped to a factory state.',
+                          style: TextStyle(color: Colors.white70, height: 1.4),
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              try {
+                                final vault = Hive.box('padlock_vault');
+                                await vault.clear(); 
+                                await vault.compact();
+                                
+                                const storage = FlutterSecureStorage();
+                                await storage.deleteAll();
+                                
+                                if (context.mounted) {
+                                  Navigator.pushAndRemoveUntil(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const SetupScreen()),
+                                    (Route<dynamic> route) => false,
+                                  );
+                                }
+                              } catch (e) {
+                                print('Erro ao triturar cofre: $e');
+                              }
+                            },
+                            child: const Text('NUKE EVERYTHING', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 40),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionTitle(String title, Color color) {
     return Padding(
-      padding: const EdgeInsets.only(left: 15.0, top: 15, bottom: 8),
+      padding: const EdgeInsets.only(left: 5.0, bottom: 15),
       child: Text(
         title.toUpperCase(),
-        style: const TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.bold, letterSpacing: 1),
+        style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+      ),
+    );
+  }
+
+  Widget _buildInfoTile(IconData icon, String title, String desc) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: const Color(0xFF00FF66), size: 20),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                const SizedBox(height: 4),
+                Text(desc, style: const TextStyle(color: Colors.white60, fontSize: 11, height: 1.3)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumTile(BuildContext context) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.diamond, color: Colors.amber, size: 28),
+      title: const Row(
+        children: [
+          Text('Secure Crypto Vault', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 15)),
+          SizedBox(width: 8),
+          Icon(Icons.lock, color: Colors.greenAccent, size: 16),
+        ],
+      ),
+      subtitle: const Padding(
+        padding: EdgeInsets.only(top: 4.0),
+        child: Text('Maximum security storage for your digital assets.', style: TextStyle(color: Colors.white60, fontSize: 11)),
+      ),
+      trailing: const Icon(Icons.chevron_right, color: Colors.amber),
+      onTap: () {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF151515),
+            shape: RoundedRectangleBorder(
+              side: const BorderSide(color: Colors.amber, width: 1.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            title: const Row(
+              children: [
+                Icon(Icons.diamond, color: Colors.amber),
+                SizedBox(width: 10),
+                Text('PREMIUM REQUIRED', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 14)),
+              ],
+            ),
+            content: const Text(
+              'Store all your cryptocurrencies in a military-grade local vault. Send funds to anyone and receive from anywhere, with zero middlemen and absolute privacy.\n\n'
+              'Unlocking the Web3 Crypto Vault requires a Premium subscription.',
+              style: TextStyle(color: Colors.white70, height: 1.4, fontSize: 13),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('CLOSE', style: TextStyle(color: Colors.grey)),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  // Futura lógica de pagamento entrará aqui
+                },
+                child: const Text('UPGRADE TO PREMIUM', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHelpTile(BuildContext context, IconData icon, String question, String answer) {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: Colors.lightBlueAccent),
+      title: Text(question, style: const TextStyle(color: Colors.lightBlueAccent, fontSize: 13)),
+      trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+      onTap: () {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF151515),
+            shape: RoundedRectangleBorder(
+              side: const BorderSide(color: Colors.lightBlueAccent, width: 1.0),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            title: Text(question, style: const TextStyle(color: Colors.white, fontSize: 15)),
+            content: Text(answer, style: const TextStyle(color: Colors.white70, height: 1.4, fontSize: 13)),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Got it', style: TextStyle(color: Colors.lightBlueAccent)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showLanguageDialog(BuildContext context) {
+    final langs = [
+      {'code': 'en', 'name': 'English'}, {'code': 'pt', 'name': 'Português'},
+      {'code': 'es', 'name': 'Español'}, {'code': 'fr', 'name': 'Français'},
+      {'code': 'de', 'name': 'Deutsch'}
+    ];
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF151515),
+        title: const Text('Select Language', style: TextStyle(color: Colors.white)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: langs.length,
+            itemBuilder: (context, index) {
+              return ListTile(
+                title: Text(langs[index]['name']!, style: const TextStyle(color: Colors.white70)),
+                onTap: () {
+                  onLangChange(langs[index]['code']!.toUpperCase());
+                  Navigator.pop(ctx);
+                },
+              );
+            },
+          ),
+        ),
       ),
     );
   }
 }
-
 // ----------------------------------------------------
 // 4. PROFILE SCREEN
 // ----------------------------------------------------
@@ -3031,20 +3453,14 @@ class ProfileScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 25),
-              Container(
-                width: 180,
-                height: 180,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: CustomPaint(
-                  size: const Size(160, 160),
-                  painter: QrSimulatorPainter(),
-                ),
-              ),
-              const SizedBox(height: 20),
+              QrImageView(
+          data: privacyId,
+          version: QrVersions.auto,
+          size: 160.0,
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+        ),
+        
               Text(
                 privacyId,
                 style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.bold),
@@ -3066,37 +3482,51 @@ class ProfileScreen extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
+Widget build(BuildContext context) {
+  return Container(
+    decoration: const BoxDecoration(
+      image: DecorationImage(
+        image: AssetImage('assets/fundo matrix.png'),
+        fit: BoxFit.cover,
+        colorFilter: ColorFilter.mode(Colors.black87, BlendMode.darken),
+      ),
+    ),
+    child: SingleChildScrollView(
       child: Column(
         children: [
-          const SizedBox(height: 20),
           Center(
-            child: Stack(
-              children: [
-                Container(
-                  width: 110,
-                  height: 110,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFF1A1A1A),
-                    border: Border.all(color: const Color(0xFF8B0000), width: 3),
+            child: Container(
+              width: 110,
+              height: 110,
+              decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF1e4d2b),
+                      Color(0xFF0a1a12),
+                    ],
                   ),
-                  child: const Icon(Icons.lock, color: Color(0xFF8B0000), size: 55),
-                ),
-                Positioned(
-                  bottom: 0,
-                  right: 0,
-                  child: CircleAvatar(
-                    backgroundColor: const Color(0xFF8B0000),
-                    radius: 18,
-                    child: IconButton(
-                      icon: const Icon(Icons.qr_code_2, size: 16, color: Colors.white),
-                      onPressed: () => _showQrDialog(context),
+                  border: Border.all(
+                    color: Colors.greenAccent.withValues(alpha: 0.5),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.greenAccent.withValues(alpha: 0.3),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 4),
                     ),
-                  ),
-                )
-              ],
+                  ],
+                ),
+              child: ClipOval(
+                child: Image.asset(
+                  'assets/padlock-image.app.png',
+                  fit: BoxFit.cover,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 15),
@@ -3133,10 +3563,28 @@ class ProfileScreen extends StatelessWidget {
   width: 220,
   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
   decoration: BoxDecoration(
-    color: Colors.black,
-    border: Border.all(color: const Color.fromARGB(255, 190, 0, 0), width: 1.5),
-    borderRadius: BorderRadius.circular(12),
-  ),
+        borderRadius: BorderRadius.circular(12),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFF1e4d2b),
+            Color(0xFF0a1a12),
+          ],
+        ),
+        border: Border.all(
+          color: Colors.greenAccent.withValues(alpha: 0.35),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.greenAccent.withValues(alpha: 0.2),
+            blurRadius: 15,
+            spreadRadius: 1,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
   child: Row(
     mainAxisAlignment: MainAxisAlignment.center,
     children: [
@@ -3148,7 +3596,7 @@ class ProfileScreen extends StatelessWidget {
         ),
       ),
       const SizedBox(width: 10),
-      const Icon(Icons.edit, size: 16, color: Color.fromARGB(255, 190, 0, 0)),
+      const Icon(Icons.edit, size: 16, color: Colors.greenAccent),
     ],
   ),
 ), // Container
@@ -3172,8 +3620,8 @@ class ProfileScreen extends StatelessWidget {
 ),
           const SizedBox(height: 25),
 
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+         Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildActionButton(Icons.qr_code, 'QR Code', () => _showQrDialog(context), color: Colors.lightBlueAccent),
               _buildActionButton(Icons.copy, 'Copy ID', () {
@@ -3182,29 +3630,122 @@ class ProfileScreen extends StatelessWidget {
                   SnackBar(content: Text(local['copy_toast']!)),
                 );
               }),
-               _buildActionButton(Icons.refresh, local['regen'] ?? 'Regen', () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: Text(local['change_id_title'] ?? 'Mudar ID de Privacidade?'),
-                  content: Text(local['change_id_desc'] ?? 'Atenção: Se gerar um novo ID, perderá a ligação com todos os seus contactos atuais. Deseja continuar?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(local['cancel'] ?? 'Cancelar'),
+              
+              // NOVO BOTÃO: SECURE CRYPTO VAULT (Substitui o Regen)
+              InkWell(
+                onTap: () {
+                  // A lógica real do cofre será construída aqui futuramente
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Secure Crypto Vault is locked.', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)), 
+                      backgroundColor: Color(0xFF151515)
                     ),
-                    TextButton(
-                      onPressed: () {
-                        onRegenerate();
-                        Navigator.pop(context);
-                      },
-                      child: Text(local['yes_change'] ?? 'Sim, Mudar', style: const TextStyle(color: Colors.redAccent)),
+                  );
+                },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: 82,
+                  padding: const EdgeInsets.only(top: 4, bottom: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Color(0xFF1e4d2b), // O verde espelhado suave
+                        Color(0xFF0a1a12), // Sombra escura
+                      ],
                     ),
-                  ],
+                    border: Border.all(
+                      color: Colors.greenAccent.withValues(alpha: 0.35),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.greenAccent.withValues(alpha: 0.2),
+                        blurRadius: 15,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // O Diamante gigante
+                      Text('💎', style: TextStyle(fontSize: 34)), 
+                      SizedBox(height: 2),
+                      // O texto em Branco Pérola no fundo
+                      Text(
+                        'Secure\nCrypto Vault', 
+                        style: TextStyle(
+                          fontSize: 10, 
+                          fontWeight: FontWeight.bold, 
+                          color: Color(0xFFe4efe6), 
+                          height: 1.1
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
-              );
-            }),
-
+              ),
+              // 4. SECURE VAULT FILES (Com ícone de pastas em azul e largura 82)
+                InkWell(
+                  onTap: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Secure Vault Files is locked.', style: TextStyle(color: Colors.lightBlueAccent, fontWeight: FontWeight.bold)), 
+                        backgroundColor: Color(0xFF151515)
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 82,
+                    padding: const EdgeInsets.only(top: 4, bottom: 8),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF1e4d2b),
+                          Color(0xFF0a1a12),
+                        ],
+                      ),
+                      border: Border.all(
+                        color: Colors.lightBlueAccent.withValues(alpha: 0.35),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.lightBlueAccent.withValues(alpha: 0.2),
+                          blurRadius: 15,
+                          spreadRadius: 1,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: const Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.folder_copy_rounded, color: Colors.lightBlueAccent, size: 28),
+                        SizedBox(height: 2),
+                        Text(
+                          'Secure\nVault Files', 
+                          style: TextStyle(
+                            fontSize: 9.5, 
+                            fontWeight: FontWeight.bold, 
+                            color: Color(0xFFe4efe6), // Branco pérola
+                            height: 1.1
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
           const SizedBox(height: 25),
@@ -3214,43 +3755,66 @@ class ProfileScreen extends StatelessWidget {
   width: double.infinity,
   padding: const EdgeInsets.all(16),
   decoration: BoxDecoration(
-    color: const Color.fromARGB(178, 204, 0, 0),
-    borderRadius: BorderRadius.circular(12),
-  ),
-  child: Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      const Text(
-        'ID de Privacidade',
-        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black),
-      ),
-      const SizedBox(height: 6),
-      SelectableText(
-        privacyId,
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
-      ),
-      const SizedBox(height: 12),
-      const Divider(color: Colors.black, thickness: 1, height: 1),
-      const SizedBox(height: 12),
-      const Text(
-        'Bio',
-        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black),
-      ),
-      const SizedBox(height: 6),
-      const Text(
-        'Engineered with military-grade Zero-Knowledge encryption.\n'
-        'All communications operate strictly Peer-to-Peer (P2P).\n'
-        'Messages automatically self-destruct after 24 hours\n'
-        'using secure anti-trace memory sanitization.\n'
-        'Zero trace, zero logs, total privacy.',
-        style: TextStyle(fontSize: 12, color: Colors.white, height: 1.4),
-      ),
-    ],
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFF1e4d2b), // Tom claro do espelho
+                Color(0xFF0a1a12), // Tom escuro/sombra
+              ],
+            ),
+            border: Border.all(
+              color: Colors.greenAccent.withValues(alpha: 0.35),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.greenAccent.withValues(alpha: 0.2),
+                blurRadius: 15,
+                spreadRadius: 1,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+           const Text(
+      'ID de Privacidade',
+      textAlign: TextAlign.center,
+      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white70),
+    ),
+    const SizedBox(height: 6),
+    SelectableText(
+      privacyId,
+      textAlign: TextAlign.center,
+      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
+    ),
+    const SizedBox(height: 12),
+    const Divider(color: Colors.greenAccent, thickness: 0.5, height: 1),
+    const SizedBox(height: 12),
+    const Text(
+      'Bio',
+      textAlign: TextAlign.center,
+      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white70),
+    ),
+    const SizedBox(height: 6),
+    const Text(
+      'Engineered with military-grade Zero-Knowledge encryption.\n'
+      'All communications operate strictly Peer-to-Peer (P2P).\n'
+      'Messages automatically self-destruct after 24 hours\n'
+      'using secure anti-trace memory sanitization.\n'
+      'Zero trace, zero logs, total privacy.',
+      textAlign: TextAlign.center,
+      style: TextStyle(fontSize: 12, color: Colors.white, height: 1.4),
+    ),
+          ],
   ),
 ),
         ],
       ),
-    );
+    ));
   }
 
  Widget _buildActionButton(IconData icon, String label, VoidCallback onTap, {Color color = Colors.redAccent}) {
@@ -3258,12 +3822,31 @@ class ProfileScreen extends StatelessWidget {
     onTap: onTap,
     borderRadius: BorderRadius.circular(12),
     child: Container(
-      width: 100,
+      width: 82,
       padding: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
-        color: const Color.fromARGB(179, 253, 1, 1),
-        borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          Color(0xFF1e4d2b), // Tom claro do espelho
+          Color(0xFF0a1a12), // Tom escuro/sombra
+        ],
       ),
+      border: Border.all(
+        color: Colors.greenAccent.withValues(alpha: 0.35),
+        width: 1.2,
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.greenAccent.withValues(alpha: 0.2),
+          blurRadius: 15,
+          spreadRadius: 1,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
       child: Column(
         children: [
           Icon(icon, color: color, size: 26),
@@ -3437,8 +4020,12 @@ bool _isRemoteSet = false;
             flutterLocalNotificationsPlugin.cancel(99);
             _audioPlayer.play(AssetSource('sounds/end_call.mp3'));
             Future.delayed(const Duration(milliseconds: 500), () {
-              if (mounted && Navigator.canPop(context)) Navigator.pop(context);
-            });
+            if (widget.acceptedViaCallKit) {
+              SystemNavigator.pop(); // Mata a app se atendeu fora
+            } else if (mounted && Navigator.canPop(context)) {
+              Navigator.pop(context); // Volta ao chat se atendeu dentro
+            }
+          });
           }
         }
       } catch (e) {
@@ -3756,7 +4343,11 @@ flutterLocalNotificationsPlugin.cancel(99);
     flutterLocalNotificationsPlugin.cancel(99);
     await _audioPlayer.play(AssetSource('sounds/end_call.mp3'));
     await Future.delayed(const Duration(milliseconds: 500));
+    if (widget.acceptedViaCallKit) {
+    SystemNavigator.pop();
+  } else {
     if (mounted && Navigator.canPop(context)) Navigator.pop(context);
+  }
   } 
   void _toggleMute() {
     if (_localStream != null) {
@@ -3782,12 +4373,17 @@ flutterLocalNotificationsPlugin.cancel(99);
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // 1. Fundo do Matrix em código
-          Positioned.fill(
-            child: CustomPaint(
-              painter: MatrixBackgroundPainter(),
+         Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/fundo matrix.png'),
+                  fit: BoxFit.cover,
+                  colorFilter: ColorFilter.mode(Colors.black87, BlendMode.darken),
+                ),
+              ),
             ),
-          ),
+          ), // 1. Fundo do Matrix em código  ),
           // Camada escura mais transparente para o verde do Matrix brilhar bem
          
           
@@ -3826,18 +4422,36 @@ flutterLocalNotificationsPlugin.cancel(99);
                           width: 76,
                           height: 76,
                           decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFF161C18),
-                            border: Border.all(
-                              color: _callStatusColor.withValues(alpha: 0.7),
-                              width: 2,
-                            ),
-                          ),
-                          child: Icon(
-                            Icons.lock,
-                            color: _callStatusColor,
-                            size: 36,
-                          ),
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF1e4d2b),
+              Color(0xFF0a1a12),
+            ],
+          ),
+          border: Border.all(
+          color: Colors.greenAccent.withValues(alpha: 0.7),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.greenAccent.withValues(alpha: 0.3),
+            blurRadius: 15,
+            spreadRadius: 1,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: Image.asset(
+          'assets/padlock-image.app.png',
+          width: 40,
+          height: 40,
+          fit: BoxFit.cover,
+        ),
+      ),
                         ),
                       ],
                     ),
@@ -4069,13 +4683,53 @@ class _SetupScreenState extends State<SetupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
+      backgroundColor: Colors.transparent,
+body: Container(
+  decoration: const BoxDecoration(
+    image: DecorationImage(
+      image: AssetImage('assets/fundo matrix.png'),
+      fit: BoxFit.cover,
+      colorFilter: ColorFilter.mode(Colors.black87, BlendMode.darken),
+    ),
+  ),
+  child: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(28.0),
           child: Column(
             children: [
-              const Icon(Icons.lock_outline, color: Color.fromARGB(255, 255, 0, 0), size: 80),
+              Container(
+  width: 110,
+  height: 110,
+  decoration: BoxDecoration(
+    shape: BoxShape.circle,
+    gradient: const LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Color(0xFF1e4d2b),
+        Color(0xFF0a1a12),
+      ],
+    ),
+    border: Border.all(
+      color: Colors.greenAccent.withValues(alpha: 0.5),
+      width: 1.5,
+    ),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.greenAccent.withValues(alpha: 0.3),
+        blurRadius: 20,
+        spreadRadius: 2,
+        offset: const Offset(0, 4),
+      ),
+    ],
+  ),
+  child: ClipOval(
+    child: Image.asset(
+      'assets/padlock-image.app.png',
+      fit: BoxFit.cover,
+    ),
+  ),
+),
               const SizedBox(height: 20),
               const Text(
                 'CREATE YOUR ENCRYPTED VAULT',
@@ -4106,10 +4760,10 @@ class _SetupScreenState extends State<SetupScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderSide: const BorderSide(color: Color.fromARGB(255, 255, 0, 0)),
+                    borderSide: const BorderSide(color: Colors.greenAccent),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  prefixIcon: const Icon(Icons.key, color: Color.fromARGB(255, 255, 0, 0)),
+                  prefixIcon: const Icon(Icons.key, color: Colors.greenAccent),
                   suffixIcon: IconButton(
   icon: Icon(
     _obscureText ? Icons.visibility_off : Icons.visibility,
@@ -4129,7 +4783,7 @@ class _SetupScreenState extends State<SetupScreen> {
                 height: 50,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color.fromARGB(255, 255, 17, 0),
+                    backgroundColor: Colors.greenAccent,
                     foregroundColor: Colors.black,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -4159,7 +4813,7 @@ class _SetupScreenState extends State<SetupScreen> {
           ),
         ),
       ),
-    );
+    ));
   }
 }
 
@@ -4197,16 +4851,55 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Center(
+   return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Container(
+          decoration: const BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage('assets/fundo matrix.png'),
+              fit: BoxFit.cover,
+              colorFilter: ColorFilter.mode(Colors.black87, BlendMode.darken),
+            ),
+          ),
+          child: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(28.0),
           child: Column(
             children: [
-              // Ícone do Cadeado Verde
-              const Icon(Icons.lock_outline, color: Color.fromARGB(255, 255, 0, 0), size: 80),
-              const SizedBox(height: 20),
+              Container(
+            width: 110,
+            height: 110,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Color(0xFF1e4d2b),
+                  Color(0xFF0a1a12),
+                ],
+              ),
+              border: Border.all(
+                color: Colors.greenAccent.withValues(alpha: 0.5),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.greenAccent.withValues(alpha: 0.3),
+                  blurRadius: 20,
+                  spreadRadius: 2,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ClipOval(
+              child: Image.asset(
+                'assets/padlock-image.app.png',
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
               
               // Título Principal
               const Text(
@@ -4242,10 +4935,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderSide: const BorderSide(color: Color.fromARGB(255, 255, 30, 0)),
+                    borderSide: const BorderSide(color: Colors.greenAccent),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  prefixIcon: const Icon(Icons.key, color: Color.fromARGB(255, 255, 30, 0)),
+                  prefixIcon: const Icon(Icons.key, color: Colors.greenAccent),
                   suffixIcon: IconButton(
   icon: Icon(
     _obscureText ? Icons.visibility_off : Icons.visibility,
@@ -4267,7 +4960,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 height: 50,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color.fromARGB(255, 255, 17, 0),
+                    backgroundColor: Colors.greenAccent,
                     foregroundColor: Colors.black,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -4297,6 +4990,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );
