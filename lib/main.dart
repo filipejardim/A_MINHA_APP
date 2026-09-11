@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:flutter_barcode_scanner/flutter_barcode_scanner.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:encrypt/encrypt.dart' as enc;
 import 'package:cryptography/cryptography.dart' as crypto;
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
@@ -1480,16 +1480,26 @@ title: const Text(
                 icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF1e4d2b)), // Ícone verde escuro para combinar
                 onPressed: () async {
                   try {
-                    String qrResult = await FlutterBarcodeScanner.scanBarcode(
-                      '#00FF66', // A linha laser da câmara em Verde Matrix
-                      'Cancel', 
-                      false, 
-                      ScanMode.QR,
-                    );
-                    
-                    if (qrResult != '-1') {
-                      controller.text = qrResult;
-                    }
+                   await Navigator.push(
+    context,
+    MaterialPageRoute(
+      builder: (context) => Scaffold(
+        appBar: AppBar(title: const Text('Scan Privacy ID')),
+        body: MobileScanner(
+          onDetect: (capture) {
+            final List<Barcode> barcodes = capture.barcodes;
+            for (final barcode in barcodes) {
+              if (barcode.rawValue != null) {
+                controller.text = barcode.rawValue!;
+                Navigator.pop(context);
+                break;
+              }
+            }
+          },
+        ),
+      ),
+    ),
+  );
                   } catch (e) {
                     print('Scan Error: $e');
                   }
