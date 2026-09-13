@@ -28,6 +28,8 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 class PadlockNetwork {
   static String? chatAbertoAtualmente;
   static bool emChamada = false;
+  static bool bypassLogin = false;
+  static Map<String, dynamic>? pendingCallData;
   static WebSocketChannel? channel;
   static final StreamController<dynamic> messageHub = StreamController<dynamic>.broadcast();
   static ValueNotifier<String> status = ValueNotifier<String>('Offline');
@@ -118,25 +120,37 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   FlutterCallkitIncoming.onEvent.listen((event) {
-    if (event!.event == Event.actionCallAccept) {
+   if (event!.event == Event.actionCallAccept) {
       if (PadlockNetwork.emChamada) return;
       PadlockNetwork.emChamada = true;
       final targetId = event.body['extra']['targetId'];
       final sdp = jsonDecode(event.body['extra']['sdp']);
-      navigatorKey.currentState?.push(
-        MaterialPageRoute(
-          builder: (context) => ActiveCallScreen(
-            local: t['EN']!,
-            recipientName: targetId,
-            targetId: targetId,
-            isIncoming: true,
-            channel: PadlockNetwork.channel,
-            incomingSdp: sdp,
-            acceptedViaCallKit: true,
-          ),
-        ),
-      );
+      
+      PadlockNetwork.bypassLogin = true;
+      PadlockNetwork.pendingCallData = {'targetId': targetId, 'sdp': sdp};
+
+      void abrirEcraChamada(int tentativas) {
+        if (navigatorKey.currentState != null) {
+          navigatorKey.currentState?.push(
+            MaterialPageRoute(
+              builder: (context) => ActiveCallScreen(
+                local: t['EN']!,
+                recipientName: targetId,
+                targetId: targetId,
+                isIncoming: true,
+                channel: PadlockNetwork.channel,
+                incomingSdp: sdp,
+                acceptedViaCallKit: true,
+              ),
+            ),
+          );
+        } else if (tentativas > 0) {
+          Future.delayed(const Duration(milliseconds: 200), () => abrirEcraChamada(tentativas - 1));
+        }
+      }
+      abrirEcraChamada(20);
     } else if (event.event == Event.actionCallDecline) {
+      FlutterCallkitIncoming.endAllCalls();
         final targetId = event.body['extra']['targetId'];
         final tempChannel = WebSocketChannel.connect(Uri.parse('wss://servidor-padlock.onrender.com'));
         tempChannel.sink.add(jsonEncode({'action': 'call_end', 'targetId': targetId}));
@@ -265,7 +279,17 @@ class _PadlockAppState extends State<PadlockApp> {
           unselectedItemColor: Colors.grey,
         ),
       ),
-      home: widget.isFirstTime ? const SetupScreen() : const LoginScreen(),
+      home: (PadlockNetwork.bypassLogin && PadlockNetwork.pendingCallData != null)
+          ? ActiveCallScreen(
+              local: t[_currentLanguage] ?? t['EN']!,
+              recipientName: PadlockNetwork.pendingCallData!['targetId'],
+              targetId: PadlockNetwork.pendingCallData!['targetId'],
+              isIncoming: true,
+              channel: PadlockNetwork.channel,
+              incomingSdp: PadlockNetwork.pendingCallData!['sdp'],
+              acceptedViaCallKit: true,
+            )
+          : (widget.isFirstTime ? const SetupScreen() : const LoginScreen()),
     );
   }
 }
@@ -452,45 +476,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
 @override
   void initState() {
     super.initState();
-    FlutterCallkitIncoming.onEvent.listen((event) {
-      if (event!.event == Event.actionCallAccept) {
-        if (PadlockNetwork.emChamada) return;
-      PadlockNetwork.emChamada = true;
-        final targetId = event.body['extra']['targetId'];
-        final sdp = jsonDecode(event.body['extra']['sdp']);
-
-        navigatorKey.currentState?.push(
-          MaterialPageRoute(
-            builder: (context) => ActiveCallScreen(
-              local: t[widget.currentLanguage.toUpperCase()] ?? t['EN']!,
-              recipientName: targetId,
-              targetId: targetId,
-              isIncoming: true,
-              channel: PadlockNetwork.channel,
-              incomingSdp: sdp,
-              acceptedViaCallKit: true,
-            ),
-          ),
-        );
-      } else if (event.event == Event.actionCallDecline) {
-        final targetId = event.body['extra']['targetId'];
-        final tempChannel = WebSocketChannel.connect(Uri.parse('wss://servidor-padlock.onrender.com'));
-        tempChannel.sink.add(jsonEncode({'action': 'call_end', 'targetId': targetId}));
-        Future.delayed(const Duration(milliseconds: 1500), () => tempChannel.sink.close());
-      } else if (event.event == Event.actionCallTimeout) {
-        final targetId = event.body['extra']['targetId'];
-        final vault = Hive.box('padlock_vault');
-        List allChats = jsonDecode(vault.get('chats') ?? '[]');
-        int idx = allChats.indexWhere((c) => c['id'] == targetId);
-        if (idx != -1) {
-          final timeStr = "${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}";
-          allChats[idx]['messages'].add({'text': '📞 Missed Call ($timeStr)', 'isMe': false, 'status': 'missed', 'timestamp': DateTime.now().millisecondsSinceEpoch});
-          allChats[idx]['msg'] = '📞 Missed Call';
-          allChats[idx]['unread'] = (allChats[idx]['unread'] ?? 0) + 1;
-          vault.put('chats', jsonEncode(allChats));
-        }
-      }
-    });
+    
     PadlockNetwork.connect();
     WidgetsBinding.instance.addObserver(this);
     _generateNewId();
@@ -537,9 +523,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
                 mostrarPedidoDeConexao(senderId, senderPubKey);
               } 
               else if (data['action'] == 'call_candidate') {
-          PadlockNetwork.earlyCandidates.add(data);
-        }
-      else if (data['type'] == 'wipe_chat') {
+        PadlockNetwork.earlyCandidates.add(data);
+      } else if (data['action'] == 'call_end') {
+        FlutterCallkitIncoming.endAllCalls();
+        PadlockNetwork.emChamada = false;
+      } else if (data['type'] == 'wipe_chat') {
         final peerId = data['senderId'] ?? data['targetId'];
         for (var chat in _chats) {
           if (chat['id'] == peerId) {
@@ -1358,6 +1346,11 @@ title: const Text(
         actions: [
           
           PopupMenuButton<String>(
+            color: const Color(0xFF0a1a12),
+            shape: RoundedRectangleBorder(
+              side: const BorderSide(color: Color(0xFF1e4d2b), width: 1.0),
+              borderRadius: BorderRadius.circular(12),
+            ),
             onSelected: (value) {
               if (value == 'logout') {
                 _logout();
@@ -1404,11 +1397,11 @@ title: const Text(
             itemBuilder: (BuildContext context) => [
               const PopupMenuItem(
                 value: 'idioma',
-                child: Text('Idioma'),
+                child: Text('Language', style: TextStyle(color: Colors.white)),
               ),
               const PopupMenuItem(
                 value: 'logout',
-                child: Text('Log Out', style: TextStyle(color: Colors.red)),
+                child: Text('Log Out', style: TextStyle(color: Color(0xFF00FF66), fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -1426,25 +1419,30 @@ title: const Text(
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text("Nova Conversa"),
-          content: const Text("Deseja iniciar uma nova conversa segura?"),
+          backgroundColor: const Color(0xFF151515),
+          shape: RoundedRectangleBorder(
+            side: const BorderSide(color: Color(0xFF1e4d2b), width: 1.0),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          title: const Text("New Chat", style: TextStyle(color: Colors.white)),
+          content: const Text("Start a new secure conversation?", style: TextStyle(color: Colors.grey)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text("Cancelar"),
+              child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
             ),
             TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                _currentIndex = 1;
-              });
-            },
-            child: const Text("Criar"),
-          ),
+              onPressed: () {
+                Navigator.pop(context);
+                setState(() {
+                  _currentIndex = 1;
+                });
+              },
+              child: const Text("Create", style: TextStyle(color: Color(0xFF00FF66))),
+            ),
           ],
-        ), // Fecha o AlertDialog
-      ); // Fecha o showDialog
+        ),
+      );
     }, // Fecha o onPressed do FloatingActionButton
   ) // Fecha o FloatingActionButton
           : _currentIndex == 1
@@ -1787,11 +1785,12 @@ class ChatsScreen extends StatelessWidget {
                   
                   child: Container(
                     margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF101010),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.white10),
-                    ),
+                   
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0a1a12),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF1e4d2b), width: 1.0),
+                ),
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
                        leading: Stack(
@@ -1893,29 +1892,34 @@ trailing: Row(
           children: [
             
             IconButton( 
-  icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
+  icon: const Icon(Icons.delete_forever, color: Color(0xFFFF1515), size: 28),
   onPressed: () {
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: const Text("Eliminar Conversa"),
-          content: const Text("Deseja eliminar este chat permanentemente?"),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Cancelar"),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                chats.removeAt(index);
-                onUpdateChats();
-              },
-              child: const Text("Eliminar", style: TextStyle(color: Colors.red)),
-            ),
-          ],
-        );
+              backgroundColor: const Color.fromARGB(255, 21, 21, 21),
+              shape: RoundedRectangleBorder(
+                side: const BorderSide(color: Color(0xFF1e4d2b), width: 1.0),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              title: const Text("Delete Chat", style: TextStyle(color: Colors.white)),
+              content: const Text("Do you want to permanently delete this chat?", style: TextStyle(color: Color.fromARGB(255, 122, 241, 232))),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Cancel", style: TextStyle(color: Color.fromARGB(255, 240, 206, 155))),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    chats.removeAt(index);
+                    // ATENÇÃO: Se tinhas mais alguma linha de código aqui (como um setState) para atualizar a lista, volta a colocá-la.
+                  },
+                  child: const Text("Delete", style: TextStyle(color: Color(0xFFFF1515))),
+                ),
+              ],
+            );
       },
     );
   },
@@ -2989,11 +2993,11 @@ class ContactsScreen extends StatelessWidget {
                     final contact = filteredContacts[index];
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF101010),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.white10),
-                        ),
+                       decoration: BoxDecoration(
+                  color: const Color(0xFF0a1a12),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFF1e4d2b), width: 1.0),
+                ),
                         child: ListTile(
                           onLongPress: () => onDeleteContact(index),
                           leading: Container(
@@ -3027,7 +3031,7 @@ class ContactsScreen extends StatelessWidget {
   ),
 ),
                           trailing: IconButton(
-          icon: const Icon(Icons.edit, color: Colors.grey),
+          icon: const Icon(Icons.edit, color: Color(0xFF00FF66)),
           onPressed: () => onEditContact(index),
         ),
                           onTap: () => onSelectContact(contact['name']!),
@@ -3655,7 +3659,7 @@ Widget build(BuildContext context) {
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   width: 82,
-                  height: 66,
+                  height: 74,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     gradient: const LinearGradient(
@@ -3713,7 +3717,7 @@ Widget build(BuildContext context) {
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
                     width: 82,
-                  height: 66,
+                  height: 74,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(12),
                       gradient: const LinearGradient(
@@ -4051,7 +4055,17 @@ bool _isRemoteSet = false;
       });
       startSecureCall(widget.targetId);
       
-      
+      // O TEMPORIZADOR DE SAÍDA: Cancela a chamada se ninguém atender em 30 segundos
+      _callTimeoutTimer?.cancel();
+      _callTimeoutTimer = Timer(const Duration(seconds: 30), () {
+        if (mounted && !_callHandled) {
+          _callHandled = true;
+          endCall(widget.targetId);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Contact Unavailable or Offline.', style: TextStyle(color: Colors.red))),
+          );
+        }
+      });
       
     } else {
       setState(() {
@@ -4246,7 +4260,7 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
     audioFocus: AndroidAudioFocus.gainTransient,
   ),
 ));
-_audioPlayer.play(AssetSource('sounds/ringing.mp3'));
+_audioPlayer.play(AssetSource('sounds/morse.mp3'));
     } catch (e) {
       print('Erro ao iniciar motor WebRTC P2P: $e');
     }
@@ -4351,13 +4365,19 @@ flutterLocalNotificationsPlugin.cancel(99);
 
     _audioPlayer.stop();
     flutterLocalNotificationsPlugin.cancel(99);
+    await FlutterCallkitIncoming.endAllCalls();
     await _audioPlayer.play(AssetSource('sounds/end_call.mp3'));
     await Future.delayed(const Duration(milliseconds: 500));
-    if (widget.acceptedViaCallKit) {
-    SystemNavigator.pop();
-  } else {
-    if (mounted && Navigator.canPop(context)) Navigator.pop(context);
-  }
+    PadlockNetwork.bypassLogin = false;
+    PadlockNetwork.pendingCallData = null;
+
+    if (mounted) {
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context); 
+      } else {
+        SystemNavigator.pop(); 
+      }
+    }
   } 
   void _toggleMute() {
     if (_localStream != null) {
