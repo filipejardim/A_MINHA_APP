@@ -2842,7 +2842,7 @@ flexibleSpace: Container(
     const SizedBox(width: 6),
                     Text(
                   DateTime.fromMillisecondsSinceEpoch(m['timestamp'] ?? DateTime.now().millisecondsSinceEpoch).toString().substring(11, 16),
-                  style: const TextStyle(color: Colors.white38, fontSize: 9),
+                  style: TextStyle(color: isMe ? const Color(0xFFd8f3dc) : const Color(0xFF1e4d2b), fontSize: 9),
                 ),
                 const SizedBox(width: 5),
                     if (isMe) ...[
