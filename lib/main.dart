@@ -95,6 +95,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
           isShowLogo: true,
           backgroundColor: '#000000',
           actionColor: '#00FF66',
+          ringtonePath: 'ringtone',
         ),
       ),
     );
@@ -622,26 +623,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
         }
         
                if (mounted) {
-   FlutterCallkitIncoming.showCallkitIncoming(
-    CallKitParams(
-      id: data['senderId'],
-      nameCaller: data['senderId'],
-      appName: 'Padlock',
-      avatar: '',
-      handle: 'You have an encrypted call',
-      type: 0,
-      duration: 30000,
-      textAccept: 'Atender',
-      textDecline: 'Recusar',
-      extra: {'targetId': data['senderId'], 'sdp': jsonEncode(data['sdp'])},
-      android: AndroidParams(
-        isCustomNotification: true,
-        isShowLogo: true,
-        backgroundColor: '#000000',
-        actionColor: '#00FF66',
-      ),
+   navigatorKey.currentState?.push(
+  MaterialPageRoute(
+    builder: (context) => ActiveCallScreen(
+      local: t[Hive.box('padlock_vault').get('language') ?? 'EN'] ?? t['EN']!,
+      recipientName: data['senderId'],
+      targetId: data['senderId'],
+      isIncoming: true,
+      channel: PadlockNetwork.channel,
+      incomingSdp: data['sdp'],
+      acceptedViaCallKit: false, 
     ),
-  );
+  ),
+);
 }
 }
               else if (data['type'] == 'secure_message') {
@@ -3983,6 +3977,7 @@ bool _isRemoteSet = false;
             _callStatusColor = Colors.lightBlueAccent;
           });
           _audioPlayer.play(AssetSource('sounds/morse.mp3')).catchError((e) => print('Erro audio: $e'));
+          _audioPlayer.setVolume(0.3);
           RTCSessionDescription remoteDesc = RTCSessionDescription(
             decoded['sdp']['sdp'],
             decoded['sdp']['type'],
@@ -4008,13 +4003,15 @@ bool _isRemoteSet = false;
               _candidateQueue.add(candidate);
             }
           }
-        } else if (decoded['action'] == 'call_ringing' && !widget.isIncoming) {
+        else if (decoded['action'] == 'call_ringing') {
           if (mounted) {
             setState(() {
               _callStatusText = 'Ringing...';
               _callStatusColor = Colors.greenAccent;
             });
+            }
             _audioPlayer.stop();
+            _audioPlayer.setVolume(0.3);
     _audioPlayer.setReleaseMode(ReleaseMode.loop);
     await _audioPlayer.setAudioContext(AudioContext(
   android: AudioContextAndroid(
@@ -4074,11 +4071,18 @@ bool _isRemoteSet = false;
       });
       _startMissedCallTimer();
     
-      final ringingSignal = {
-        'action': 'call_ringing',
-        'targetId': widget.targetId,
-      };
-      widget.channel?.sink.add(jsonEncode(ringingSignal));
+     final ringingSignal = {
+  'action': 'call_ringing',
+  'targetId': widget.targetId,
+};
+widget.channel?.sink.add(jsonEncode(ringingSignal));
+
+// Aciona o toque para quem recebe a chamada (com o nome exato do teu ficheiro)
+if (!widget.acceptedViaCallKit) {
+  _audioPlayer.setReleaseMode(ReleaseMode.loop);
+  _audioPlayer.setVolume(0.7);
+  _audioPlayer.play(AssetSource('sounds/ringtone.mp3.mp3'));
+}
       if (widget.acceptedViaCallKit) {
         _callHandled = true;
         _callTimeoutTimer?.cancel();
@@ -4260,6 +4264,7 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
     audioFocus: AndroidAudioFocus.gainTransient,
   ),
 ));
+_audioPlayer.setVolume(0.3);
 _audioPlayer.play(AssetSource('sounds/morse.mp3'));
     } catch (e) {
       print('Erro ao iniciar motor WebRTC P2P: $e');
