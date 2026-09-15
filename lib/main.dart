@@ -28,7 +28,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 class PadlockNetwork {
   static String? chatAbertoAtualmente;
   static bool emChamada = false;
-  static bool bypassLogin = false;
+  
   static Map<String, dynamic>? pendingCallData;
   static WebSocketChannel? channel;
   static final StreamController<dynamic> messageHub = StreamController<dynamic>.broadcast();
@@ -81,12 +81,12 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await FlutterCallkitIncoming.showCallkitIncoming(
       CallKitParams(
         id: senderId,
-        nameCaller: senderId,
+        nameCaller: 'Padlock - $senderId',
         appName: 'Padlock',
         avatar: '',
         handle: 'Encrypted Call',
         type: 0,
-        duration: 30000,
+        duration: 60000,
         textAccept: 'Atender',
         textDecline: 'Recusar',
         extra: {'targetId': senderId, 'sdp': message.data['sdp']},
@@ -127,7 +127,7 @@ void main() async {
       final targetId = event.body['extra']['targetId'];
       final sdp = jsonDecode(event.body['extra']['sdp']);
       
-      PadlockNetwork.bypassLogin = true;
+      
       PadlockNetwork.pendingCallData = {'targetId': targetId, 'sdp': sdp};
 
       void abrirEcraChamada(int tentativas) {
@@ -280,17 +280,7 @@ class _PadlockAppState extends State<PadlockApp> {
           unselectedItemColor: Colors.grey,
         ),
       ),
-      home: (PadlockNetwork.bypassLogin && PadlockNetwork.pendingCallData != null)
-          ? ActiveCallScreen(
-              local: t[_currentLanguage] ?? t['EN']!,
-              recipientName: PadlockNetwork.pendingCallData!['targetId'],
-              targetId: PadlockNetwork.pendingCallData!['targetId'],
-              isIncoming: true,
-              channel: PadlockNetwork.channel,
-              incomingSdp: PadlockNetwork.pendingCallData!['sdp'],
-              acceptedViaCallKit: true,
-            )
-          : (widget.isFirstTime ? const SetupScreen() : const LoginScreen()),
+     home: widget.isFirstTime ? const SetupScreen() : const LoginScreen(),
     );
   }
 }
@@ -4054,7 +4044,7 @@ bool _isRemoteSet = false;
       
       // O TEMPORIZADOR DE SAÍDA: Cancela a chamada se ninguém atender em 30 segundos
       _callTimeoutTimer?.cancel();
-      _callTimeoutTimer = Timer(const Duration(seconds: 30), () {
+      _callTimeoutTimer = Timer(const Duration(seconds: 60), () {
         if (mounted && !_callHandled) {
           _callHandled = true;
           endCall(widget.targetId);
@@ -4070,16 +4060,17 @@ bool _isRemoteSet = false;
         _callStatusColor = const Color(0xFF00FF66);
       });
       _startMissedCallTimer();
-    
+    Future.delayed(const Duration(milliseconds: 1500), () {
      final ringingSignal = {
   'action': 'call_ringing',
   'targetId': widget.targetId,
 };
 widget.channel?.sink.add(jsonEncode(ringingSignal));
-
+});
 // Aciona o toque para quem recebe a chamada (com o nome exato do teu ficheiro)
 if (!widget.acceptedViaCallKit) {
   _audioPlayer.setReleaseMode(ReleaseMode.loop);
+  _audioPlayer.setAudioContext(AudioContext(android: AudioContextAndroid(isSpeakerphoneOn: true, stayAwake: true, contentType: AndroidContentType.music, usageType: AndroidUsageType.notificationRingtone, audioFocus: AndroidAudioFocus.gainTransient)));
   _audioPlayer.setVolume(0.7);
   _audioPlayer.play(AssetSource('sounds/ringtone.mp3.mp3'));
 }
@@ -4138,7 +4129,7 @@ if (!widget.acceptedViaCallKit) {
       String? chatsJson = vault.get('chats');
       List<dynamic> allChats = chatsJson != null ? jsonDecode(chatsJson) : [];
       
-      int chatIdx = allChats.indexWhere((c) => c['id'] == widget.targetId);
+      int chatIdx = allChats.indexWhere((c) => c['id'].toString() == widget.targetId.toString());
       final now = DateTime.now().millisecondsSinceEpoch;
       final timeStr = "${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}";
       final missedMsg = '📞 Missed Secure Call ($timeStr)';
@@ -4151,6 +4142,7 @@ if (!widget.acceptedViaCallKit) {
         allChats[chatIdx]['unread'] = (allChats[chatIdx]['unread'] ?? 0) + 1;
       }
       vault.put('chats', jsonEncode(allChats));
+      flutterLocalNotificationsPlugin.show(DateTime.now().millisecond, 'Padlock - Missed Call', missedMsg, const NotificationDetails(android: AndroidNotificationDetails('padlock_msg_channel', 'Secure Messages', importance: Importance.max, priority: Priority.high, playSound: true)));
     } catch (e) {
       print('Erro ao registar chamada perdida: $e');
     }
@@ -4373,7 +4365,7 @@ flutterLocalNotificationsPlugin.cancel(99);
     await FlutterCallkitIncoming.endAllCalls();
     await _audioPlayer.play(AssetSource('sounds/end_call.mp3'));
     await Future.delayed(const Duration(milliseconds: 500));
-    PadlockNetwork.bypassLogin = false;
+    
     PadlockNetwork.pendingCallData = null;
 
     if (mounted) {
