@@ -24,11 +24,18 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:record/record.dart';
+import 'dart:io';
 // Serviço de rede para conectar ao servidor
 class PadlockNetwork {
   static String? chatAbertoAtualmente;
   static bool emChamada = false;
-  
+  static bool isUnlocked = false;
+  static String? pendingFcmToken;
+
   static Map<String, dynamic>? pendingCallData;
   static WebSocketChannel? channel;
   static final StreamController<dynamic> messageHub = StreamController<dynamic>.broadcast();
@@ -61,7 +68,517 @@ static final List<dynamic> earlyCandidates = [];
     }
   }
 }
+
+// Chave do cofre derivada da frase de encriptação escolhida pelo utilizador
+// (Argon2id), ao estilo VeraCrypt: sem a frase certa, os dados ficam
+// matematicamente ilegíveis mesmo com o telemóvel fisicamente comprometido
+// (Keystore extraído, imagem forense, etc). A app nunca guarda a frase nem
+// a chave derivada em disco - só um sal público (não secreto) que serve
+// para repetir a mesma derivação em cada arranque.
+class PadlockVaultKey {
+  static const String _saltPrefsKey = 'padlock_vault_salt';
+
+  static Future<bool> hasVault() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_saltPrefsKey) != null;
+  }
+
+  static Future<Uint8List> createSalt() async {
+    final random = Random.secure();
+    final salt = Uint8List.fromList(List<int>.generate(16, (_) => random.nextInt(256)));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_saltPrefsKey, base64Encode(salt));
+    return salt;
+  }
+
+  static Future<Uint8List?> getSalt() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saltBase64 = prefs.getString(_saltPrefsKey);
+    if (saltBase64 == null) return null;
+    return base64Decode(saltBase64);
+  }
+
+  static Future<void> wipe() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_saltPrefsKey);
+  }
+
+  static Future<Uint8List> deriveKey(String passphrase, Uint8List salt) async {
+    final algorithm = crypto.Argon2id(
+      parallelism: 1,
+      memory: 19456, // ~19 MiB, mínimo recomendado pela OWASP para Argon2id
+      iterations: 3,
+      hashLength: 32,
+    );
+    final secretKey = await algorithm.deriveKeyFromPassword(
+      password: passphrase,
+      nonce: salt,
+    );
+    final bytes = await secretKey.extractBytes();
+    return Uint8List.fromList(bytes);
+  }
+}
+
+// Cofre à parte para o "Secure Vault Files": um código de entrada PRÓPRIO,
+// diferente do código que abre a app - quem sabe o código da app não vê
+// automaticamente as fotos/documentos. Mesma técnica (Argon2id) que o
+// PadlockVaultKey, só muda onde o sal fica guardado.
+class VaultFilesKey {
+  static const String _saltPrefsKey = 'padlock_vault_files_salt';
+  static DateTime? _unlockedUntil;
+
+  static bool get isUnlocked =>
+      _unlockedUntil != null && DateTime.now().isBefore(_unlockedUntil!);
+
+  static void markUnlocked() {
+    _unlockedUntil = DateTime.now().add(const Duration(minutes: 5));
+  }
+
+  static void lock() {
+    _unlockedUntil = null;
+  }
+
+  static Future<bool> hasVault() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_saltPrefsKey) != null;
+  }
+
+  static Future<Uint8List> createSalt() async {
+    final random = Random.secure();
+    final salt = Uint8List.fromList(List<int>.generate(16, (_) => random.nextInt(256)));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_saltPrefsKey, base64Encode(salt));
+    return salt;
+  }
+
+  static Future<Uint8List?> getSalt() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saltBase64 = prefs.getString(_saltPrefsKey);
+    if (saltBase64 == null) return null;
+    return base64Decode(saltBase64);
+  }
+
+  static Future<void> wipe() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_saltPrefsKey);
+  }
+}
+
+// Guarda/lê as fotos e documentos do Secure Vault Files. Enquanto o cofre
+// próprio dos ficheiros não estiver destrancado (ou nunca tiver sido criado),
+// qualquer ficheiro que chegue fica em espera, já dentro do cofre principal
+// (que está sempre aberto durante a sessão) - nunca fica nada por cifrar em
+// lado nenhum, só muda QUAL chave o protege até seres tu a abrir o cofre de
+// ficheiros e ele ser migrado para lá.
+class VaultFilesStore {
+  static String _newId() =>
+      '${DateTime.now().millisecondsSinceEpoch}_${Random.secure().nextInt(1 << 32)}';
+
+  static Future<void> _queuePending(Map<String, dynamic> entry) async {
+    final vault = Hive.box('padlock_vault');
+    final List pending = jsonDecode(vault.get('pending_vault_files') ?? '[]');
+    pending.add(entry);
+    await vault.put('pending_vault_files', jsonEncode(pending));
+  }
+
+  static Future<void> storeIncoming({
+    required String peerId,
+    required String fileName,
+    required String fileKind,
+    required String dataBase64,
+    required int timestamp,
+  }) async {
+    await _queuePending({
+      'id': _newId(),
+      'peerId': peerId,
+      'direction': 'received',
+      'fileName': fileName,
+      'fileKind': fileKind,
+      'dataBase64': dataBase64,
+      'timestamp': timestamp,
+    });
+  }
+
+  static Future<void> storeSent({
+    required String peerId,
+    required String fileName,
+    required String fileKind,
+    required Uint8List fileBytes,
+    String direction = 'sent',
+  }) async {
+    final entry = {
+      'id': _newId(),
+      'peerId': peerId,
+      'direction': direction,
+      'fileName': fileName,
+      'fileKind': fileKind,
+      'dataBase64': base64Encode(fileBytes),
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    };
+    if (VaultFilesKey.isUnlocked && Hive.isBoxOpen('padlock_vault_files')) {
+      await _writeEntry(Hive.box('padlock_vault_files'), entry);
+    } else {
+      await _queuePending(entry);
+    }
+  }
+
+  static Future<void> _writeEntry(Box filesBox, Map<String, dynamic> entry) async {
+    final List index = jsonDecode(filesBox.get('index') ?? '[]');
+    index.add({
+      'id': entry['id'],
+      'peerId': entry['peerId'],
+      'direction': entry['direction'],
+      'fileName': entry['fileName'],
+      'fileKind': entry['fileKind'],
+      'timestamp': entry['timestamp'],
+    });
+    await filesBox.put('index', jsonEncode(index));
+    await filesBox.put('data_${entry['id']}', entry['dataBase64']);
+  }
+
+  static Future<void> migratePending(Box filesBox) async {
+    final vault = Hive.box('padlock_vault');
+    final String? pendingStr = vault.get('pending_vault_files');
+    if (pendingStr == null) return;
+    final List pending = jsonDecode(pendingStr);
+    for (var item in pending) {
+      await _writeEntry(filesBox, Map<String, dynamic>.from(item));
+    }
+    await vault.delete('pending_vault_files');
+  }
+
+  static List<Map<String, dynamic>> listEntries(Box filesBox) {
+    final List index = jsonDecode(filesBox.get('index') ?? '[]');
+    return index.map((e) => Map<String, dynamic>.from(e)).toList()
+      ..sort((a, b) => (b['timestamp'] as int).compareTo(a['timestamp'] as int));
+  }
+
+  static Uint8List? readData(Box filesBox, String id) {
+    final String? b64 = filesBox.get('data_$id');
+    if (b64 == null) return null;
+    return base64Decode(b64);
+  }
+
+  static Future<void> deleteEntry(Box filesBox, String id) async {
+    final List index = jsonDecode(filesBox.get('index') ?? '[]');
+    index.removeWhere((e) => e['id'] == id);
+    await filesBox.put('index', jsonEncode(index));
+    await filesBox.delete('data_$id');
+  }
+}
+
+// Double Ratchet (cadeia simétrica + ratchet Diffie-Hellman), ao estilo Signal:
+// além da cadeia de hash que avança a cada mensagem (sigilo perante o futuro -
+// uma chave antiga nunca destranca mensagens novas), sempre que a conversa
+// "muda de sentido" (a outra parte responde) as duas partes fazem um novo
+// Diffie-Hellman e criam uma cadeia totalmente nova a partir daí. Isto dá
+// "post-compromise security": mesmo que um atacante roube uma chave da
+// cadeia num certo momento, assim que houver uma resposta a conversa
+// "cura-se" sozinha e volta a ficar ilegível para quem só tinha essa chave.
+class PadlockRatchet {
+  static const List<int> _msgKeyConstant = [0x01];
+  static const List<int> _chainKeyConstant = [0x02];
+
+  static Future<void> establishChains({
+    required String peerId,
+    required String myId,
+    required List<int> sharedSecretBytes,
+    required List<int> myHandshakePrivateKeyBytes,
+    required List<int> myHandshakePublicKeyBytes,
+    required List<int> theirHandshakePublicKeyBytes,
+  }) async {
+    final hmac = crypto.Hmac.sha256();
+    final mac1 = await hmac.calculateMac(
+      utf8.encode('padlock-chain-1'),
+      secretKey: crypto.SecretKey(sharedSecretBytes),
+    );
+    final mac2 = await hmac.calculateMac(
+      utf8.encode('padlock-chain-2'),
+      secretKey: crypto.SecretKey(sharedSecretBytes),
+    );
+    final rootMac = await hmac.calculateMac(
+      utf8.encode('padlock-root'),
+      secretKey: crypto.SecretKey(sharedSecretBytes),
+    );
+
+    final vault = Hive.box('padlock_vault');
+    final amFirst = myId.compareTo(peerId) < 0;
+
+    // Cadeias simétricas de arranque, iguais para os dois lados (tal como
+    // sempre foi): garantem que QUALQUER um dos dois pode escrever a
+    // primeira mensagem sem ter de esperar por uma resposta - um Double
+    // Ratchet "de manual" obriga o lado que não iniciou a esperar pela
+    // primeira mensagem do outro antes de poder responder, o que não faz
+    // sentido numa app de chat onde qualquer um pode escrever primeiro.
+    await vault.put('chain_send_$peerId', base64Encode(amFirst ? mac1.bytes : mac2.bytes));
+    await vault.put('chain_recv_$peerId', base64Encode(amFirst ? mac2.bytes : mac1.bytes));
+    await vault.put('chain_send_n_$peerId', 0);
+    await vault.put('chain_recv_n_$peerId', 0);
+    await vault.delete('skipped_keys_$peerId');
+    await vault.delete('shared_secret_$peerId');
+
+    // Estado base do ratchet DH: o par de chaves do handshake serve de
+    // "chave de ratchet" inicial de cada lado (ambos já a conhecem, tal
+    // como o "prekey" do Signal).
+    await vault.put('dr_root_$peerId', base64Encode(rootMac.bytes));
+    await vault.put('dr_dhs_priv_$peerId', base64Encode(myHandshakePrivateKeyBytes));
+    await vault.put('dr_dhs_pub_$peerId', base64Encode(myHandshakePublicKeyBytes));
+    await vault.put('dr_dhr_pub_$peerId', base64Encode(theirHandshakePublicKeyBytes));
+
+    if (amFirst) {
+      // Papel equivalente ao "Alice" do protocolo Signal: em vez de reutilizar
+      // a chave do handshake para enviar, gera já uma chave de ratchet nova e
+      // faz logo o 1º passo do ratchet DH - a primeira mensagem já nasce
+      // "curada" à frente, sem esperar por uma resposta.
+      await _selfRatchetAsInitiator(peerId, theirHandshakePublicKeyBytes);
+    }
+  }
+
+  static Future<void> _selfRatchetAsInitiator(String peerId, List<int> theirDhPubBytes) async {
+    final vault = Hive.box('padlock_vault');
+    final algorithm = crypto.X25519();
+
+    final rootKey = base64Decode(vault.get('dr_root_$peerId'));
+
+    final freshKeyPair = await algorithm.newKeyPair();
+    final freshPriv = await freshKeyPair.extractPrivateKeyBytes();
+    final freshPub = (await freshKeyPair.extractPublicKey()).bytes;
+
+    final theirPublicKey = crypto.SimplePublicKey(theirDhPubBytes, type: crypto.KeyPairType.x25519);
+    final dhOutput = await algorithm.sharedSecretKey(keyPair: freshKeyPair, remotePublicKey: theirPublicKey);
+    final dhOutputBytes = await dhOutput.extractBytes();
+
+    final kdf = await _kdfRk(rootKey, dhOutputBytes);
+
+    await vault.put('dr_root_$peerId', base64Encode(kdf['root']!));
+    await vault.put('dr_dhs_priv_$peerId', base64Encode(freshPriv));
+    await vault.put('dr_dhs_pub_$peerId', base64Encode(freshPub));
+    await vault.put('chain_send_$peerId', base64Encode(kdf['chain']!));
+    await vault.put('chain_send_n_$peerId', 0);
+  }
+
+  // Passo do ratchet DH, disparado quando se recebe uma mensagem com uma
+  // chave de ratchet do outro lado diferente da que tínhamos guardada -
+  // sinal de que houve uma "resposta" e é altura de renovar as duas cadeias.
+  static Future<void> _performDhRatchet(String peerId, String theirNewDhPubB64) async {
+    final vault = Hive.box('padlock_vault');
+    final algorithm = crypto.X25519();
+
+    final rootB64 = vault.get('dr_root_$peerId');
+    final myDhsPrivB64 = vault.get('dr_dhs_priv_$peerId');
+    if (rootB64 == null || myDhsPrivB64 == null) return; // handshake incompleto: nada a fazer
+
+    var rootKey = base64Decode(rootB64);
+    final theirNewPubBytes = base64Decode(theirNewDhPubB64);
+    final theirNewPublicKey = crypto.SimplePublicKey(theirNewPubBytes, type: crypto.KeyPairType.x25519);
+
+    // 1. DH com a MINHA chave de ratchet atual + a chave nova deles -> nova cadeia de receção
+    final myCurrentKeyPair = await algorithm.newKeyPairFromSeed(base64Decode(myDhsPrivB64));
+    final dhOut1 = await algorithm.sharedSecretKey(keyPair: myCurrentKeyPair, remotePublicKey: theirNewPublicKey);
+    final kdf1 = await _kdfRk(rootKey, await dhOut1.extractBytes());
+    rootKey = kdf1['root']!;
+
+    // 2. Gero já uma chave de ratchet nova minha e faço DH outra vez -> nova cadeia de envio
+    // (assim a MINHA próxima mensagem já vai com uma chave fresca, tal como faria o Signal)
+    final myNewKeyPair = await algorithm.newKeyPair();
+    final myNewPrivBytes = await myNewKeyPair.extractPrivateKeyBytes();
+    final myNewPubBytes = (await myNewKeyPair.extractPublicKey()).bytes;
+    final dhOut2 = await algorithm.sharedSecretKey(keyPair: myNewKeyPair, remotePublicKey: theirNewPublicKey);
+    final kdf2 = await _kdfRk(rootKey, await dhOut2.extractBytes());
+
+    await vault.put('dr_root_$peerId', base64Encode(kdf2['root']!));
+    await vault.put('dr_dhr_pub_$peerId', theirNewDhPubB64);
+    await vault.put('chain_recv_$peerId', base64Encode(kdf1['chain']!));
+    await vault.put('chain_recv_n_$peerId', 0);
+    await vault.delete('skipped_keys_$peerId'); // cadeia nova: os índices recomeçam do zero
+
+    await vault.put('dr_dhs_priv_$peerId', base64Encode(myNewPrivBytes));
+    await vault.put('dr_dhs_pub_$peerId', base64Encode(myNewPubBytes));
+    await vault.put('chain_send_$peerId', base64Encode(kdf2['chain']!));
+    await vault.put('chain_send_n_$peerId', 0);
+  }
+
+  static Future<Map<String, Uint8List>> _kdfRk(List<int> rootKey, List<int> dhOutput) async {
+    final hmac = crypto.Hmac.sha256();
+    final rootMac = await hmac.calculateMac([...dhOutput, 0x01], secretKey: crypto.SecretKey(rootKey));
+    final chainMac = await hmac.calculateMac([...dhOutput, 0x02], secretKey: crypto.SecretKey(rootKey));
+    return {
+      'root': Uint8List.fromList(rootMac.bytes),
+      'chain': Uint8List.fromList(chainMac.bytes),
+    };
+  }
+
+  static Future<Uint8List> _step(List<int> chainKey, List<int> constant) async {
+    final hmac = crypto.Hmac.sha256();
+    final mac = await hmac.calculateMac(constant, secretKey: crypto.SecretKey(chainKey));
+    return Uint8List.fromList(mac.bytes);
+  }
+
+  static Future<Map<String, dynamic>> nextSendKey(String peerId) async {
+    final vault = Hive.box('padlock_vault');
+    final chainBase64 = vault.get('chain_send_$peerId');
+    if (chainBase64 == null) {
+      throw Exception('Sem cadeia de envio para $peerId. Handshake incompleto.');
+    }
+    final chain = base64Decode(chainBase64);
+    final msgKey = await _step(chain, _msgKeyConstant);
+    final nextChain = await _step(chain, _chainKeyConstant);
+    final n = (vault.get('chain_send_n_$peerId') ?? 0) as int;
+
+    await vault.put('chain_send_$peerId', base64Encode(nextChain));
+    await vault.put('chain_send_n_$peerId', n + 1);
+
+    final dhsPub = vault.get('dr_dhs_pub_$peerId') as String?;
+    return {'key': msgKey, 'index': n, 'dh': dhsPub};
+  }
+
+  // theirDhPub: chave de ratchet atual de quem enviou (vem no cabeçalho da
+  // mensagem). Se for diferente da que tínhamos guardada, dispara um passo
+  // do ratchet DH antes de sequer tentar decifrar.
+  static Future<Uint8List?> receiveMessageKey(String peerId, int targetIndex, {String? theirDhPub}) async {
+    final vault = Hive.box('padlock_vault');
+
+    if (theirDhPub != null && theirDhPub.isNotEmpty) {
+      final storedDhr = vault.get('dr_dhr_pub_$peerId') as String?;
+      if (storedDhr != null && storedDhr != theirDhPub) {
+        await _performDhRatchet(peerId, theirDhPub);
+      } else if (storedDhr == null) {
+        await vault.put('dr_dhr_pub_$peerId', theirDhPub);
+      }
+    }
+
+    final skippedStr = vault.get('skipped_keys_$peerId');
+    Map<String, dynamic> skipped = skippedStr != null ? jsonDecode(skippedStr) : {};
+    if (skipped.containsKey(targetIndex.toString())) {
+      final keyB64 = skipped.remove(targetIndex.toString());
+      await vault.put('skipped_keys_$peerId', jsonEncode(skipped));
+      return base64Decode(keyB64);
+    }
+
+    final chainBase64 = vault.get('chain_recv_$peerId');
+    if (chainBase64 == null) return null;
+
+    var chain = base64Decode(chainBase64);
+    var n = (vault.get('chain_recv_n_$peerId') ?? 0) as int;
+
+    if (targetIndex < n) return null;
+    if (targetIndex - n > 100) return null;
+
+    Uint8List? finalKey;
+    while (n <= targetIndex) {
+      final msgKey = await _step(chain, _msgKeyConstant);
+      chain = await _step(chain, _chainKeyConstant);
+      if (n == targetIndex) {
+        finalKey = msgKey;
+      } else {
+        skipped[n.toString()] = base64Encode(msgKey);
+      }
+      n++;
+    }
+
+    await vault.put('chain_recv_$peerId', base64Encode(chain));
+    await vault.put('chain_recv_n_$peerId', n);
+    await vault.put('skipped_keys_$peerId', jsonEncode(skipped));
+    return finalKey;
+  }
+}
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+const int kMaxVaultFileBytes = 6 * 1024 * 1024; // 6MB - limite do relay atual (um único frame WebSocket)
+
+// Cifra e envia uma foto/documento pelo mesmo canal Double Ratchet das
+// mensagens de texto (mesma chave por mensagem, mesmo AES-256-GCM) - nome e
+// tipo do ficheiro vão também cifrados lá dentro, nunca em texto simples no
+// pacote que o servidor vê.
+Future<void> sendEncryptedFile({
+  required String targetId,
+  required Uint8List fileBytes,
+  required String fileName,
+  required String fileKind, // 'photo' ou 'document'
+}) async {
+  if (fileBytes.length > kMaxVaultFileBytes) {
+    throw Exception('File too large (max ${kMaxVaultFileBytes ~/ (1024 * 1024)}MB).');
+  }
+  final innerPayload = jsonEncode({'name': fileName, 'kind': fileKind, 'data': base64Encode(fileBytes)});
+
+  final result = await PadlockRatchet.nextSendKey(targetId);
+  final key = enc.Key(Uint8List.fromList(result['key'] as List<int>));
+  final iv = enc.IV.fromSecureRandom(16);
+  final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
+  final encrypted = encrypter.encrypt(innerPayload, iv: iv);
+  final payload = '${iv.base64}:${encrypted.base64}';
+
+  final myId = Hive.box('padlock_vault').get('user_privacy_id');
+  PadlockNetwork.channel?.sink.add(jsonEncode({
+    'type': 'secure_file',
+    'senderId': myId,
+    'targetId': targetId,
+    'payload': payload,
+    'chainIndex': result['index'],
+    'dh': result['dh'] ?? '',
+    'timestamp': DateTime.now().millisecondsSinceEpoch,
+  }));
+
+  await VaultFilesStore.storeSent(
+    peerId: targetId,
+    fileName: fileName,
+    fileKind: fileKind,
+    fileBytes: fileBytes,
+  );
+}
+
+// Mensagem de voz: mesmo túnel cifrado (Double Ratchet + AES-256-GCM) que o
+// texto e os ficheiros, mas fica dentro da própria conversa (não vai para o
+// Secure Vault Files) - toca-se logo ali, como uma mensagem normal.
+Future<void> sendEncryptedVoice({
+  required String targetId,
+  required Uint8List audioBytes,
+}) async {
+  if (audioBytes.length > kMaxVaultFileBytes) {
+    throw Exception('Voice message too long (max ${kMaxVaultFileBytes ~/ (1024 * 1024)}MB).');
+  }
+  final innerPayload = jsonEncode({'data': base64Encode(audioBytes)});
+
+  final result = await PadlockRatchet.nextSendKey(targetId);
+  final key = enc.Key(Uint8List.fromList(result['key'] as List<int>));
+  final iv = enc.IV.fromSecureRandom(16);
+  final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
+  final encrypted = encrypter.encrypt(innerPayload, iv: iv);
+  final payload = '${iv.base64}:${encrypted.base64}';
+
+  final myId = Hive.box('padlock_vault').get('user_privacy_id');
+  PadlockNetwork.channel?.sink.add(jsonEncode({
+    'type': 'secure_voice',
+    'senderId': myId,
+    'targetId': targetId,
+    'payload': payload,
+    'chainIndex': result['index'],
+    'dh': result['dh'] ?? '',
+    'timestamp': DateTime.now().millisecondsSinceEpoch,
+  }));
+}
+
+Future<String> decryptSecureMessage(String peerId, Map<String, dynamic> data) async {
+  final payloadParts = data['payload'].toString().split(':');
+  final chainIndex = data['chainIndex'] as int? ?? 0;
+  final theirDhPub = data['dh'] as String?;
+
+  if (payloadParts.length != 2) return '[Message not decrypted]';
+
+  try {
+    final msgKeyBytes = await PadlockRatchet.receiveMessageKey(peerId, chainIndex, theirDhPub: theirDhPub);
+    if (msgKeyBytes == null) return '[Message not decrypted]';
+
+    final key = enc.Key(Uint8List.fromList(msgKeyBytes));
+    final iv = enc.IV.fromBase64(payloadParts[0]);
+    final encryptedData = enc.Encrypted.fromBase64(payloadParts[1]);
+    final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
+    return encrypter.decrypt(encryptedData, iv: iv);
+  } catch (e) {
+    print('Erro ao decifrar: $e');
+    return '[Message not decrypted]';
+  }
+}
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -89,7 +606,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         duration: 60000,
         textAccept: 'Atender',
         textDecline: 'Recusar',
-        extra: {'targetId': senderId, 'sdp': message.data['sdp']},
+        extra: {'targetId': senderId, 'sdp': message.data['sdp'], 'isVideo': message.data['isVideo']},
         android: const AndroidParams(
           isCustomNotification: true,
           isShowLogo: true,
@@ -126,9 +643,16 @@ void main() async {
       PadlockNetwork.emChamada = true;
       final targetId = event.body['extra']['targetId'];
       final sdp = jsonDecode(event.body['extra']['sdp']);
-      
-      
-      PadlockNetwork.pendingCallData = {'targetId': targetId, 'sdp': sdp};
+      final isVideoCall = event.body['extra']['isVideo'] == 'true' || event.body['extra']['isVideo'] == true;
+
+      PadlockNetwork.pendingCallData = {'targetId': targetId, 'sdp': sdp, 'isVideo': isVideoCall};
+
+      if (!PadlockNetwork.isUnlocked) {
+        // Cofre ainda fechado (app estava morta): fica em espera no LoginScreen.
+        // A navegação para o ActiveCallScreen acontece em LoginScreen._login()
+        // depois do PIN correto, usando PadlockNetwork.pendingCallData.
+        return;
+      }
 
       void abrirEcraChamada(int tentativas) {
         if (navigatorKey.currentState != null) {
@@ -142,6 +666,7 @@ void main() async {
                 channel: PadlockNetwork.channel,
                 incomingSdp: sdp,
                 acceptedViaCallKit: true,
+                isVideo: isVideoCall,
               ),
             ),
           );
@@ -159,6 +684,7 @@ void main() async {
       
       } else if (event!.event == Event.actionCallTimeout) {
         final targetId = event.body['extra']['targetId'];
+        if (!Hive.isBoxOpen('padlock_vault')) return; // cofre ainda fechado (sem PIN): não há onde gravar
         final vault = Hive.box('padlock_vault');
         List allChats = jsonDecode(vault.get('chats') ?? '[]');
         int idx = allChats.indexWhere((c) => c['id'] == targetId);
@@ -174,7 +700,7 @@ void main() async {
   
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   final fcmToken = await FirebaseMessaging.instance.getToken();
-  print("O TOKEN (MORADA) DESTE TELEMÓVEL: $fcmToken");
+  
   const AndroidInitializationSettings initializationSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
   const InitializationSettings initializationSettings = InitializationSettings(android: initializationSettingsAndroid);
   await flutterLocalNotificationsPlugin.initialize(initializationSettings);
@@ -182,32 +708,23 @@ void main() async {
 androidImplementation?.requestNotificationsPermission();
   // 1. Inicializa o motor da Base de Dados Blindada (Hive)
   await Hive.initFlutter();
-  
-  // 2. Ancoragem Física: Acede ao chip de segurança do telemóvel
-  const secureStorage = FlutterSecureStorage();
-  String? encryptionKeyString = await secureStorage.read(key: 'master_key');
-  
-  // Se for a 1ª vez que a app abre, gera a Chave Mestra de 256 bits (nível militar) e tranca-a no chip
-  if (encryptionKeyString == null) {
-    final key = enc.Key.fromSecureRandom(32);
-    encryptionKeyString = base64UrlEncode(key.bytes);
-    await secureStorage.write(key: 'master_key', value: encryptionKeyString);
-  }
-  
-  // 3. Aplica a Chave Mestra para abrir o Cofre Local com cifra AES-256
-  final encryptionKeyUint8List = base64Url.decode(encryptionKeyString);
-  await Hive.openBox('padlock_vault', encryptionCipher: HiveAesCipher(encryptionKeyUint8List));
-  // Guarda o FCM Token no cofre para o enviarmos ao Servidor sempre que ligar a net
-  Hive.box('padlock_vault').put('my_fcm_token', fcmToken);
-  
-  // 4. Arranca a rede e verifica o PIN (acesso visual do utilizador)
+
+  // 2. O cofre NÃO abre aqui. A chave de encriptação (Argon2id) só existe depois
+  // do utilizador escrever a sua frase de encriptação no SetupScreen/LoginScreen -
+  // nunca fica guardada em disco. Enquanto isso, guarda o token FCM em memória
+  // para o escrever no cofre assim que ele abrir.
+  PadlockNetwork.pendingFcmToken = fcmToken;
+
+  // 3. Arranca a rede (ainda sem identidade - só liga o túnel WebSocket)
   PadlockNetwork.initNetworkListener();
-  String? savedPin = await secureStorage.read(key: 'user_pin');
-  bool isFirstTime = (savedPin == null);
+  bool isFirstTime = !(await PadlockVaultKey.hasVault());
   FirebaseMessaging.instance.getInitialMessage().then((message) {
     if (message != null && message.data['action'] == 'call_offer') {
       if (PadlockNetwork.emChamada) return;
       final senderId = message.data['senderId'] ?? 'Unknown';
+      final isVideoCall = message.data['isVideo'] == 'true';
+      PadlockNetwork.pendingCallData = {'targetId': senderId, 'sdp': message.data['sdp'], 'isVideo': isVideoCall};
+      if (!PadlockNetwork.isUnlocked) return;
       Future.delayed(const Duration(seconds: 1), () {
         navigatorKey.currentState?.push(
           MaterialPageRoute(
@@ -218,6 +735,7 @@ androidImplementation?.requestNotificationsPermission();
               isIncoming: true,
               incomingSdp: message.data['sdp'],
               channel: PadlockNetwork.channel,
+              isVideo: isVideoCall,
             ),
           ),
         );
@@ -229,6 +747,9 @@ androidImplementation?.requestNotificationsPermission();
     if (message.data['action'] == 'call_offer') {
       if (PadlockNetwork.emChamada) return;
       final senderId = message.data['senderId'] ?? 'Unknown';
+      final isVideoCall = message.data['isVideo'] == 'true';
+      PadlockNetwork.pendingCallData = {'targetId': senderId, 'sdp': message.data['sdp'], 'isVideo': isVideoCall};
+      if (!PadlockNetwork.isUnlocked) return;
       navigatorKey.currentState?.push(
         MaterialPageRoute(
           builder: (context) => ActiveCallScreen(
@@ -237,6 +758,7 @@ androidImplementation?.requestNotificationsPermission();
             targetId: senderId,
             isIncoming: true,
             channel: PadlockNetwork.channel,
+            isVideo: isVideoCall,
           ),
         ),
       );
@@ -431,7 +953,181 @@ Map<String, Map<String, String>> t = {
     'keys_purged': 'Alle Sitzungsschlüssel wurden sicher vernichtet.',
     'offline_contacts': 'Aktive P2P-Kontakte',
     'empty_contacts': 'Keine Kontakte im lokalen Netzwerk gefunden.',
-  }
+  },
+  'RU': {
+    'chats': 'Чаты',
+    'contacts': 'Контакты',
+    'settings': 'Настройки',
+    'profile': 'Профиль',
+    'search_hint': 'Поиск в защищённой базе...',
+    'autodestruct': 'Самоуничтожение через',
+    'bio_label': 'О себе',
+    'bio_text': 'P2P-узел с шифрованием / Защита военного уровня',
+    'username_label': 'Имя пользователя',
+    'copy_toast': 'ID скопирован в буфер обмена!',
+    'qr_title': 'QR-код конфиденциальности',
+    'qr_desc': 'Отсканируйте этот код для установления защищённого P2P-соединения.',
+    'call': 'Защищённый звонок',
+    'new_chat': 'Новый защищённый канал',
+    'delete_chat': 'Удалить переписку',
+    'block_peer': 'Заблокировать Hex ID',
+    'send_hint': 'Введите зашифрованное сообщение...',
+    'custom_sound': 'Эксклюзивный звук Padlock (фикс.)',
+    'silent_mode': 'Беззвучный режим',
+    'notifications': 'Уведомления',
+    'sounds_desc': 'Система использует эксклюзивные зашифрованные сигналы.',
+    'app_lock': 'Блокировка кодом',
+    'screen_security': 'Блокировать снимки экрана',
+    'clear_keys': 'Удалить ключи шифрования',
+    'keys_purged': 'Все сеансовые ключи безопасно уничтожены.',
+    'offline_contacts': 'Активные P2P-контакты',
+    'empty_contacts': 'Контакты в локальной сети не обнаружены.',
+  },
+  'UK': {
+    'chats': 'Чати',
+    'contacts': 'Контакти',
+    'settings': 'Налаштування',
+    'profile': 'Профіль',
+    'search_hint': 'Пошук у захищеній базі даних...',
+    'autodestruct': 'Самознищення через',
+    'bio_label': 'Про себе',
+    'bio_text': "P2P-вузол із шифруванням / Захист військового рівня",
+    'username_label': "Ім'я користувача",
+    'copy_toast': 'ID скопійовано до буфера обміну!',
+    'qr_title': 'QR-код конфіденційності',
+    'qr_desc': "Скануйте цей код, щоб встановити захищене P2P-з'єднання.",
+    'call': 'Захищений дзвінок',
+    'new_chat': 'Новий захищений канал',
+    'delete_chat': 'Видалити розмову',
+    'block_peer': 'Заблокувати Hex ID',
+    'send_hint': 'Введіть зашифроване повідомлення...',
+    'custom_sound': 'Ексклюзивний звук Padlock (фікс.)',
+    'silent_mode': 'Беззвучний режим',
+    'notifications': 'Сповіщення',
+    'sounds_desc': 'Система використовує ексклюзивні зашифровані сигнали.',
+    'app_lock': 'Блокування кодом',
+    'screen_security': 'Блокувати знімки екрана',
+    'clear_keys': 'Видалити ключі шифрування',
+    'keys_purged': 'Усі сеансові ключі безпечно знищено.',
+    'offline_contacts': 'Активні P2P-контакти',
+    'empty_contacts': 'Контактів у локальній мережі не знайдено.',
+  },
+  'ZH': {
+    'chats': '聊天',
+    'contacts': '联系人',
+    'settings': '设置',
+    'profile': '个人资料',
+    'search_hint': '搜索安全数据库...',
+    'autodestruct': '自动销毁时间',
+    'bio_label': '简介',
+    'bio_text': 'P2P 加密节点 / 军事级安全',
+    'username_label': '用户名',
+    'copy_toast': 'ID 已复制到剪贴板！',
+    'qr_title': '隐私二维码',
+    'qr_desc': '扫描此二维码以建立安全的点对点连接。',
+    'call': '安全通话',
+    'new_chat': '新建安全频道',
+    'delete_chat': '清除对话',
+    'block_peer': '屏蔽 Hex ID',
+    'send_hint': '输入加密消息...',
+    'custom_sound': 'Padlock 专属提示音（固定）',
+    'silent_mode': '静音模式',
+    'notifications': '通知',
+    'sounds_desc': '系统使用专属加密提示音。',
+    'app_lock': '密码锁定',
+    'screen_security': '阻止屏幕截图',
+    'clear_keys': '清除加密密钥',
+    'keys_purged': '所有会话密钥已安全销毁。',
+    'offline_contacts': '活跃的 P2P 联系人',
+    'empty_contacts': '本地网络中未发现联系人。',
+  },
+  'KO': {
+    'chats': '채팅',
+    'contacts': '연락처',
+    'settings': '설정',
+    'profile': '프로필',
+    'search_hint': '보안 데이터베이스 검색...',
+    'autodestruct': '자동 삭제까지',
+    'bio_label': '소개',
+    'bio_text': 'P2P 암호화 노드 / 군사급 보안',
+    'username_label': '사용자 이름',
+    'copy_toast': 'ID가 클립보드에 복사되었습니다!',
+    'qr_title': '개인정보 보호 QR 코드',
+    'qr_desc': '이 코드를 스캔하여 안전한 P2P 연결을 설정하세요.',
+    'call': '보안 통화',
+    'new_chat': '새 보안 채널',
+    'delete_chat': '대화 삭제',
+    'block_peer': 'Hex ID 차단',
+    'send_hint': '암호화된 메시지 입력...',
+    'custom_sound': 'Padlock 전용 알림음 (고정)',
+    'silent_mode': '무음 모드',
+    'notifications': '알림',
+    'sounds_desc': '시스템은 전용 암호화 알림음을 사용합니다.',
+    'app_lock': '비밀번호 잠금',
+    'screen_security': '스크린샷 차단',
+    'clear_keys': '암호화 키 삭제',
+    'keys_purged': '모든 세션 키가 안전하게 삭제되었습니다.',
+    'offline_contacts': '활성 P2P 연락처',
+    'empty_contacts': '로컬 네트워크에서 연락처를 찾을 수 없습니다.',
+  },
+  'AR': {
+    'chats': 'الدردشات',
+    'contacts': 'جهات الاتصال',
+    'settings': 'الإعدادات',
+    'profile': 'الملف الشخصي',
+    'search_hint': 'البحث في قاعدة البيانات الآمنة...',
+    'autodestruct': 'التدمير الذاتي خلال',
+    'bio_label': 'نبذة',
+    'bio_text': 'عقدة مشفّرة نظير إلى نظير / حماية بمستوى عسكري',
+    'username_label': 'اسم المستخدم',
+    'copy_toast': 'تم نسخ المعرف إلى الحافظة!',
+    'qr_title': 'رمز QR للخصوصية',
+    'qr_desc': 'امسح هذا الرمز لإنشاء اتصال آمن نظير إلى نظير.',
+    'call': 'مكالمة آمنة',
+    'new_chat': 'قناة آمنة جديدة',
+    'delete_chat': 'حذف المحادثة',
+    'block_peer': 'حظر المعرف السداسي',
+    'send_hint': 'اكتب رسالة مشفّرة...',
+    'custom_sound': 'نغمة Padlock الحصرية (ثابتة)',
+    'silent_mode': 'الوضع الصامت',
+    'notifications': 'الإشعارات',
+    'sounds_desc': 'يستخدم النظام نغمات مشفّرة حصرية.',
+    'app_lock': 'قفل بالرمز',
+    'screen_security': 'حظر لقطات الشاشة',
+    'clear_keys': 'مسح مفاتيح التشفير',
+    'keys_purged': 'تم إتلاف جميع مفاتيح الجلسة بأمان.',
+    'offline_contacts': 'جهات اتصال نظير إلى نظير نشطة',
+    'empty_contacts': 'لم يتم العثور على جهات اتصال في الشبكة المحلية.',
+  },
+  'TR': {
+    'chats': 'Sohbetler',
+    'contacts': 'Kişiler',
+    'settings': 'Ayarlar',
+    'profile': 'Profil',
+    'search_hint': 'Güvenli veritabanında ara...',
+    'autodestruct': 'Kendi kendini imha süresi',
+    'bio_label': 'Biyografi',
+    'bio_text': 'P2P Şifreli Düğüm / Askeri Düzeyde Güvenlik',
+    'username_label': 'Kullanıcı Adı',
+    'copy_toast': 'Kimlik panoya kopyalandı!',
+    'qr_title': 'Gizlilik QR Kodu',
+    'qr_desc': 'Güvenli bir P2P bağlantısı kurmak için bu kodu tarayın.',
+    'call': 'Güvenli Arama',
+    'new_chat': 'Yeni Güvenli Kanal',
+    'delete_chat': 'Sohbeti Sil',
+    'block_peer': 'Hex Kimliğini Engelle',
+    'send_hint': 'Şifreli mesaj yaz...',
+    'custom_sound': 'Özel Padlock Sesi (Sabit)',
+    'silent_mode': 'Sessiz Mod',
+    'notifications': 'Bildirimler',
+    'sounds_desc': 'Sistem özel şifreli tonlar kullanır.',
+    'app_lock': 'Kod Kilidi',
+    'screen_security': 'Ekran Görüntülerini Engelle',
+    'clear_keys': 'Şifreleme Anahtarlarını Temizle',
+    'keys_purged': 'Tüm oturum anahtarları güvenli şekilde yok edildi.',
+    'offline_contacts': 'Aktif P2P Kişileri',
+    'empty_contacts': 'Yerel ağda hiçbir kişi bulunamadı.',
+  },
 };
 
 class MainNavigationScreen extends StatefulWidget {
@@ -473,8 +1169,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
     _generateNewId();
      _loadUsername(); // Chama a função para ler o nome
     _loadStoredData(); // Carrega os contactos e mensagens do cofre
+    _notificationsActive = Hive.box('padlock_vault').get('notifications_enabled', defaultValue: true);
+    _silentMode = !_notificationsActive;
     _initNotifications();
     _resetInactivityTimer();
+    // Auto-destruição em tempo real: sem isto, uma mensagem só desaparecia
+    // de facto na próxima vez que a app arrancasse - enquanto a app ficasse
+    // aberta, ficava visível para sempre depois do temporizador chegar a "0s".
+    _destructTimer = Timer.periodic(const Duration(seconds: 15), (_) => _purgeExpiredMessages());
 // Gatilho Inteligente de Arranque: Espera o canal abrir e só depois pede as mensagens pendentes
     Timer.periodic(const Duration(milliseconds: 300), (timer) {
       if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
@@ -561,6 +1263,24 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
                 if (acceptedPubKey != null) {
                   try {
                     final vault = Hive.box('padlock_vault');
+                    // --- INÍCIO DO ESCUDO ANTI-HACKER (TOFU) ---
+String? chaveTrancada = vault.get('chave_publica_trancada_$acceptedId');
+
+if (chaveTrancada == null) {
+  // 1ª Vez: Confia e tranca a chave no cofre para sempre
+  vault.put('chave_publica_trancada_$acceptedId', acceptedPubKey);
+} else if (chaveTrancada != acceptedPubKey) {
+  // ATAQUE DETETADO! A chave não é a mesma que estava no cofre.
+  print('ALERTA CRÍTICO: Tentativa de interceção! Chave alterada.');
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('ALERTA DE SEGURANÇA: Chave alterada. Ligação bloqueada!'),
+      backgroundColor: Colors.red,
+    ),
+  );
+  return; // O return corta tudo! A ligação morre aqui e o hacker não entra.
+}
+// --- FIM DO ESCUDO ---
                     final myPrivateKeyBase64 = vault.get('private_key_$acceptedId');
                     
                     if (myPrivateKeyBase64 != null) {
@@ -578,10 +1298,18 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
                         remotePublicKey: theirPublicKey,
                       );
                       final sharedSecretBytes = await sharedSecret.extractBytes();
-                      
+                      final myPublicKeyBytes = (await myPrivateKey.extractPublicKey()).bytes;
+
                       // 4. Tranca o Segredo e DESTROI a tua chave privada local (Anti-Forense)
-                      vault.put('shared_secret_$acceptedId', base64Encode(sharedSecretBytes));
-                      vault.delete('private_key_$acceptedId'); 
+                      await PadlockRatchet.establishChains(
+  peerId: acceptedId,
+  myId: _myPrivacyId,
+  sharedSecretBytes: sharedSecretBytes,
+  myHandshakePrivateKeyBytes: myPrivateKeyBytes,
+  myHandshakePublicKeyBytes: myPublicKeyBytes,
+  theirHandshakePublicKeyBytes: theirPublicKeyBytes,
+);
+                      // vault.delete('private_key_$acceptedId');
                     }
                   } catch (e) {
                     print('Erro na fundição da chave P2P: $e');
@@ -622,7 +1350,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
       isIncoming: true,
       channel: PadlockNetwork.channel,
       incomingSdp: data['sdp'],
-      acceptedViaCallKit: false, 
+      acceptedViaCallKit: false,
+      isVideo: data['isVideo'] == true,
     ),
   ),
 );
@@ -655,57 +1384,26 @@ final int msgTimestamp = data['timestamp'] ?? 0;
     }
 
         if (chatIdx != -1) {
-              String decryptedText = '[Message not decrypted]';
+             String decryptedText = '[Message not decrypted]';
+            try {
+              final chainIndex = data['chainIndex'] as int? ?? 0;
+              final theirDhPub = data['dh'] as String?;
               final payloadParts = data['payload'].toString().split(':');
-
               if (payloadParts.length == 2) {
-                try {
-                  final vault = Hive.box('padlock_vault');
-                  final sharedSecretBase64 = vault.get('shared_secret_$peerId');
-
-                  if (sharedSecretBase64 == null) {
-  print('ALERTA: Pacote ignorado. Sem chave militar partilhada válida.');
-  return; // Bloqueio total. A execução morre aqui e o atacante fica no escuro.
-}
-final enc.Key key = enc.Key.fromBase64(sharedSecretBase64);
-
+                final msgKeyBytes = await PadlockRatchet.receiveMessageKey(peerId, chainIndex, theirDhPub: theirDhPub);
+                if (msgKeyBytes != null) {
+                  final key = enc.Key(Uint8List.fromList(msgKeyBytes));
                   final iv = enc.IV.fromBase64(payloadParts[0]);
                   final encryptedData = enc.Encrypted.fromBase64(payloadParts[1]);
                   final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
                   decryptedText = encrypter.decrypt(encryptedData, iv: iv);
-                  // --- 1.3 RATCHET GLOBAL: Faz a chave avançar na receção ---
-    final rawBytes = base64Decode(sharedSecretBase64);
-    final newDigest = await crypto.Sha256().hash(rawBytes);
-final newSecretBase64 = base64Encode(newDigest.bytes);
-await vault.put('shared_secret_$peerId', newSecretBase64);
-                } catch (e) {
-                  try {
-                    final cureVault = Hive.box('padlock_vault');
-                    final cureSecret = cureVault.get('shared_secret_$peerId');
-                    if (cureSecret != null) {
-                      List<int> currentHash = base64Decode(cureSecret);
-                      bool recuperou = false;
-      for (int i = 1; i <= 50; i++) {
-        final tempDigest = await crypto.Sha256().hash(currentHash);
-        currentHash = tempDigest.bytes;
-        final testKey = enc.Key.fromBase64(base64Encode(currentHash));
-        try {
-          decryptedText = enc.Encrypter(enc.AES(testKey, mode: enc.AESMode.gcm))
-              .decrypt(enc.Encrypted.fromBase64(payloadParts[1]), iv: enc.IV.fromBase64(payloadParts[0]));
-              recuperou = true;
-          break;
-        } catch (ignored) {}
-      }
-                          if (recuperou) {
-                            }
-                      final finalDigest = await crypto.Sha256().hash(currentHash);
-                      cureVault.put('shared_secret_$peerId', base64Encode(finalDigest.bytes));
-                    }
-                  } catch (e2) {
-                    print('Falha irreparável: $e2');
-                  }
                 }
               }
+            } catch (e) {
+              print('Erro ao decifrar: $e');
+            }
+                 
+                 
 
               setState(() {
                 final chat = _chats[chatIdx];
@@ -734,6 +1432,109 @@ await vault.put('shared_secret_$peerId', newSecretBase64);
                 print('Erro ao disparar pop-up de notificação: $e');
               }
          }
+          }
+          else if (data['type'] == 'secure_file') {
+            if (data['senderId'] == Hive.box('padlock_vault').get('user_privacy_id')) return;
+            final String peerId = data['senderId'] ?? data['targetId'];
+            bool isContact = _contacts.any((c) => c['id'] == peerId || c['name'] == peerId);
+            if (!isContact) return;
+
+            String fileKind = 'file';
+            try {
+              final chainIndex = data['chainIndex'] as int? ?? 0;
+              final theirDhPub = data['dh'] as String?;
+              final payloadParts = data['payload'].toString().split(':');
+              if (payloadParts.length == 2) {
+                final msgKeyBytes = await PadlockRatchet.receiveMessageKey(peerId, chainIndex, theirDhPub: theirDhPub);
+                if (msgKeyBytes != null) {
+                  final key = enc.Key(Uint8List.fromList(msgKeyBytes));
+                  final iv = enc.IV.fromBase64(payloadParts[0]);
+                  final encryptedData = enc.Encrypted.fromBase64(payloadParts[1]);
+                  final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
+                  final innerJson = encrypter.decrypt(encryptedData, iv: iv);
+                  final inner = jsonDecode(innerJson);
+                  fileKind = inner['kind'] ?? 'file';
+                  await VaultFilesStore.storeIncoming(
+                    peerId: peerId,
+                    fileName: inner['name'] ?? 'file',
+                    fileKind: fileKind,
+                    dataBase64: inner['data'],
+                    timestamp: data['timestamp'] ?? DateTime.now().millisecondsSinceEpoch,
+                  );
+                }
+              }
+            } catch (e) {
+              print('Erro ao decifrar ficheiro: $e');
+            }
+
+            int chatIdx = _chats.indexWhere((c) => c['id'] == peerId);
+            if (chatIdx == -1) {
+              setState(() {
+                _chats.insert(0, {'name': peerId, 'id': peerId, 'msg': '', 'time': 'Just Now', 'unread': 0, 'messages': []});
+                chatIdx = 0;
+              });
+            }
+            final icon = fileKind == 'photo' ? '🖼️' : '📎';
+            setState(() {
+              final chat = _chats[chatIdx];
+              chat['messages'] ??= <Map<String, dynamic>>[];
+              chat['messages'].add({
+                'text': '$icon Encrypted file received — open Secure Vault Files',
+                'isMe': false,
+                'status': 'delivered',
+                'timestamp': data['timestamp'],
+              });
+              chat['unread'] = (chat['unread'] ?? 0) + 1;
+            });
+            Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
+          }
+          else if (data['type'] == 'secure_voice') {
+            if (data['senderId'] == Hive.box('padlock_vault').get('user_privacy_id')) return;
+            final String peerId = data['senderId'] ?? data['targetId'];
+            bool isContact = _contacts.any((c) => c['id'] == peerId || c['name'] == peerId);
+            if (!isContact) return;
+
+            String? audioBase64;
+            try {
+              final chainIndex = data['chainIndex'] as int? ?? 0;
+              final theirDhPub = data['dh'] as String?;
+              final payloadParts = data['payload'].toString().split(':');
+              if (payloadParts.length == 2) {
+                final msgKeyBytes = await PadlockRatchet.receiveMessageKey(peerId, chainIndex, theirDhPub: theirDhPub);
+                if (msgKeyBytes != null) {
+                  final key = enc.Key(Uint8List.fromList(msgKeyBytes));
+                  final iv = enc.IV.fromBase64(payloadParts[0]);
+                  final encryptedData = enc.Encrypted.fromBase64(payloadParts[1]);
+                  final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
+                  final innerJson = encrypter.decrypt(encryptedData, iv: iv);
+                  audioBase64 = jsonDecode(innerJson)['data'];
+                }
+              }
+            } catch (e) {
+              print('Erro ao decifrar mensagem de voz: $e');
+            }
+            if (audioBase64 == null) return;
+
+            int chatIdx = _chats.indexWhere((c) => c['id'] == peerId);
+            if (chatIdx == -1) {
+              setState(() {
+                _chats.insert(0, {'name': peerId, 'id': peerId, 'msg': '', 'time': 'Just Now', 'unread': 0, 'messages': []});
+                chatIdx = 0;
+              });
+            }
+            setState(() {
+              final chat = _chats[chatIdx];
+              chat['messages'] ??= <Map<String, dynamic>>[];
+              chat['messages'].add({
+                'text': '🎤 Voice message',
+                'audioBase64': audioBase64,
+                'isMe': false,
+                'status': 'delivered',
+                'timestamp': data['timestamp'],
+              });
+              chat['unread'] = (chat['unread'] ?? 0) + 1;
+            });
+            Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
           }
           else if (data['type'] == 'delete_message') {
         final int targetTimestamp = data['timestamp'];
@@ -846,6 +1647,8 @@ await vault.put('shared_secret_$peerId', newSecretBase64);
                     'senderId': myId,
                     'targetId': chat['id'],
                     'payload': msg['payload'],
+                    'chainIndex': msg['chainIndex'],
+                    'dh': msg['dh'],
                     'timestamp': msg['timestamp'],
                   }));
                   msg['status'] = 'sent'; // Muda de 'Aguardar' para 'Enviado'
@@ -871,6 +1674,7 @@ await vault.put('shared_secret_$peerId', newSecretBase64);
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _statusTimer?.cancel();
+    _destructTimer?.cancel();
     super.dispose();
   }
 
@@ -878,6 +1682,31 @@ await vault.put('shared_secret_$peerId', newSecretBase64);
   Timer? _gracePeriodTimer;
   Timer? _statusTimer; // O nosso Radar de Estado Online
   Timer? _inactivityTimer;
+  Timer? _destructTimer;
+
+  void _purgeExpiredMessages() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    bool changedAny = false;
+    for (var chat in _chats) {
+      if (chat['messages'] == null) continue;
+      final destructTimeStr = chat['destructTime'] ?? '24h';
+      int limitMillis = 24 * 60 * 60 * 1000;
+      if (destructTimeStr == '1m') limitMillis = 60 * 1000;
+      else if (destructTimeStr == '5m') limitMillis = 5 * 60 * 1000;
+      else if (destructTimeStr == '1h') limitMillis = 60 * 60 * 1000;
+
+      final before = (chat['messages'] as List).length;
+      (chat['messages'] as List).removeWhere((msg) {
+        final timestamp = msg['timestamp'] ?? now;
+        return (now - timestamp) > limitMillis;
+      });
+      if ((chat['messages'] as List).length != before) changedAny = true;
+    }
+    if (changedAny) {
+      if (mounted) setState(() {});
+      Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
+    }
+  }
 
   void _resetInactivityTimer() {
     _inactivityTimer?.cancel();
@@ -996,8 +1825,13 @@ Future<void> _logout() async {
     final vault = Hive.box('padlock_vault');
     vault.put('chats', jsonEncode(_chats));
     await vault.flush();
+    // Fecha mesmo o cofre - sem isto, Hive.openBox no LoginScreen devolveria
+    // a mesma instância já aberta em memória e aceitaria QUALQUER frase,
+    // sem voltar a validar a chave derivada de Argon2id.
+    await vault.close();
 
     PadlockNetwork.disconnect();
+    PadlockNetwork.isUnlocked = false;
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -1040,24 +1874,51 @@ Future<void> _logout() async {
               final myPublicKey = await keyPair.extractPublicKey();
               final myPrivateKey = await keyPair.extractPrivateKeyBytes();
               final myPublicKeyBase64 = base64Encode(myPublicKey.bytes);
+              await Hive.box('padlock_vault').put('my_public_key_$incomingId', myPublicKeyBase64);
+await Hive.box('padlock_vault').put('their_public_key_$incomingId', senderPubKey ?? '');
 
               // 2. Se o outro lado mandou a chave pública dele, cria o Segredo Absoluto já aqui!
               if (senderPubKey != null) {
                 try {
                   final theirPublicKeyBytes = base64Decode(senderPubKey);
                   final theirPublicKey = crypto.SimplePublicKey(theirPublicKeyBytes, type: crypto.KeyPairType.x25519);
-                  
+                  // --- INÍCIO DO ESCUDO ANTI-HACKER (TOFU) ---
+final vaultSeguro = Hive.box('padlock_vault');
+String? chaveTrancada = vaultSeguro.get('chave_publica_trancada_$incomingId');
+
+if (chaveTrancada == null) {
+  // 1ª Vez: Tranca a chave pública de quem está a pedir
+  vaultSeguro.put('chave_publica_trancada_$incomingId', senderPubKey);
+} else if (chaveTrancada != senderPubKey) {
+  // ATAQUE DETETADO!
+  print('ALERTA CRÍTICO: Chave de quem pede foi alterada.');
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('ALERTA DE SEGURANÇA: Pedido bloqueado. Chave corrompida.'),
+      backgroundColor: Colors.red,
+    ),
+  );
+  return; // Bloqueia o processo, não gera a matemática e não aceita o contacto!
+}
+// --- FIM DO ESCUDO ---
                   // 3. A MAGIA MATEMÁTICA: Funde as chaves
                   final sharedSecret = await algorithm.sharedSecretKey(
                     keyPair: await algorithm.newKeyPairFromSeed(myPrivateKey),
                     remotePublicKey: theirPublicKey,
                   );
                   final sharedSecretBytes = await sharedSecret.extractBytes();
-                  
+
                   // 4. Guarda o segredo no cofre (a chave privada desaparece da RAM automaticamente!)
                   final vault = Hive.box('padlock_vault');
                   await vault.delete('shared_secret_$incomingId');
-vault.put('shared_secret_$incomingId', base64Encode(sharedSecretBytes));
+await PadlockRatchet.establishChains(
+  peerId: incomingId,
+  myId: _myPrivacyId,
+  sharedSecretBytes: sharedSecretBytes,
+  myHandshakePrivateKeyBytes: myPrivateKey,
+  myHandshakePublicKeyBytes: myPublicKey.bytes,
+  theirHandshakePublicKeyBytes: theirPublicKeyBytes,
+);
                 } catch (e) {
                   print('Erro a gerar segredo partilhado: $e');
                 }
@@ -1276,8 +2137,20 @@ if (context.mounted) {
         blockScreenshots: _blockScreenshots,
         onLangChange: widget.onLanguageChange,
         onDestructChange: (time) => setState(() => _destructTime = time),
-        onNotificationsChange: (val) => setState(() => _notificationsActive = val),
-        onSilentChange: (val) => setState(() => _silentMode = val),
+        onNotificationsChange: (val) {
+          setState(() {
+            _notificationsActive = val;
+            _silentMode = !val;
+          });
+          Hive.box('padlock_vault').put('notifications_enabled', val);
+        },
+        onSilentChange: (val) {
+          setState(() {
+            _silentMode = val;
+            _notificationsActive = !val;
+          });
+          Hive.box('padlock_vault').put('notifications_enabled', !val);
+        },
         onPasscodeChange: (val) => setState(() => _passcodeLock = val),
         onScreenshotsChange: (val) => setState(() => _blockScreenshots = val),
       ),
@@ -1942,11 +2815,70 @@ class SingleChatScreen extends StatefulWidget {
   State<SingleChatScreen> createState() => _SingleChatScreenState();
 }
 
+class VoiceMessageBubble extends StatefulWidget {
+  final String audioBase64;
+  final bool isMe;
+  const VoiceMessageBubble({super.key, required this.audioBase64, required this.isMe});
+
+  @override
+  State<VoiceMessageBubble> createState() => _VoiceMessageBubbleState();
+}
+
+class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
+  final AudioPlayer _player = AudioPlayer();
+  bool _isPlaying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _player.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _isPlaying = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggle() async {
+    if (_isPlaying) {
+      await _player.stop();
+      setState(() => _isPlaying = false);
+    } else {
+      await _player.play(BytesSource(base64Decode(widget.audioBase64)));
+      setState(() => _isPlaying = true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.isMe ? Colors.white : Colors.black87;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          icon: Icon(_isPlaying ? Icons.stop_circle : Icons.play_circle_fill, color: color, size: 28),
+          onPressed: _toggle,
+        ),
+        const SizedBox(width: 6),
+        Text('Voice message', style: TextStyle(color: color, fontSize: 13)),
+      ],
+    );
+  }
+}
+
 class _SingleChatScreenState extends State<SingleChatScreen> {
   final TextEditingController _msgController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   Timer? _destructionTimer;
   StreamSubscription? _chatSubscription;
+  final AudioRecorder _voiceRecorder = AudioRecorder();
+  bool _isRecording = false;
+  String? _recordingPath;
 Future<void> _processoMensagem = Future.value();
   @override
   void initState() {
@@ -2070,65 +3002,7 @@ Future<void> _processoMensagem = Future.value();
             HapticFeedback.lightImpact();
 SystemSound.play(SystemSoundType.click);
           // 1. Prepara a variável de segurança (se falhar, não mostra nada comprometedor)
-          String decryptedText = '[Message not decrypted]';
-          
-          // 2. Separa o Vetor Aleatório (IV) da Mensagem Cifrada
-          final payloadParts = decoded['payload'].toString().split(':');
-          
-          if (payloadParts.length == 2) {
-            try {
-            // 1. Identifica de quem vem a mensagem e acede ao Cofre
-            final targetId = widget.chatData['id'];
-            final vault = Hive.box('padlock_vault');
-            final sharedSecretBase64 = vault.get('shared_secret_$targetId');
-            
-           if (sharedSecretBase64 == null) {
-      throw Exception('FALHA CRÍTICA: Sem chave absoluta. Abortando cifra P2P.');
-    }
-    final enc.Key key = enc.Key.fromBase64(sharedSecretBase64);
-
-    // 3. Prepara os dados matemáticos do pacote
-    final iv = enc.IV.fromBase64(payloadParts[0]);
-    final encryptedData = enc.Encrypted.fromBase64(payloadParts[1]);
-            
-            // 4. Executa a decifragem AES-256-GCM com nível militar
-            final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
-            decryptedText = encrypter.decrypt(encryptedData, iv: iv);
-            // --- 1.3 RATCHET LOCAL: Faz a chave avançar na receção dentro do chat ---
-    final rawBytes = base64Decode(sharedSecretBase64);
-   final newDigest = await crypto.Sha256().hash(rawBytes);
-final newSecretBase64 = base64Encode(newDigest.bytes);
-await vault.put('shared_secret_$targetId', newSecretBase64);
-
-          } catch (e) {
-            try {
-              final cureVault = Hive.box('padlock_vault');
-              final targetId = widget.chatData['id'];
-              final cureSecret = cureVault.get('shared_secret_$targetId');
-              if (cureSecret != null) {
-                final cureDigest = await crypto.Sha256().hash(base64Decode(cureSecret));
-                List<int> currentHash = base64Decode(cureSecret);
-                bool recuperou = false;
-                    for (int i = 1; i <= 50; i++) {
-                      final tempDigest = await crypto.Sha256().hash(currentHash);
-                      currentHash = tempDigest.bytes;
-                      final testKey = enc.Key.fromBase64(base64Encode(currentHash));
-                      try {
-                        decryptedText = enc.Encrypter(enc.AES(testKey, mode: enc.AESMode.gcm)).decrypt(enc.Encrypted.fromBase64(payloadParts[1]), iv: enc.IV.fromBase64(payloadParts[0]));
-                        recuperou = true;
-                        break;
-                      } catch (ignored) {}
-                    }
-                    if (recuperou) {
-                      }
-                    final finalDigest = await crypto.Sha256().hash(currentHash);
-                    cureVault.put('shared_secret_$targetId', base64Encode(finalDigest.bytes));
-              }
-            } catch (e2) {
-              print('Falha forense irreparável: $e2');
-            }
-          }
-}
+          String decryptedText = await decryptSecureMessage(widget.chatData['id'], decoded);
        setState(() {
             (widget.chatData['messages'] as List).add(<String, Object>{
               'text': decryptedText,
@@ -2208,6 +3082,7 @@ await vault.put('shared_secret_$targetId', newSecretBase64);
   void dispose() {
     _chatSubscription?.cancel();
     _destructionTimer?.cancel(); // Desliga o relógio ao sair do ecrã
+    _voiceRecorder.dispose();
     PadlockNetwork.chatAbertoAtualmente = null;
     super.dispose();
   }
@@ -2409,39 +3284,133 @@ String _getTimeLeft(int timestamp) {
       },
     );
   }
-Future<String> _encryptAES256(String plainText) async {
-    // 1. Identifica o contacto com quem estás a falar
+Future<Map<String, String>> _encryptAES256(String plainText) async {
     final targetId = widget.chatData['id'];
-    
-    // 2. Abre o Cofre e extrai o Segredo Absoluto exclusivo desta conversa
-    final vault = Hive.box('padlock_vault');
-    final sharedSecretBase64 = vault.get('shared_secret_$targetId');
-    
-   if (sharedSecretBase64 == null) {
-  throw Exception('FALHA CRÍTICA: Sem chave absoluta. Abortando cifra P2P.');
-}
-final enc.Key key = enc.Key.fromBase64(sharedSecretBase64);
-// --- 1.3 RATCHET: Faz a chave avançar para a frente e destrói a antiga no cofre ---
-    final rawBytes = base64Decode(sharedSecretBase64);
-   final newDigest = await crypto.Sha256().hash(rawBytes);
-    final newSecretBase64 = base64Encode(newDigest.bytes);
-    await vault.put('shared_secret_$targetId', newSecretBase64);
-
-    // 4. Vetor de Inicialização (IV) Seguro e Aleatório
+    final result = await PadlockRatchet.nextSendKey(targetId);
+    final key = enc.Key(Uint8List.fromList(result['key'] as List<int>));
     final iv = enc.IV.fromSecureRandom(16);
-    
-    // 5. Aplica o algoritmo inviolável GCM com a Chave Absoluta
     final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
     final encrypted = encrypter.encrypt(plainText, iv: iv);
-    
-    // 6. Retorna o pacote blindado (e aproveitamos para limpar aquela linha azul de aviso do VS Code)
-    return '${iv.base64}:${encrypted.base64}';
+    return {
+      'payload': '${iv.base64}:${encrypted.base64}',
+      'chainIndex': (result['index'] as int).toString(),
+      'dh': result['dh'] as String? ?? '',
+    };
   }
+Future<void> _sendPhotoFromChat() async {
+    final targetId = widget.chatData['id'];
+    final XFile? photo = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      imageQuality: 70,
+      maxWidth: 1600,
+    );
+    if (photo == null) return;
+    final bytes = await photo.readAsBytes();
+    // Apaga o ficheiro temporário assim que os bytes estão em memória - a
+    // foto nunca fica guardada em claro no telemóvel, nem toca a galeria.
+    try { await File(photo.path).delete(); } catch (_) {}
+
+    try {
+      await sendEncryptedFile(targetId: targetId, fileBytes: bytes, fileName: 'photo.jpg', fileKind: 'photo');
+      final currentTimestamp = DateTime.now().millisecondsSinceEpoch;
+      setState(() {
+        (widget.chatData['messages'] as List).add(<String, Object>{
+          'text': '🖼️ Encrypted photo sent — view in Secure Vault Files',
+          'isMe': true,
+          'status': 'sent',
+          'timestamp': currentTimestamp,
+        });
+        widget.chatData['msg'] = '🖼️ Photo';
+        widget.chatData['time'] = 'Just Now';
+      });
+      widget.onUpdate();
+
+      final vault = Hive.box('padlock_vault');
+      final String? chatsJson = vault.get('chats');
+      if (chatsJson != null) {
+        List<dynamic> allChats = jsonDecode(chatsJson);
+        bool found = false;
+        for (int i = 0; i < allChats.length; i++) {
+          if (allChats[i]['id'] == widget.chatData['id']) {
+            allChats[i] = widget.chatData;
+            found = true;
+            break;
+          }
+        }
+        if (!found) allChats.insert(0, widget.chatData);
+        vault.put('chats', jsonEncode(allChats));
+      } else {
+        vault.put('chats', jsonEncode([widget.chatData]));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send photo: $e')));
+      }
+    }
+  }
+
+  Future<void> _toggleVoiceRecording() async {
+    if (_isRecording) {
+      final path = await _voiceRecorder.stop();
+      setState(() => _isRecording = false);
+      if (path == null) return;
+      try {
+        final bytes = await File(path).readAsBytes();
+        try { await File(path).delete(); } catch (_) {}
+
+        await sendEncryptedVoice(targetId: widget.chatData['id'], audioBytes: bytes);
+        final currentTimestamp = DateTime.now().millisecondsSinceEpoch;
+        setState(() {
+          (widget.chatData['messages'] as List).add(<String, Object>{
+            'text': '🎤 Voice message',
+            'audioBase64': base64Encode(bytes),
+            'isMe': true,
+            'status': 'sent',
+            'timestamp': currentTimestamp,
+          });
+          widget.chatData['msg'] = '🎤 Voice message';
+          widget.chatData['time'] = 'Just Now';
+        });
+        widget.onUpdate();
+
+        final vault = Hive.box('padlock_vault');
+        final String? chatsJson = vault.get('chats');
+        if (chatsJson != null) {
+          List<dynamic> allChats = jsonDecode(chatsJson);
+          bool found = false;
+          for (int i = 0; i < allChats.length; i++) {
+            if (allChats[i]['id'] == widget.chatData['id']) {
+              allChats[i] = widget.chatData;
+              found = true;
+              break;
+            }
+          }
+          if (!found) allChats.insert(0, widget.chatData);
+          vault.put('chats', jsonEncode(allChats));
+        } else {
+          vault.put('chats', jsonEncode([widget.chatData]));
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send voice message: $e')));
+        }
+      }
+    } else {
+      if (!await _voiceRecorder.hasPermission()) return;
+      _recordingPath = '${Directory.systemTemp.path}/padlock_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _voiceRecorder.start(const RecordConfig(encoder: AudioEncoder.aacLc), path: _recordingPath!);
+      setState(() => _isRecording = true);
+    }
+  }
+
 Future<void> _sendMessage() async {
     if (_msgController.text.trim().isEmpty) return;
     
     final rawText = _msgController.text.trim();
-    final encryptedPayload = await _encryptAES256(rawText);
+    final encResult = await _encryptAES256(rawText);
+final encryptedPayload = encResult['payload']!;
+final chainIndex = int.parse(encResult['chainIndex']!);
+final dhPub = encResult['dh']!;
     final currentTimestamp = DateTime.now().millisecondsSinceEpoch;
     final destId = widget.chatData['id'] ?? widget.chatData['peerId'] ?? widget.chatData['targetId'] ?? widget.chatData['contactId'] ?? widget.chatData.values.firstWhere((v) => v.toString().length > 30, orElse: () => '');
     
@@ -2455,6 +3424,8 @@ Future<void> _sendMessage() async {
           'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
           'targetId': destId,
           'payload': encryptedPayload,
+          'chainIndex': chainIndex,
+          'dh': dhPub,
           'timestamp': currentTimestamp,
         }));
       } catch (e) {
@@ -2468,8 +3439,10 @@ Future<void> _sendMessage() async {
         'isMe': true,
         'timestamp': currentTimestamp,
         // 2. SE ESTIVER OFFLINE, FICA A AGUARDAR. SE ONLINE, MARCA LOGO ENVIADO.
-        'status': isOnline ? 'sent' : 'A aguardar...', 
+        'status': isOnline ? 'sent' : 'A aguardar...',
         'payload': encryptedPayload, // Guarda o pacote já encriptado para o radar enviar depois
+        'chainIndex': chainIndex,
+        'dh': dhPub,
       });
       widget.chatData['msg'] = rawText;
       widget.chatData['time'] = 'Just Now';
@@ -2592,6 +3565,22 @@ flexibleSpace: Container(
               );
             },
           ),
+          IconButton(
+            icon: const Icon(Icons.videocam, color: Colors.lightBlueAccent),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => ActiveCallScreen(
+                    local: widget.local,
+                    recipientName: widget.chatData['name'],
+                    targetId: widget.chatData['id'],
+                    channel: PadlockNetwork.channel,
+                    isVideo: true,
+                  ),
+                ),
+              );
+            },
+          ),
           PopupMenuButton<String>(
   icon: const Icon(Icons.more_vert, color: Colors.grey),
   color: const Color(0xFF151515),
@@ -2693,10 +3682,73 @@ flexibleSpace: Container(
       );
     }
     },
-  itemBuilder: (context) => [
-  PopupMenuItem(value: 'clear', child: Text(widget.local['delete_chat']!)),
-  PopupMenuItem(value: 'block', child: Text(widget.local['block_peer']!)),
-],
+ itemBuilder: (context) => [
+    PopupMenuItem(
+            value: 'safety',
+            onTap: () {
+              final peerId = widget.chatData['id'] ?? widget.chatData['peerId'];
+              final vault = Hive.box('padlock_vault');
+              final myKey = vault.get('my_public_key_$peerId') ?? vault.get('user_public_key') ?? '';
+              final theirKey = vault.get('their_public_key_$peerId') ?? vault.get('chave_publica_trancada_$peerId') ?? '';
+              
+              if (myKey.isEmpty || theirKey.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Keys not available for this contact.', style: TextStyle(color: Colors.white)),
+                  ),
+                );
+                return;
+              }
+              
+              computeSafetyNumber(myKey, theirKey).then((number) {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    backgroundColor: Theme.of(context).canvasColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: BorderSide(color: Colors.greenAccent.withOpacity(0.5), width: 1),
+                    ),
+                    title: const Text(
+                      'Safety Number', 
+                      style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)
+                    ),
+                    content: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          number,
+                          style: const TextStyle(
+                            color: Colors.greenAccent, 
+                            fontFamily: 'monospace', 
+                            fontSize: 13, 
+                            letterSpacing: 1.2
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'Make a secure call to this contact and read this number aloud. If they match on both devices, nobody is intercepting your conversation.',
+                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx), 
+                        child: const Text('Close', style: TextStyle(color: Colors.greenAccent))
+                      ),
+                    ],
+                  ),
+                );
+              });
+            },
+            child: const Text('Verify Safety Number', style: TextStyle(color: Colors.greenAccent)),
+          ),
+    PopupMenuItem(value: 'clear', child: Text(widget.local['delete_chat']!)),
+    PopupMenuItem(value: 'block', child: Text(widget.local['block_peer']!)),
+  ],
     ),  
         ]
         ),
@@ -2775,7 +3827,15 @@ flexibleSpace: Container(
       ),
     ),
           Expanded(
-           child: ListView.builder(
+           child: Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/fundo matrix.png'),
+                fit: BoxFit.cover,
+                colorFilter: ColorFilter.mode(Colors.black87, BlendMode.darken),
+              ),
+            ),
+            child: ListView.builder(
               reverse: true,
               controller: _scrollController,
               padding: const EdgeInsets.all(15),
@@ -2805,7 +3865,10 @@ flexibleSpace: Container(
                   child: Column(
   crossAxisAlignment: CrossAxisAlignment.end,
   children: [
-    Text(
+    if (m['audioBase64'] != null)
+      VoiceMessageBubble(audioBase64: m['audioBase64'], isMe: isMe)
+    else
+      Text(
       m['text'],
       style: TextStyle(
         color: m['text'] == '[Message not decrypted]' ? Colors.white54 : (isMe ? Colors.white : Colors.black87),
@@ -2855,10 +3918,27 @@ flexibleSpace: Container(
     },
   ),
 ),
+),
           Padding(
             padding: const EdgeInsets.all(10.0),
             child: Row(
               children: [
+                CircleAvatar(
+                  backgroundColor: const Color(0xFF1A1A1A),
+                  child: IconButton(
+                    icon: const Icon(Icons.camera_alt, color: Colors.lightBlueAccent, size: 18),
+                    onPressed: widget.chatData['status'] == 'Blocked' ? null : _sendPhotoFromChat,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                CircleAvatar(
+                  backgroundColor: _isRecording ? Colors.redAccent : const Color(0xFF1A1A1A),
+                  child: IconButton(
+                    icon: Icon(_isRecording ? Icons.stop : Icons.mic, color: _isRecording ? Colors.white : Colors.lightBlueAccent, size: 18),
+                    onPressed: widget.chatData['status'] == 'Blocked' ? null : _toggleVoiceRecording,
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                     child: TextField(
                       controller: _msgController,
@@ -3222,12 +4302,25 @@ class SettingsScreen extends StatelessWidget {
                             onPressed: () async {
                               try {
                                 final vault = Hive.box('padlock_vault');
-                                await vault.clear(); 
+                                await vault.clear();
                                 await vault.compact();
-                                
+                                await vault.close();
+
+                                // O Secure Vault Files é um cofre à parte (código próprio) -
+                                // "destruir tudo" tem de o apagar também, mesmo que nunca
+                                // tenha sido destrancado nesta sessão.
+                                if (Hive.isBoxOpen('padlock_vault_files')) {
+                                  await Hive.box('padlock_vault_files').close();
+                                }
+                                await Hive.deleteBoxFromDisk('padlock_vault_files');
+                                await VaultFilesKey.wipe();
+                                VaultFilesKey.lock();
+
                                 const storage = FlutterSecureStorage();
                                 await storage.deleteAll();
-                                
+                                await PadlockVaultKey.wipe();
+                                PadlockNetwork.isUnlocked = false;
+
                                 if (context.mounted) {
                                   Navigator.pushAndRemoveUntil(
                                     context,
@@ -3304,43 +4397,7 @@ class SettingsScreen extends StatelessWidget {
         child: Text('Maximum security storage for your digital assets.', style: TextStyle(color: Colors.white60, fontSize: 11)),
       ),
       trailing: const Icon(Icons.chevron_right, color: Colors.lightBlueAccent),
-      onTap: () {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: const Color(0xFF151515),
-            shape: RoundedRectangleBorder(
-              side: const BorderSide(color: Colors.lightBlueAccent, width: 1.5),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            title: const Row(
-              children: [
-                Text('💎', style: TextStyle(fontSize: 22)),
-                SizedBox(width: 10),
-                Text('PREMIUM REQUIRED', style: TextStyle(color: Colors.lightBlueAccent, fontWeight: FontWeight.bold, fontSize: 14)),
-              ],
-            ),
-            content: const Text(
-              'Store all your cryptocurrencies in a military-grade local vault. Send funds to anyone and receive from anywhere, with zero middlemen and absolute privacy.\n\n'
-              'Unlocking the Web3 Crypto Vault requires a Premium subscription.',
-              style: TextStyle(color: Colors.white70, height: 1.4, fontSize: 13),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('CLOSE', style: TextStyle(color: Colors.grey)),
-              ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  // Futura lógica de pagamento entrará aqui
-                },
-                child: const Text('UPGRADE TO PREMIUM', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
-              ),
-            ],
-          ),
-        );
-      },
+      onTap: () => showPremiumRequiredDialog(context),
     );
   }
 
@@ -3377,7 +4434,10 @@ class SettingsScreen extends StatelessWidget {
     final langs = [
       {'code': 'en', 'name': 'English'}, {'code': 'pt', 'name': 'Português'},
       {'code': 'es', 'name': 'Español'}, {'code': 'fr', 'name': 'Français'},
-      {'code': 'de', 'name': 'Deutsch'}
+      {'code': 'de', 'name': 'Deutsch'}, {'code': 'ru', 'name': 'Русский'},
+      {'code': 'uk', 'name': 'Українська'}, {'code': 'zh', 'name': '中文'},
+      {'code': 'ko', 'name': '한국어'}, {'code': 'ar', 'name': 'العربية'},
+      {'code': 'tr', 'name': 'Türkçe'},
     ];
     showDialog(
       context: context,
@@ -3631,15 +4691,7 @@ Widget build(BuildContext context) {
               
               // NOVO BOTÃO: SECURE CRYPTO VAULT (Substitui o Regen)
               InkWell(
-                onTap: () {
-                  // A lógica real do cofre será construída aqui futuramente
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Secure Crypto Vault is locked.', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)), 
-                      backgroundColor: Color(0xFF151515)
-                    ),
-                  );
-                },
+                onTap: () => showPremiumRequiredDialog(context),
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   width: 82,
@@ -3691,11 +4743,8 @@ Widget build(BuildContext context) {
               // 4. SECURE VAULT FILES (Com ícone de pastas em azul e largura 82)
                 InkWell(
                   onTap: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Secure Vault Files is locked.', style: TextStyle(color: Colors.lightBlueAccent, fontWeight: FontWeight.bold)), 
-                        backgroundColor: Color(0xFF151515)
-                      ),
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (context) => const VaultFilesGateScreen()),
                     );
                   },
                   borderRadius: BorderRadius.circular(12),
@@ -3901,21 +4950,23 @@ void _showQrDialog(BuildContext context, String id, [dynamic local]) {
 class ActiveCallScreen extends StatefulWidget {
   final Map<String, String>? local;
   final String recipientName;
-  final String targetId; 
+  final String targetId;
   final bool isIncoming;
   final dynamic channel;
-  final dynamic incomingSdp; 
+  final dynamic incomingSdp;
   final bool acceptedViaCallKit;
+  final bool isVideo;
 
   const ActiveCallScreen({
     super.key,
     required this.local,
     required this.recipientName,
-    required this.targetId, 
+    required this.targetId,
     this.isIncoming = false,
     this.channel,
     this.incomingSdp,
     this.acceptedViaCallKit = false,
+    this.isVideo = false,
   });
 
   @override
@@ -3940,11 +4991,19 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   StreamSubscription? _callSubscription;
   final List<RTCIceCandidate> _candidateQueue = [];
 bool _isRemoteSet = false;
+  final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
+  final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
+  bool _videoRenderersReady = false;
   @override
   void initState() {
     super.initState();
     PadlockNetwork.emChamada = true;
     WakelockPlus.enable();
+    if (widget.isVideo) {
+      Future.wait([_localRenderer.initialize(), _remoteRenderer.initialize()]).then((_) {
+        if (mounted) setState(() => _videoRenderersReady = true);
+      });
+    }
     for (var candData in PadlockNetwork.earlyCandidates) {
       final candMap = candData['candidate'];
       if (candMap != null) {
@@ -4093,6 +5152,8 @@ if (!widget.acceptedViaCallKit) {
     _audioPlayer.dispose();
     _localStream?.dispose();
     _peerConnection?.dispose();
+    _localRenderer.dispose();
+    _remoteRenderer.dispose();
     super.dispose();
   }
 
@@ -4180,6 +5241,14 @@ if (!widget.acceptedViaCallKit) {
       });
     };
 
+    // Vídeo: o áudio já toca sozinho no motor nativo do WebRTC, mas para
+    // MOSTRAR a imagem remota é preciso agarrar a faixa de vídeo aqui.
+    _peerConnection?.onTrack = (RTCTrackEvent event) {
+      if (event.track.kind == 'video' && event.streams.isNotEmpty) {
+        _remoteRenderer.srcObject = event.streams[0];
+      }
+    };
+
     // Necessário para furar os firewalls (Sinalização P2P perfeita)
     _peerConnection?.onIceCandidate = (RTCIceCandidate candidate) {
       final candidateSignal = {
@@ -4189,6 +5258,39 @@ if (!widget.acceptedViaCallKit) {
       };
       widget.channel?.sink.add(jsonEncode(candidateSignal));
     };
+  }
+
+  // Pede a configuração TURN ao servidor em vez de a ter fixa no APK
+  // (credenciais fixas no cliente eram extraíveis por descompilação).
+  Future<List<Map<String, dynamic>>> _fetchIceServers() async {
+    final fallback = <Map<String, dynamic>>[
+      {'urls': 'stun:stun.l.google.com:19302'},
+    ];
+    if (widget.channel == null) return fallback;
+    try {
+      final completer = Completer<List<Map<String, dynamic>>>();
+      late StreamSubscription sub;
+      sub = PadlockNetwork.messageHub.stream.listen((raw) {
+        try {
+          final decoded = jsonDecode(raw);
+          if (decoded['type'] == 'ice_servers' && !completer.isCompleted) {
+            final servers = (decoded['iceServers'] as List)
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList();
+            completer.complete(servers);
+          }
+        } catch (_) {}
+      });
+      widget.channel?.sink.add(jsonEncode({'type': 'get_ice_servers'}));
+      final result = await completer.future.timeout(
+        const Duration(seconds: 4),
+        onTimeout: () => fallback,
+      );
+      await sub.cancel();
+      return result;
+    } catch (e) {
+      return fallback;
+    }
   }
 
   Future<void> startSecureCall(String targetPrivacyId) async {
@@ -4201,21 +5303,8 @@ if (!widget.acceptedViaCallKit) {
     });
 
     try {
- final Map<String, dynamic> configuration = {
-        'iceServers': [
-          {'urls': 'stun:stun.l.google.com:19302'},
-          {'urls': 'stun:global.relay.metered.ca:80'},
-          {
-            'urls': 'turn:global.relay.metered.ca:80',
-            'username': '399188860007a1bf69aabc93',
-            'credential': '8W09AX9jch39sZ2Z',
-          },
-          {
-            'urls': 'turns:global.relay.metered.ca:443?transport=tcp',
-            'username': '399188860007a1bf69aabc93',
-            'credential': '8W09AX9jch39sZ2Z',
-          },
-        ],
+      final Map<String, dynamic> configuration = {
+        'iceServers': await _fetchIceServers(),
         'bundlePolicy': 'max-bundle',
         'rtcpMuxPolicy': 'require',
       };
@@ -4223,11 +5312,13 @@ if (!widget.acceptedViaCallKit) {
       _peerConnection = await createPeerConnection(configuration);
       _setupPeerConnectionListeners();
 
-      _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
+      _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': widget.isVideo});
+      if (widget.isVideo) _localRenderer.srcObject = _localStream;
 
-// Garante que o som sai pelo auscultador do ouvido (e não pelo altifalante mãos-livres)
+// Chamada de voz: som pelo auscultador. Chamada de vídeo: altifalante (faz
+// sentido veres o ecrã ao mesmo tempo que ouves).
 if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
-  _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
+  _localStream!.getAudioTracks()[0].enableSpeakerphone(widget.isVideo);
 }
 
       for (var track in _localStream!.getTracks()) {
@@ -4240,9 +5331,10 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
       final callSignal = {
           'action': 'call_offer',
           'type': 'offer',
-          'senderId': Hive.box('padlock_vault').get('user_privacy_id'), 
+          'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
           'targetId': targetPrivacyId,
           'sdp': offer.toMap(),
+          'isVideo': widget.isVideo,
           'timestamp': DateTime.now().millisecondsSinceEpoch,
         };
       widget.channel?.sink.add(jsonEncode(callSignal));
@@ -4273,31 +5365,23 @@ _audioPlayer.play(AssetSource('sounds/morse.mp3'));
     });
 
     try {
-    final Map<String, dynamic> configuration = {
-      'iceServers': [
-          {'urls': 'stun:stun.l.google.com:19302'},
-          {'urls': 'stun:global.relay.metered.ca:80'},
-          {
-            'urls': 'turn:global.relay.metered.ca:80',
-            'username': '399188860007a1bf69aabc93',
-            'credential': '8W09AX9jch39sZ2Z',
-          },
-          {
-            'urls': 'turns:global.relay.metered.ca:443?transport=tcp',
-            'username': '399188860007a1bf69aabc93',
-            'credential': '8W09AX9jch39sZ2Z',
-          },
-        ],
+      final Map<String, dynamic> configuration = {
+        'iceServers': await _fetchIceServers(),
         'bundlePolicy': 'max-bundle',
         'rtcpMuxPolicy': 'require',
       };
-      
 
       _peerConnection = await createPeerConnection(configuration);
       _setupPeerConnectionListeners();
      
 
-      _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': false});
+      _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': widget.isVideo});
+      if (widget.isVideo) {
+        _localRenderer.srcObject = _localStream;
+        if (_localStream!.getAudioTracks().isNotEmpty) {
+          _localStream!.getAudioTracks()[0].enableSpeakerphone(true);
+        }
+      }
       for (var track in _localStream!.getTracks()) {
         _peerConnection!.addTrack(track, _localStream!);
       }
@@ -4412,8 +5496,26 @@ flutterLocalNotificationsPlugin.cancel(99);
             ),
           ), // 1. Fundo do Matrix em código  ),
           // Camada escura mais transparente para o verde do Matrix brilhar bem
-         
-          
+          if (widget.isVideo && _videoRenderersReady)
+            Positioned.fill(
+              child: RTCVideoView(_remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
+            ),
+          if (widget.isVideo && _videoRenderersReady)
+            Positioned(
+              top: 50,
+              right: 16,
+              child: Container(
+                width: 100,
+                height: 140,
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.6), width: 1.5),
+                ),
+                child: RTCVideoView(_localRenderer, mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
+              ),
+            ),
+
           // 2. Elementos Visuais do Ecrã de Chamada
           SafeArea(
             child: Center(
@@ -4686,24 +5788,99 @@ class SetupScreen extends StatefulWidget {
   State<SetupScreen> createState() => _SetupScreenState();
 }
 
+// Força da frase de encriptação: agora É a única coisa entre um atacante e os
+// dados (a chave do cofre deriva dela via Argon2id), por isso vale a pena
+// travar frases triviais em vez de só medir o comprimento.
+int _passphraseCategories(String s) {
+  int c = 0;
+  if (RegExp(r'[a-z]').hasMatch(s)) c++;
+  if (RegExp(r'[A-Z]').hasMatch(s)) c++;
+  if (RegExp(r'[0-9]').hasMatch(s)) c++;
+  if (RegExp(r'[^a-zA-Z0-9]').hasMatch(s)) c++;
+  return c;
+}
+
+bool _isTrivialPassphrase(String s) {
+  if (s.isEmpty) return true;
+  if (RegExp(r'^(.)\1*$').hasMatch(s)) return true; // ex: "aaaaaaaaaa"
+  const commonWeak = [
+    'password', 'password1', '12345678', '123456789', '1234567890',
+    'qwertyui', 'qwertyuiop', 'letmein11', 'abcdefgh', 'abcd1234',
+    '11111111', '00000000', 'iloveyou1', 'admin1234', 'padlock123',
+  ];
+  if (commonWeak.contains(s.toLowerCase())) return true;
+  // Sequência simples crescente/decrescente (ex: "12345678", "abcdefgh")
+  bool seqAsc = true, seqDesc = true;
+  for (int i = 1; i < s.length; i++) {
+    if (s.codeUnitAt(i) != s.codeUnitAt(i - 1) + 1) seqAsc = false;
+    if (s.codeUnitAt(i) != s.codeUnitAt(i - 1) - 1) seqDesc = false;
+  }
+  if (s.length >= 6 && (seqAsc || seqDesc)) return true;
+  return false;
+}
+
+// 0 = demasiado fraca (bloqueia), 1 = fraca, 2 = média, 3 = forte, 4 = muito forte
+int _passphraseScore(String s) {
+  if (s.length < 10 || _isTrivialPassphrase(s)) return 0;
+  final categories = _passphraseCategories(s);
+  int score = 1;
+  if (s.length >= 12) score++;
+  if (s.length >= 16) score++;
+  if (categories >= 3) score++;
+  return score.clamp(0, 4);
+}
+
 class _SetupScreenState extends State<SetupScreen> {
   final TextEditingController _keyController = TextEditingController();
-  final storage = const FlutterSecureStorage();
   bool _obscureText = true;
+  bool _isProcessing = false;
+  int _strengthScore = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _keyController.addListener(() {
+      setState(() => _strengthScore = _passphraseScore(_keyController.text.trim()));
+    });
+  }
 
   Future<void> _register() async {
     final key = _keyController.text.trim();
-    if (key.length >= 6) {
-      await storage.write(key: 'user_pin', value: key);
+    if (_passphraseScore(key) < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Decryption Key is too weak: use at least 10 characters and avoid repeated or sequential patterns.')),
+      );
+      return;
+    }
+    setState(() => _isProcessing = true);
+    try {
+      // Deriva a chave do cofre a partir da frase escolhida (Argon2id) - a frase
+      // em si nunca é guardada, só um sal aleatório para repetir a derivação.
+      final salt = await PadlockVaultKey.createSalt();
+      final derivedKey = await PadlockVaultKey.deriveKey(key, salt);
+      await Hive.openBox('padlock_vault', encryptionCipher: HiveAesCipher(derivedKey));
+
+      if (PadlockNetwork.pendingFcmToken != null) {
+        await Hive.box('padlock_vault').put('my_fcm_token', PadlockNetwork.pendingFcmToken);
+      }
+      PadlockNetwork.isUnlocked = true;
+
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          MaterialPageRoute(builder: (context) => MainNavigationScreen(currentLanguage: 'EN', onLanguageChange: (lang) {})),
         );
       }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Decryption Key must be at least 6 characters.')),
-      );
+    } catch (e) {
+      await PadlockVaultKey.wipe();
+      if (Hive.isBoxOpen('padlock_vault')) {
+        try { await Hive.box('padlock_vault').close(); } catch (_) {}
+      }
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Vault initialization failed: $e')),
+        );
+      }
     }
   }
 
@@ -4804,6 +5981,30 @@ body: Container(
 ),
                 ),
               ),
+              if (_keyController.text.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Builder(builder: (context) {
+                  const labels = ['Too weak', 'Weak', 'Medium', 'Strong', 'Very strong'];
+                  const colors = [Colors.redAccent, Colors.orangeAccent, Colors.amber, Colors.lightGreen, Colors.greenAccent];
+                  final score = _strengthScore;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: (score + 1) / 5,
+                          minHeight: 5,
+                          backgroundColor: Colors.white12,
+                          valueColor: AlwaysStoppedAnimation<Color>(colors[score]),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(labels[score], style: TextStyle(color: colors[score], fontSize: 11)),
+                    ],
+                  );
+                }),
+              ],
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
@@ -4816,11 +6017,17 @@ body: Container(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  onPressed: _register,
-                  child: const Text(
-                    'INITIALIZE VAULT',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
+                  onPressed: _isProcessing ? null : _register,
+                  child: _isProcessing
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black),
+                        )
+                      : const Text(
+                          'INITIALIZE VAULT',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
                 ),
               ),
               const SizedBox(height: 36),
@@ -4853,22 +6060,74 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _keyController = TextEditingController();
-  final storage = const FlutterSecureStorage();
   bool _obscureText = true;
+  bool _isProcessing = false;
 
   Future<void> _login() async {
     final inputKey = _keyController.text.trim();
-    final savedPin = await storage.read(key: 'user_pin');
+    if (inputKey.isEmpty) return;
 
-    if (savedPin != null && inputKey == savedPin) {
+    setState(() => _isProcessing = true);
+
+    final salt = await PadlockVaultKey.getSalt();
+    if (salt == null) {
+      // Não devia acontecer (isFirstTime trataria este caso), mas por segurança
+      // não avança sem sal - senão a derivação seria sempre com sal vazio.
       if (mounted) {
-        // Redireciona para o ecrã principal da aplicação
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => MainNavigationScreen(currentLanguage: 'EN', onLanguageChange: (lang) {})),
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Vault not initialized on this device.')),
         );
       }
-    } else {
+      return;
+    }
+
+    try {
+      final derivedKey = await PadlockVaultKey.deriveKey(inputKey, salt);
+      await Hive.openBox('padlock_vault', encryptionCipher: HiveAesCipher(derivedKey));
+      // Hive só deteta uma chave errada ao tentar ler/decifrar dados existentes -
+      // força essa leitura aqui para validar a chave antes de dar acesso.
+      Hive.box('padlock_vault').get('user_privacy_id');
+
+      PadlockNetwork.isUnlocked = true;
+      if (PadlockNetwork.pendingFcmToken != null) {
+        await Hive.box('padlock_vault').put('my_fcm_token', PadlockNetwork.pendingFcmToken);
+      }
+
       if (mounted) {
+        final pendingCall = PadlockNetwork.pendingCallData;
+        if (pendingCall != null) {
+          // Havia uma chamada à espera (aceite via CallKit com a app morta):
+          // entra direto na chamada em vez do ecrã principal.
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => ActiveCallScreen(
+                local: t['EN']!,
+                recipientName: pendingCall['targetId'],
+                targetId: pendingCall['targetId'],
+                isIncoming: true,
+                channel: PadlockNetwork.channel,
+                incomingSdp: pendingCall['sdp'],
+                acceptedViaCallKit: true,
+                isVideo: pendingCall['isVideo'] == true,
+              ),
+            ),
+          );
+        } else {
+          // Redireciona para o ecrã principal da aplicação
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => MainNavigationScreen(currentLanguage: 'EN', onLanguageChange: (lang) {})),
+          );
+        }
+      }
+    } catch (e) {
+      // Chave errada: Hive não conseguiu decifrar o cofre. Fecha qualquer
+      // instância parcialmente aberta para não bloquear a próxima tentativa.
+      if (Hive.isBoxOpen('padlock_vault')) {
+        try { await Hive.box('padlock_vault').close(); } catch (_) {}
+      }
+      if (mounted) {
+        setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Invalid Decryption Key.')),
         );
@@ -4993,11 +6252,17 @@ class _LoginScreenState extends State<LoginScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  onPressed: _login,
-                  child: const Text(
-                    'ACCESS VAULT',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
+                  onPressed: _isProcessing ? null : _login,
+                  child: _isProcessing
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black),
+                        )
+                      : const Text(
+                          'ACCESS VAULT',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
                 ),
               ),
               const SizedBox(height: 36),
@@ -5023,7 +6288,430 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
- 
+
+// ----------------------------------------------------
+// SECURE VAULT FILES - ecrã de entrada (código próprio, separado do da app)
+// ----------------------------------------------------
+class VaultFilesGateScreen extends StatefulWidget {
+  const VaultFilesGateScreen({super.key});
+
+  @override
+  State<VaultFilesGateScreen> createState() => _VaultFilesGateScreenState();
+}
+
+class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
+  final TextEditingController _codeController = TextEditingController();
+  bool _obscureText = true;
+  bool _isProcessing = false;
+  bool? _isFirstTime;
+
+  @override
+  void initState() {
+    super.initState();
+    VaultFilesKey.hasVault().then((has) {
+      if (mounted) setState(() => _isFirstTime = !has);
+    });
+  }
+
+  Future<void> _submit() async {
+    final code = _codeController.text.trim();
+    final firstTime = _isFirstTime == true;
+
+    if (firstTime && _passphraseScore(code) < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Code is too weak: use at least 10 characters and avoid repeated or sequential patterns.')),
+      );
+      return;
+    }
+    if (!firstTime && code.isEmpty) return;
+
+    setState(() => _isProcessing = true);
+    try {
+      final salt = firstTime ? await VaultFilesKey.createSalt() : await VaultFilesKey.getSalt();
+      if (salt == null) throw Exception('Vault Files not initialized on this device.');
+
+      final derivedKey = await PadlockVaultKey.deriveKey(code, salt);
+      final filesBox = await Hive.openBox('padlock_vault_files', encryptionCipher: HiveAesCipher(derivedKey));
+      filesBox.get('index'); // força uma leitura já para validar a chave, se o cofre já tiver dados
+      await VaultFilesStore.migratePending(filesBox);
+      VaultFilesKey.markUnlocked();
+
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const VaultFilesHomeScreen()),
+        );
+      }
+    } catch (e) {
+      if (firstTime) await VaultFilesKey.wipe();
+      if (Hive.isBoxOpen('padlock_vault_files')) {
+        try { await Hive.box('padlock_vault_files').close(); } catch (_) {}
+      }
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(firstTime ? 'Setup failed: $e' : 'Invalid Vault Files code.')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isFirstTime == null) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(child: CircularProgressIndicator(color: Colors.lightBlueAccent)),
+      );
+    }
+    final firstTime = _isFirstTime!;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text('Secure Vault Files', style: TextStyle(color: Colors.lightBlueAccent)),
+        iconTheme: const IconThemeData(color: Colors.lightBlueAccent),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/fundo matrix.png'),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(Colors.black87, BlendMode.darken),
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(28.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.folder_copy_rounded, color: Colors.lightBlueAccent, size: 60),
+                const SizedBox(height: 20),
+                Text(
+                  firstTime ? 'CREATE VAULT FILES CODE' : 'ENTER VAULT FILES CODE',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  firstTime
+                      ? 'This code is separate from your app unlock code. Anyone who knows your app code will NOT be able to open your photos and documents without it too.'
+                      : 'Enter your Vault Files code to view your encrypted photos and documents.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 12, height: 1.3),
+                ),
+                const SizedBox(height: 28),
+                TextField(
+                  controller: _codeController,
+                  obscureText: _obscureText,
+                  style: const TextStyle(color: Colors.white),
+                  onSubmitted: (_) => _isProcessing ? null : _submit(),
+                  decoration: InputDecoration(
+                    labelText: firstTime ? 'Set Vault Files Code' : 'Vault Files Code',
+                    labelStyle: const TextStyle(color: Colors.grey),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.lightBlueAccent), borderRadius: BorderRadius.circular(8)),
+                    prefixIcon: const Icon(Icons.lock, color: Colors.lightBlueAccent),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureText ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+                      onPressed: () => setState(() => _obscureText = !_obscureText),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.lightBlueAccent,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: _isProcessing ? null : _submit,
+                    child: _isProcessing
+                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black))
+                        : Text(firstTime ? 'CREATE VAULT' : 'UNLOCK', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ----------------------------------------------------
+// SECURE VAULT FILES - lista de fotos/documentos
+// ----------------------------------------------------
+class VaultFilesHomeScreen extends StatefulWidget {
+  const VaultFilesHomeScreen({super.key});
+
+  @override
+  State<VaultFilesHomeScreen> createState() => _VaultFilesHomeScreenState();
+}
+
+class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with SingleTickerProviderStateMixin {
+  Timer? _sessionTimer;
+  List<Map<String, dynamic>> _entries = [];
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _refresh();
+    _sessionTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!VaultFilesKey.isUnlocked) _lockAndExit();
+    });
+  }
+
+  @override
+  void dispose() {
+    _sessionTimer?.cancel();
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  // Nunca misturar as tuas próprias fotos/documentos com os que outros te
+  // enviaram - cada secção só mostra o que lhe pertence.
+  List<Map<String, dynamic>> get _personalEntries =>
+      _entries.where((e) => e['direction'] == 'local').toList();
+  List<Map<String, dynamic>> get _receivedEntries =>
+      _entries.where((e) => e['direction'] == 'received').toList();
+  List<Map<String, dynamic>> get _sentEntries =>
+      _entries.where((e) => e['direction'] == 'sent').toList();
+
+  Box get _box => Hive.box('padlock_vault_files');
+
+  void _refresh() {
+    setState(() => _entries = VaultFilesStore.listEntries(_box));
+  }
+
+  void _lockAndExit() {
+    VaultFilesKey.lock();
+    if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  Future<void> _takePhoto() async {
+    final XFile? photo = await ImagePicker().pickImage(
+      source: ImageSource.camera,
+      imageQuality: 70,
+      maxWidth: 1600,
+    );
+    if (photo == null) return;
+    final bytes = await photo.readAsBytes();
+    try { await File(photo.path).delete(); } catch (_) {}
+    await VaultFilesStore.storeSent(peerId: '', fileName: 'photo.jpg', fileKind: 'photo', fileBytes: bytes, direction: 'local');
+    _refresh();
+  }
+
+  Future<void> _importDocument() async {
+    final result = await FilePicker.platform.pickFiles(withData: true);
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    Uint8List? bytes = file.bytes;
+    if (bytes == null && file.path != null) {
+      bytes = await File(file.path!).readAsBytes();
+    }
+    if (bytes == null) return;
+    if (bytes.length > kMaxVaultFileBytes) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('File too large (max ${kMaxVaultFileBytes ~/ (1024 * 1024)}MB).')),
+        );
+      }
+      return;
+    }
+    await VaultFilesStore.storeSent(peerId: '', fileName: file.name, fileKind: 'document', fileBytes: bytes, direction: 'local');
+    _refresh();
+  }
+
+  void _viewEntry(Map<String, dynamic> entry) {
+    final bytes = VaultFilesStore.readData(_box, entry['id']);
+    if (bytes == null) return;
+    if (entry['fileKind'] == 'photo') {
+      showDialog(
+        context: context,
+        builder: (ctx) => Dialog(
+          backgroundColor: Colors.black,
+          child: InteractiveViewer(child: Image.memory(bytes)),
+        ),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF151515),
+          title: Text(entry['fileName'] ?? 'Document', style: const TextStyle(color: Colors.white)),
+          content: Text(
+            'This document is stored encrypted in your Vault Files (${(bytes.length / 1024).toStringAsFixed(1)} KB). A built-in previewer for documents is not available yet — export/share support can be added later.',
+            style: const TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close', style: TextStyle(color: Colors.lightBlueAccent))),
+          ],
+        ),
+      );
+    }
+  }
+
+  Future<void> _sendEntry(Map<String, dynamic> entry) async {
+    final contactsStr = Hive.box('padlock_vault').get('contacts');
+    final List contacts = contactsStr != null ? jsonDecode(contactsStr) : [];
+    if (contacts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No contacts yet.')));
+      return;
+    }
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF151515),
+        title: const Text('Send to...', style: TextStyle(color: Colors.white)),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView(
+            shrinkWrap: true,
+            children: contacts.map<Widget>((c) {
+              final id = c['id'] ?? c['name'];
+              return ListTile(
+                title: Text(id, style: const TextStyle(color: Colors.white, fontSize: 12)),
+                onTap: () => Navigator.pop(ctx, id as String),
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+    if (selected == null) return;
+    final bytes = VaultFilesStore.readData(_box, entry['id']);
+    if (bytes == null) return;
+    try {
+      await sendEncryptedFile(
+        targetId: selected,
+        fileBytes: bytes,
+        fileName: entry['fileName'] ?? 'file',
+        fileKind: entry['fileKind'] ?? 'document',
+      );
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sent.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send: $e')));
+    }
+  }
+
+  Future<void> _deleteEntry(Map<String, dynamic> entry) async {
+    await VaultFilesStore.deleteEntry(_box, entry['id']);
+    _refresh();
+  }
+
+  Widget _buildList(List<Map<String, dynamic>> entries, String emptyMessage) {
+    if (entries.isEmpty) {
+      return Center(
+        child: Text(emptyMessage, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade500)),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: entries.length,
+      itemBuilder: (context, index) {
+        final entry = entries[index];
+        final isPhoto = entry['fileKind'] == 'photo';
+        final direction = entry['direction'];
+        final peer = (entry['peerId'] ?? '').toString();
+        final subtitle = direction == 'received'
+            ? 'Received from $peer'
+            : direction == 'sent'
+                ? 'Sent to $peer'
+                : 'Stored locally — not sent to anyone yet';
+        return Card(
+          color: const Color(0xFF151515),
+          margin: const EdgeInsets.only(bottom: 8),
+          child: ListTile(
+            leading: Icon(isPhoto ? Icons.image : Icons.description, color: Colors.lightBlueAccent),
+            title: Text(entry['fileName'] ?? '', style: const TextStyle(color: Colors.white), overflow: TextOverflow.ellipsis),
+            subtitle: Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+            onTap: () => _viewEntry(entry),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(icon: const Icon(Icons.send, color: Colors.greenAccent, size: 20), onPressed: () => _sendEntry(entry)),
+                IconButton(icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20), onPressed: () => _deleteEntry(entry)),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text('Secure Vault Files', style: TextStyle(color: Colors.lightBlueAccent)),
+        iconTheme: const IconThemeData(color: Colors.lightBlueAccent),
+        actions: [
+          IconButton(icon: const Icon(Icons.lock, color: Colors.lightBlueAccent), onPressed: _lockAndExit),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.lightBlueAccent,
+          labelColor: Colors.lightBlueAccent,
+          unselectedLabelColor: Colors.grey,
+          tabs: const [
+            Tab(text: 'Personal'),
+            Tab(text: 'Received'),
+            Tab(text: 'Sent'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _buildList(_personalEntries, 'No personal files yet.\nUse the + button to take a photo or import a document.'),
+          _buildList(_receivedEntries, 'Nothing received yet.'),
+          _buildList(_sentEntries, 'Nothing sent yet.'),
+        ],
+      ),
+      floatingActionButton: SpeedDialLikeFab(onPhoto: _takePhoto, onDocument: _importDocument),
+    );
+  }
+}
+
+// FAB simples com duas ações (tirar foto / importar documento) sem depender
+// de pacotes extra de "speed dial".
+class SpeedDialLikeFab extends StatelessWidget {
+  final VoidCallback onPhoto;
+  final VoidCallback onDocument;
+  const SpeedDialLikeFab({super.key, required this.onPhoto, required this.onDocument});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FloatingActionButton(
+          heroTag: 'vault_files_doc',
+          backgroundColor: const Color(0xFF1e4d2b),
+          onPressed: onDocument,
+          child: const Icon(Icons.upload_file, color: Colors.white),
+        ),
+        const SizedBox(width: 12),
+        FloatingActionButton(
+          heroTag: 'vault_files_photo',
+          backgroundColor: Colors.lightBlueAccent,
+          onPressed: onPhoto,
+          child: const Icon(Icons.camera_alt, color: Colors.black),
+        ),
+      ],
+    );
+  }
+}
+
 class MatrixBackgroundPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -5056,10 +6744,66 @@ class MatrixBackgroundPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+void showPremiumRequiredDialog(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: const Color(0xFF151515),
+      shape: RoundedRectangleBorder(
+        side: const BorderSide(color: Colors.lightBlueAccent, width: 1.5),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      title: const Row(
+        children: [
+          Text('💎', style: TextStyle(fontSize: 22)),
+          SizedBox(width: 10),
+          Text('PREMIUM REQUIRED', style: TextStyle(color: Colors.lightBlueAccent, fontWeight: FontWeight.bold, fontSize: 14)),
+        ],
+      ),
+      content: const Text(
+        'Store all your cryptocurrencies in a military-grade local vault. Send funds to anyone and receive from anywhere, with zero middlemen and absolute privacy.\n\n'
+        'Unlocking the Web3 Crypto Vault requires a Premium subscription.',
+        style: TextStyle(color: Colors.white70, height: 1.4, fontSize: 13),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('CLOSE', style: TextStyle(color: Colors.grey)),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.pop(ctx);
+            // Futura lógica de pagamento (Google Play Billing) entrará aqui
+          },
+          child: const Text('UPGRADE TO PREMIUM', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
+        ),
+      ],
+    ),
+  );
+}
+
   Future<void> showNotification(String title, String body) async {
+  // "Silent Mode" e "Push Notifications" são a mesma coisa vista de dois
+  // lados - uma única definição gravada no cofre, lida aqui antes de
+  // mostrar qualquer aviso local.
+  final notificationsEnabled = Hive.box('padlock_vault').get('notifications_enabled', defaultValue: true);
+  if (notificationsEnabled == false) return;
   const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
     'padlock_secure_channel', 'Secure Notifications',
     importance: Importance.max, priority: Priority.high,
   );
   await flutterLocalNotificationsPlugin.show(0, title, body, const NotificationDetails(android: androidDetails));
+}
+Future<String> computeSafetyNumber(String pubKeyA, String pubKeyB) async {
+  final sorted = [pubKeyA, pubKeyB]..sort();
+  final combined = utf8.encode(sorted.join());
+  final digest = await crypto.Sha256().hash(combined);
+  final hex = digest.bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  final digitsBig = BigInt.parse(hex, radix: 16).toString().padLeft(60, '0');
+  final digits = digitsBig.substring(digitsBig.length - 60);
+  final groups = <String>[];
+  for (int i = 0; i < digits.length; i += 5) {
+    groups.add(digits.substring(i, i + 5));
+  }
+  return groups.join(' ');
 }

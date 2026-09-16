@@ -58,7 +58,10 @@ dependencies:
   audioplayers: ^6.8.1
   wakelock_plus: ^1.5.2
   flutter_callkit_incoming: ^2.0.1
-  
+  image_picker: ^1.1.2
+  file_picker: ^8.1.4
+  record: ^5.2.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -111,6 +114,7 @@ flutter:
     - assets/sounds/ringing.mp3
     - assets/sounds/morse.mp3
     - assets/sounds/end_call.mp3
+    - assets/sounds/ringtone.mp3.mp3
 
 flutter_launcher_icons:
   android: true
