@@ -763,10 +763,19 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   const AndroidInitializationSettings initSettingsAndroid = AndroidInitializationSettings('@mipmap/ic_launcher');
   await localNotif.initialize(const InitializationSettings(android: initSettingsAndroid));
 
-  // Deteta o que o servidor mandou (se é chamada ou mensagem)
+  // Deteta o que o servidor mandou (se é chamada, fim de chamada, ou mensagem)
   final bool isCall = message.data['action'] == 'call_offer';
+  final bool isCallEnd = message.data['action'] == 'call_end';
   final String senderId = message.data['senderId'] ?? 'Unknown';
   final int notificationId = senderId.hashCode;
+
+  if (isCallEnd) {
+    // Quem ligou desistiu/desligou antes de a chamada ser atendida - sem
+    // isto, o ecrã nativo (CallKit) ficava a tocar até ao limite de 60s,
+    // mesmo já não havendo chamada nenhuma do outro lado.
+    await FlutterCallkitIncoming.endAllCalls();
+    return;
+  }
 
   if (isCall) {
     // DISPARA O ECRÃ NATIVO DE CHAMADA DO TELEMÓVEL
@@ -868,7 +877,22 @@ void main() async {
         final tempChannel = WebSocketChannel.connect(Uri.parse('wss://servidor-padlock.onrender.com'));
         tempChannel.sink.add(jsonEncode({'action': 'call_end', 'targetId': targetId}));
         Future.delayed(const Duration(milliseconds: 1500), () => tempChannel.sink.close());
-      
+        // Recusar explicitamente também tem de ficar registado na conversa -
+        // antes, só o esgotar do tempo (60s sem resposta) ficava gravado, e
+        // recusar de propósito não deixava rasto nenhum no chat.
+        if (Hive.isBoxOpen('padlock_vault')) {
+          final vault = Hive.box('padlock_vault');
+          List allChats = jsonDecode(vault.get('chats') ?? '[]');
+          int idx = allChats.indexWhere((c) => c['id'] == targetId);
+          if (idx != -1) {
+            final timeStr = "${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}";
+            allChats[idx]['messages'].add({'text': '📞 Missed Secure Call ($timeStr)', 'isMe': false, 'status': 'missed', 'timestamp': DateTime.now().millisecondsSinceEpoch});
+            allChats[idx]['msg'] = '📞 Missed Secure Call';
+            allChats[idx]['unread'] = (allChats[idx]['unread'] ?? 0) + 1;
+            vault.put('chats', jsonEncode(allChats));
+          }
+        }
+
       } else if (event!.event == Event.actionCallTimeout) {
         final targetId = event.body['extra']['targetId'];
         if (!Hive.isBoxOpen('padlock_vault')) return; // cofre ainda fechado (sem PIN): não há onde gravar
@@ -2544,6 +2568,18 @@ title: const Text(
                 icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF1e4d2b)), // Ícone verde escuro para combinar
                 onPressed: () async {
                   try {
+                   // Sem pedir esta permissão explicitamente, nalguns telemóveis
+                   // (relatado num Xiaomi/MIUI) a câmara simplesmente não aparece -
+                   // fica um ecrã preto, sem erro nenhum a explicar porquê.
+                   final camStatus = await Permission.camera.request();
+                   if (!camStatus.isGranted) {
+                     if (context.mounted) {
+                       ScaffoldMessenger.of(context).showSnackBar(
+                         const SnackBar(content: Text('Camera permission denied. Enable it in phone Settings > Apps > Padlock > Permissions.')),
+                       );
+                     }
+                     return;
+                   }
                    bool scanned = false; // A câmara deteta o mesmo código em vários frames
                    // seguidos - sem isto, cada frame chamava Navigator.pop outra vez,
                    // fechando também o diálogo "Add Contact" por trás do scanner.
@@ -5230,6 +5266,7 @@ bool _isRemoteSet = false;
   final RTCVideoRenderer _localRenderer = RTCVideoRenderer();
   final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
   bool _videoRenderersReady = false;
+  bool _swapVideos = false; // toca na imagem pequena para trocar com o ecrã grande
   @override
   void initState() {
     super.initState();
@@ -5734,30 +5771,49 @@ flutterLocalNotificationsPlugin.cancel(99);
           // Camada escura mais transparente para o verde do Matrix brilhar bem
           if (widget.isVideo && _videoRenderersReady)
             Positioned.fill(
-              child: RTCVideoView(_remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
+              child: RTCVideoView(
+                _swapVideos ? _localRenderer : _remoteRenderer,
+                mirror: _swapVideos,
+                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+              ),
             ),
           if (widget.isVideo && _videoRenderersReady)
             Positioned(
               top: 50,
               right: 16,
-              child: Container(
-                width: 100,
-                height: 140,
-                clipBehavior: Clip.antiAlias,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.6), width: 1.5),
+              child: GestureDetector(
+                // Toca na imagem pequena para trocar com o ecrã grande - tal
+                // como funciona noutras apps de videochamada.
+                onTap: () => setState(() => _swapVideos = !_swapVideos),
+                child: Container(
+                  width: 100,
+                  height: 140,
+                  clipBehavior: Clip.antiAlias,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.6), width: 1.5),
+                  ),
+                  child: RTCVideoView(
+                    _swapVideos ? _remoteRenderer : _localRenderer,
+                    mirror: !_swapVideos,
+                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                  ),
                 ),
-                child: RTCVideoView(_localRenderer, mirror: true, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover),
               ),
             ),
 
           // 2. Elementos Visuais do Ecrã de Chamada
           SafeArea(
-            child: Center(
+            child: Align(
+              // Em vídeo, o cadeado e os botões ficam em baixo, pequenos, para
+              // não tapar a imagem da outra pessoa a meio do ecrã.
+              alignment: widget.isVideo ? const Alignment(0, 0.88) : Alignment.center,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: Column(
+                child: Transform.scale(
+                  scale: widget.isVideo ? 0.62 : 1.0,
+                  alignment: Alignment.bottomCenter,
+                  child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // Cadeado com duplo anel néon (formato original ligeiramente mais pequeno e proporcional)
@@ -5938,9 +5994,30 @@ flutterLocalNotificationsPlugin.cancel(99);
                           ),
                         ),
                       ),
+                      if (widget.isVideo) ...[
+                        const SizedBox(width: 25),
+                        // Botão Virar Câmara (frente/trás)
+                        GestureDetector(
+                          onTap: () {
+                            final videoTracks = _localStream?.getVideoTracks();
+                            if (videoTracks != null && videoTracks.isNotEmpty) {
+                              Helper.switchCamera(videoTracks[0]);
+                            }
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withValues(alpha: 0.1),
+                            ),
+                            child: const Icon(Icons.cameraswitch, color: Colors.white, size: 32),
+                          ),
+                        ),
+                      ],
                             ],
                           ),
                   ],
+                ),
                 ),
               ),
             ),
@@ -6094,16 +6171,24 @@ class _SetupScreenState extends State<SetupScreen> {
       // em si nunca é guardada, só um sal aleatório para repetir a derivação.
       final salt = await PadlockVaultKey.createSalt();
       final derivedKey = await PadlockVaultKey.deriveKey(key, salt);
-      await Hive.openBox('padlock_vault', encryptionCipher: HiveAesCipher(derivedKey));
+      final newVault = await Hive.openBox('padlock_vault', encryptionCipher: HiveAesCipher(derivedKey));
+      // Valor de controlo: permite ao ecrã de login detetar uma frase errada
+      // mesmo quando o cofre está vazio (sem isto, um cofre vazio aceitava
+      // qualquer frase, porque não havia nada para falhar a decifrar).
+      await newVault.put('_vault_canary', 'padlock_ok');
 
       if (PadlockNetwork.pendingFcmToken != null) {
         await Hive.box('padlock_vault').put('my_fcm_token', PadlockNetwork.pendingFcmToken);
       }
-      PadlockNetwork.isUnlocked = true;
+      // Fecha o cofre outra vez e manda para o ecrã de login normal, em vez
+      // de entrar logo - obriga a confirmar a frase escrevendo-a de novo
+      // (tal como pediste, e como era antes), e serve também de teste real
+      // ao próprio caminho de login logo no primeiro uso.
+      await Hive.box('padlock_vault').close();
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => MainNavigationScreen(currentLanguage: 'EN', onLanguageChange: (lang) {})),
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
       }
     } catch (e) {
@@ -6327,10 +6412,19 @@ class _LoginScreenState extends State<LoginScreen> {
         try { await Hive.box('padlock_vault').close(); } catch (_) {}
       }
       final derivedKey = await PadlockVaultKey.deriveKey(inputKey, salt);
-      await Hive.openBox('padlock_vault', encryptionCipher: HiveAesCipher(derivedKey));
-      // Hive só deteta uma chave errada ao tentar ler/decifrar dados existentes -
-      // força essa leitura aqui para validar a chave antes de dar acesso.
-      Hive.box('padlock_vault').get('user_privacy_id');
+      final opened = await Hive.openBox('padlock_vault', encryptionCipher: HiveAesCipher(derivedKey));
+
+      // FALHA DE SEGURANÇA REAL E MAIS PROFUNDA DO QUE PARECIA: a cifra do
+      // Hive não é autenticada (não tem MAC/GCM) - decifrar com a chave
+      // ERRADA não produz sempre um erro, produz LIXO. Esse lixo às vezes
+      // engana o descodificador do Hive e parece um valor válido (um ID
+      // "diferente" a aparecer do nada era exatamente isto a acontecer). Por
+      // isso a verificação tem de ser ESTRITA: só um valor de controlo
+      // EXATO conta, nunca "se há lá alguma coisa gravada".
+      final canary = opened.get('_vault_canary');
+      if (canary != 'padlock_ok') {
+        throw Exception('Invalid Decryption Key.');
+      }
 
       PadlockNetwork.isUnlocked = true;
       if (PadlockNetwork.pendingFcmToken != null) {
@@ -6575,7 +6669,18 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
 
       final derivedKey = await PadlockVaultKey.deriveKey(code, salt);
       final filesBox = await Hive.openBox('padlock_vault_files', encryptionCipher: HiveAesCipher(derivedKey));
-      filesBox.get('index'); // força uma leitura já para validar a chave, se o cofre já tiver dados
+
+      // A cifra do Hive não é autenticada - chave errada pode produzir lixo
+      // que ainda assim "parece" um valor válido nalgumas leituras. Por isso
+      // a verificação é estrita: só o valor de controlo exato conta, nunca
+      // "se há lá alguma coisa gravada" (isso já deixou passar chaves erradas).
+      final canary = filesBox.get('_vault_canary');
+      if (firstTime) {
+        await filesBox.put('_vault_canary', 'padlock_ok');
+      } else if (canary != 'padlock_ok') {
+        throw Exception('Invalid Vault Files code.');
+      }
+
       await VaultFilesStore.migratePending(filesBox);
       VaultFilesKey.markUnlocked();
 
@@ -7023,10 +7128,21 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
 
       final derivedKey = await PadlockVaultKey.deriveKey(code, salt);
       final walletBox = await Hive.openBox('padlock_crypto_vault', encryptionCipher: HiveAesCipher(derivedKey));
-      walletBox.get('mnemonic'); // força uma leitura já para validar a chave, se já houver dados
+
+      // A cifra do Hive não é autenticada - chave errada pode produzir lixo
+      // que ainda assim "parece" um valor válido nalgumas leituras (ex: um
+      // 'mnemonic' não-nulo mas ilegível). Por isso um valor de controlo
+      // EXATO, igual aos outros dois cofres, em vez de só verificar "existe
+      // alguma coisa gravada".
+      final canary = walletBox.get('_vault_canary');
+      if (!firstTime && canary != 'padlock_ok') {
+        throw Exception('Invalid Crypto Vault code.');
+      }
+
       CryptoWalletKey.markUnlocked();
 
       if (firstTime) {
+        await walletBox.put('_vault_canary', 'padlock_ok');
         if (restoredMnemonic != null) {
           // Restauro: a frase já é conhecida do utilizador, não voltamos a mostrá-la.
           await PadlockWallet.storeMnemonic(walletBox, restoredMnemonic.sentence);

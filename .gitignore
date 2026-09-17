@@ -43,3 +43,12 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Chave de assinatura do release - NUNCA deve ir para o GitHub nem para
+# nenhum sítio partilhado. Perder este ficheiro é irreversível: sem ele,
+# nunca mais é possível publicar uma atualização assinada com a mesma
+# identidade (a Play Store recusa atualizações assinadas com uma chave
+# diferente da original).
+/android/key.properties
+/android/*.jks
+/android/*.keystore
