@@ -37,7 +37,27 @@ import 'dart:io';
 // Serviço de rede para conectar ao servidor
 class PadlockNetwork {
   static String? chatAbertoAtualmente;
-  static bool emChamada = false;
+  static bool _emChamada = false;
+  static DateTime? _emChamadaSetAt;
+
+  // "Em chamada" nunca pode ficar preso a 'true' para sempre - se a app
+  // morrer a meio de uma chamada sem correr o código que a desliga
+  // corretamente, esta flag ficava presa e bloqueava QUALQUER chamada nova
+  // (incluindo aceitar via CallKit) até reiniciares a app por completo.
+  // Passado um tempo mais do que suficiente para qualquer chamada real
+  // tocar e ligar, trata-se como uma flag esquecida e destranca sozinha.
+  static bool get emChamada {
+    if (_emChamada && _emChamadaSetAt != null &&
+        DateTime.now().difference(_emChamadaSetAt!) > const Duration(seconds: 90)) {
+      _emChamada = false;
+    }
+    return _emChamada;
+  }
+
+  static set emChamada(bool value) {
+    _emChamada = value;
+    _emChamadaSetAt = value ? DateTime.now() : null;
+  }
   static bool isUnlocked = false;
   static String? pendingFcmToken;
 
@@ -771,6 +791,18 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         ),
       ),
     );
+    // Avisa já quem ligou que o telemóvel está mesmo a tocar. Sem isto, com a
+    // app morta, esse aviso só saía depois de a chamada ser aceite (tarde
+    // demais) - o ecrã de quem ligava ficava preso em "Connecting..." com o
+    // som de Morse a tocar durante todo o tempo em que o outro lado já
+    // estava a tocar de verdade.
+    try {
+      final tempChannel = WebSocketChannel.connect(Uri.parse('wss://servidor-padlock.onrender.com'));
+      tempChannel.sink.add(jsonEncode({'action': 'call_ringing', 'targetId': senderId}));
+      Future.delayed(const Duration(milliseconds: 1500), () => tempChannel.sink.close());
+    } catch (e) {
+      print('Erro ao avisar que está a tocar: $e');
+    }
   } else {
     // --- POP-UP DE MENSAGEM MILITAR ---
     const AndroidNotificationDetails msgDetails = AndroidNotificationDetails(
@@ -1456,6 +1488,13 @@ if (chaveTrancada == null) {
                       final sharedSecretBytes = await sharedSecret.extractBytes();
                       final myPublicKeyBytes = (await myPrivateKey.extractPublicKey()).bytes;
 
+                      // Guarda as duas chaves públicas para o Número de Segurança poder
+                      // ser calculado deste lado também - faltava aqui (só existia no
+                      // lado de quem ACEITA um pedido), por isso quem INICIA um pedido
+                      // via "Adicionar Contacto" via sempre "Keys not available".
+                      await vault.put('my_public_key_$acceptedId', base64Encode(myPublicKeyBytes));
+                      await vault.put('their_public_key_$acceptedId', acceptedPubKey);
+
                       // 4. Tranca o Segredo e DESTROI a tua chave privada local (Anti-Forense)
                       await PadlockRatchet.establishChains(
   peerId: acceptedId,
@@ -1987,11 +2026,19 @@ Future<void> _generateNewId() async {
 Future<void> _logout() async {
     final vault = Hive.box('padlock_vault');
     vault.put('chats', jsonEncode(_chats));
-    await vault.flush();
-    // Fecha mesmo o cofre - sem isto, Hive.openBox no LoginScreen devolveria
-    // a mesma instância já aberta em memória e aceitaria QUALQUER frase,
-    // sem voltar a validar a chave derivada de Argon2id.
-    await vault.close();
+    try {
+      // Nunca deve travar a app à espera do disco - nalguns telemóveis
+      // (relatado num Xiaomi) o botão parecia "não fazer nada", obrigando a
+      // forçar o fecho da app. Com um limite de tempo, o pior caso passa a
+      // ser "sair sem gravar os últimos segundos", nunca "ficar preso".
+      await vault.flush().timeout(const Duration(seconds: 5));
+      // Fecha mesmo o cofre - sem isto, Hive.openBox no LoginScreen devolveria
+      // a mesma instância já aberta em memória e aceitaria QUALQUER frase,
+      // sem voltar a validar a chave derivada de Argon2id.
+      await vault.close().timeout(const Duration(seconds: 5));
+    } catch (e) {
+      print('Aviso: logout não conseguiu fechar o cofre a tempo: $e');
+    }
 
     PadlockNetwork.disconnect();
     PadlockNetwork.isUnlocked = false;
@@ -2497,6 +2544,9 @@ title: const Text(
                 icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF1e4d2b)), // Ícone verde escuro para combinar
                 onPressed: () async {
                   try {
+                   bool scanned = false; // A câmara deteta o mesmo código em vários frames
+                   // seguidos - sem isto, cada frame chamava Navigator.pop outra vez,
+                   // fechando também o diálogo "Add Contact" por trás do scanner.
                    await Navigator.push(
     context,
     MaterialPageRoute(
@@ -2504,9 +2554,11 @@ title: const Text(
         appBar: AppBar(title: const Text('Scan Privacy ID')),
         body: MobileScanner(
           onDetect: (capture) {
+            if (scanned) return;
             final List<Barcode> barcodes = capture.barcodes;
             for (final barcode in barcodes) {
               if (barcode.rawValue != null) {
+                scanned = true;
                 controller.text = barcode.rawValue!;
                 Navigator.pop(context);
                 break;
@@ -3570,9 +3622,23 @@ Future<void> _sendPhotoFromChat() async {
 
 Future<void> _sendMessage() async {
     if (_msgController.text.trim().isEmpty) return;
-    
+
     final rawText = _msgController.text.trim();
-    final encResult = await _encryptAES256(rawText);
+    Map<String, String> encResult;
+    try {
+      encResult = await _encryptAES256(rawText);
+    } catch (e) {
+      // Sem isto, uma falha aqui (ex: canal cifrado por estabelecer com este
+      // contacto) fazia o botão "Enviar" não fazer literalmente nada, sem
+      // aviso nenhum - o texto ficava na caixa e parecia que a app tinha
+      // travado.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not send: no secure channel with this contact yet ($e). Try removing and re-adding them.')),
+        );
+      }
+      return;
+    }
 final encryptedPayload = encResult['payload']!;
 final chainIndex = int.parse(encResult['chainIndex']!);
 final dhPub = encResult['dh']!;
@@ -4035,7 +4101,7 @@ flexibleSpace: Container(
       Text(
       m['text'],
       style: TextStyle(
-        color: m['text'] == '[Message not decrypted]' ? Colors.white54 : (isMe ? Colors.white : Colors.black87),
+        color: m['text'] == '[Message not decrypted]' ? const Color(0xFFB00020) : (isMe ? Colors.white : Colors.black87),
         fontSize: m['text'] == '[Message not decrypted]' ? 11 : 14,
         fontStyle: m['text'] == '[Message not decrypted]' ? FontStyle.italic : FontStyle.normal,
       ),
@@ -4617,7 +4683,13 @@ class SettingsScreen extends StatelessWidget {
               return ListTile(
                 title: Text(langs[index]['name']!, style: const TextStyle(color: Colors.white70)),
                 onTap: () {
-                  onLangChange(langs[index]['code']!.toUpperCase());
+                  final code = langs[index]['code']!.toUpperCase();
+                  // onLangChange fica ligado a um callback vazio quando se chega
+                  // aqui a partir do Login/Setup - por isso a app não estava
+                  // mesmo a mudar de língua. Atualiza diretamente o estado da
+                  // app (o mesmo mecanismo que já funcionava no ecrã de Perfil).
+                  context.findAncestorStateOfType<_PadlockAppState>()?._changeLanguage(code);
+                  onLangChange(code);
                   Navigator.pop(ctx);
                 },
               );
@@ -6247,6 +6319,13 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     try {
+      // Se um logout anterior tiver ficado a meio (ex: fechar o cofre demorou
+      // demasiado e desistimos à espera), o Hive podia achar que a caixa
+      // ainda está aberta e devolvê-la tal e qual, SEM voltar a validar a
+      // frase - isto garante que valida sempre, mesmo nesse caso raro.
+      if (Hive.isBoxOpen('padlock_vault')) {
+        try { await Hive.box('padlock_vault').close(); } catch (_) {}
+      }
       final derivedKey = await PadlockVaultKey.deriveKey(inputKey, salt);
       await Hive.openBox('padlock_vault', encryptionCipher: HiveAesCipher(derivedKey));
       // Hive só deteta uma chave errada ao tentar ler/decifrar dados existentes -
@@ -6833,13 +6912,22 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildList(_personalEntries, 'No personal files yet.\nUse the + button to take a photo or import a document.'),
-          _buildList(_receivedEntries, 'Nothing received yet.'),
-          _buildList(_sentEntries, 'Nothing sent yet.'),
-        ],
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/fundo matrix.png'),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(Colors.black87, BlendMode.darken),
+          ),
+        ),
+        child: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildList(_personalEntries, 'No personal files yet.\nUse the + button to take a photo or import a document.'),
+            _buildList(_receivedEntries, 'Nothing received yet.'),
+            _buildList(_sentEntries, 'Nothing sent yet.'),
+          ],
+        ),
       ),
       floatingActionButton: SpeedDialLikeFab(onPhoto: _takePhoto, onDocument: _importDocument),
     );
