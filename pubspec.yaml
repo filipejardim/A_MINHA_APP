@@ -60,7 +60,7 @@ dependencies:
   flutter_callkit_incoming: ^2.0.1
   image_picker: ^1.1.2
   file_picker: ^8.1.4
-  record: ^5.2.1
+  record: ^6.2.1
 
 dev_dependencies:
   flutter_test:
