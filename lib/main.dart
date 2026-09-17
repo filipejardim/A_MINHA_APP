@@ -956,20 +956,28 @@ androidImplementation?.requestNotificationsPermission();
   // 3. Arranca a rede (ainda sem identidade - só liga o túnel WebSocket)
   PadlockNetwork.initNetworkListener();
 
-  // Bug encontrado: quando a app está ABERTA (primeiro/segundo plano, ligada
-  // ao WebSocket), o servidor vê o telemóvel "online" e entrega a chamada
-  // diretamente pelo túnel WebSocket em vez de empurrar por FCM (só empurra
-  // por FCM quando o socket não está ligado). Como não havia nenhum ouvinte
-  // para uma mensagem 'offer' crua chegar por este caminho, a chamada não
-  // tocava, não aparecia notificação nem ecrã nenhum - ficava completamente
-  // muda ("nem vai para o login screen, nem passa, nem dá notificação").
-  // Mostra o mesmo ecrã nativo (CallKit) usado quando a app está fechada,
-  // para reaproveitar o mesmo aceitar/recusar já ligado em cima.
+  // Bug encontrado: quando a app está ABERTA mas ainda BLOQUEADA (parada no
+  // LoginScreen, sem ter entrado ainda), o servidor vê o telemóvel "online"
+  // e entrega a chamada diretamente pelo túnel WebSocket em vez de empurrar
+  // por FCM (só empurra por FCM quando o socket não está ligado). Como não
+  // havia nenhum ouvinte para uma mensagem 'offer' crua chegar por este
+  // caminho enquanto bloqueada, a chamada não tocava, não aparecia
+  // notificação nem ecrã nenhum - ficava completamente muda.
+  //
+  // IMPORTANTE: isto só pode disparar quando a app está BLOQUEADA. Quando
+  // já está desbloqueada (dentro da app normal), o próprio
+  // _MainNavigationScreenState já trata esta mesma mensagem 'call_offer' e
+  // abre o ActiveCallScreen diretamente, sem CallKit nenhum - por isso, sem
+  // este "if (PadlockNetwork.isUnlocked) return", os dois ouviam a MESMA
+  // mensagem (o messageHub é partilhado) e mostravam DOIS ecrãs de chamada
+  // ao mesmo tempo (CallKit + ActiveCallScreen), cada um a tocar por si e
+  // sem saber do outro - atender um deixava o outro a tocar para sempre.
   PadlockNetwork.messageHub.stream.listen((raw) {
     try {
       final data = jsonDecode(raw);
       if (data['type'] == 'offer' && data['action'] == 'call_offer') {
         if (PadlockNetwork.emChamada) return;
+        if (PadlockNetwork.isUnlocked) return;
         final senderId = data['senderId'] ?? 'Unknown';
         FlutterCallkitIncoming.showCallkitIncoming(
           CallKitParams(
@@ -5939,6 +5947,11 @@ flutterLocalNotificationsPlugin.cancel(99);
                   scale: widget.isVideo ? 0.62 : 1.0,
                   alignment: Alignment.bottomCenter,
                   child: Column(
+                  // Sem isto, a Column ocupava sempre o ecrã todo (tamanho
+                  // por omissão), o que anulava o Align lá em cima - por
+                  // isso os botões ficavam sempre a meio do ecrã em vez de
+                  // encostados ao fundo nas chamadas de vídeo.
+                  mainAxisSize: widget.isVideo ? MainAxisSize.min : MainAxisSize.max,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // Cadeado com duplo anel néon - só nas chamadas de voz. Em
