@@ -128,6 +128,33 @@ class PadlockVaultKey {
     await prefs.remove(_saltPrefsKey);
   }
 
+  // Verificação da frase FORA do Hive, antes de sequer o tocar.
+  // Descoberta importante: a cifra do Hive não é autenticada, e abri-lo com
+  // uma chave errada por vezes deixa a caixa presa num estado estranho -
+  // reportado como "depois de errar uma vez, a chave CERTA também passa a
+  // ser recusada, só resolve reinstalando". Ao verificar a frase com um
+  // hash simples em SharedPreferences ANTES de chamar Hive.openBox, nunca
+  // mais se chama openBox com uma chave errada - o Hive nunca fica nesse
+  // estado, porque só o vemos com a chave já confirmada como certa.
+  static Future<void> storeKeyHash(String hashPrefsKey, Uint8List derivedKey) async {
+    final digest = await crypto.Sha256().hash(derivedKey);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(hashPrefsKey, base64Encode(digest.bytes));
+  }
+
+  static Future<bool> verifyKeyHash(String hashPrefsKey, Uint8List derivedKey) async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString(hashPrefsKey);
+    if (stored == null) return false;
+    final digest = await crypto.Sha256().hash(derivedKey);
+    return base64Encode(digest.bytes) == stored;
+  }
+
+  static Future<void> wipeKeyHash(String hashPrefsKey) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(hashPrefsKey);
+  }
+
   static Future<Uint8List> deriveKey(String passphrase, Uint8List salt) async {
     final algorithm = crypto.Argon2id(
       parallelism: 1,
@@ -928,6 +955,51 @@ androidImplementation?.requestNotificationsPermission();
 
   // 3. Arranca a rede (ainda sem identidade - só liga o túnel WebSocket)
   PadlockNetwork.initNetworkListener();
+
+  // Bug encontrado: quando a app está ABERTA (primeiro/segundo plano, ligada
+  // ao WebSocket), o servidor vê o telemóvel "online" e entrega a chamada
+  // diretamente pelo túnel WebSocket em vez de empurrar por FCM (só empurra
+  // por FCM quando o socket não está ligado). Como não havia nenhum ouvinte
+  // para uma mensagem 'offer' crua chegar por este caminho, a chamada não
+  // tocava, não aparecia notificação nem ecrã nenhum - ficava completamente
+  // muda ("nem vai para o login screen, nem passa, nem dá notificação").
+  // Mostra o mesmo ecrã nativo (CallKit) usado quando a app está fechada,
+  // para reaproveitar o mesmo aceitar/recusar já ligado em cima.
+  PadlockNetwork.messageHub.stream.listen((raw) {
+    try {
+      final data = jsonDecode(raw);
+      if (data['type'] == 'offer' && data['action'] == 'call_offer') {
+        if (PadlockNetwork.emChamada) return;
+        final senderId = data['senderId'] ?? 'Unknown';
+        FlutterCallkitIncoming.showCallkitIncoming(
+          CallKitParams(
+            id: senderId,
+            nameCaller: 'Padlock - $senderId',
+            appName: 'Padlock',
+            avatar: '',
+            handle: 'Encrypted Call',
+            type: 0,
+            duration: 60000,
+            textAccept: 'Atender',
+            textDecline: 'Recusar',
+            extra: {
+              'targetId': senderId,
+              'sdp': jsonEncode(data['sdp']),
+              'isVideo': data['isVideo'].toString(),
+            },
+            android: const AndroidParams(
+              isCustomNotification: true,
+              isShowLogo: true,
+              backgroundColor: '#000000',
+              actionColor: '#00FF66',
+              ringtonePath: 'ringtone',
+            ),
+          ),
+        );
+      }
+    } catch (_) {}
+  });
+
   PremiumService.init();
   bool isFirstTime = !(await PadlockVaultKey.hasVault());
   FirebaseMessaging.instance.getInitialMessage().then((message) {
@@ -5325,6 +5397,13 @@ bool _isRemoteSet = false;
               _candidateQueue.add(candidate);
             }
           }
+        }
+        // Bug encontrado: faltava fechar o bloco de 'call_candidate' acima -
+        // isso deixava 'call_ringing' preso como o "else" do "if (candMap !=
+        // null)", nunca alcançável por uma mensagem real de call_ringing (só
+        // seria possível a ação ser 'call_candidate' E 'call_ringing' ao
+        // mesmo tempo). Resultado: o Morse nunca parava e o estado nunca
+        // mudava para "Ringing...", mesmo com o outro telemóvel a tocar.
         else if (decoded['action'] == 'call_ringing') {
           if (mounted) {
             setState(() {
@@ -5346,7 +5425,6 @@ bool _isRemoteSet = false;
 ));
     _audioPlayer.play(AssetSource('sounds/ringing.mp3')).catchError((e) => print('Erro audio: $e'));
           }
-        }
         else if (decoded['action'] == 'call_end') {
           if (mounted) {
             _audioPlayer.stop();
@@ -5801,6 +5879,53 @@ flutterLocalNotificationsPlugin.cancel(99);
                 ),
               ),
             ),
+          if (widget.isVideo)
+            // Nome/estado pequeninos no topo, em vez do cadeado grande a
+            // meio do ecrã - só para identificar com quem estás a falar,
+            // sem tapar a imagem.
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.black.withValues(alpha: 0.4),
+                      ),
+                      child: const Icon(Icons.lock, color: Colors.greenAccent, size: 14),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              widget.recipientName,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'monospace'),
+                            ),
+                            Text(
+                              _callStatusText,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: _callStatusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
           // 2. Elementos Visuais do Ecrã de Chamada
           SafeArea(
@@ -5816,7 +5941,10 @@ flutterLocalNotificationsPlugin.cancel(99);
                   child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Cadeado com duplo anel néon (formato original ligeiramente mais pequeno e proporcional)
+                    // Cadeado com duplo anel néon - só nas chamadas de voz. Em
+                    // vídeo isto tapava a imagem da outra pessoa; o nome/estado
+                    // aparece à parte, pequenino, no topo (ver mais abaixo).
+                    if (!widget.isVideo)
                     Stack(
                       alignment: Alignment.center,
                       children: [
@@ -5876,6 +6004,7 @@ flutterLocalNotificationsPlugin.cancel(99);
                         ),
                       ],
                     ),
+                    if (!widget.isVideo) ...[
                     const SizedBox(height: 30),
 
                     // ID / Nome do Contacto
@@ -5903,7 +6032,8 @@ flutterLocalNotificationsPlugin.cancel(99);
                         letterSpacing: 0.5,
                       ),
                     ),
-                    const SizedBox(height: 55),
+                    ],
+                    SizedBox(height: widget.isVideo ? 10 : 55),
 
                     // Botões dinâmicos (Recebidas vs Feitas/Ativas)
                     widget.isIncoming && !_callHandled
@@ -6171,10 +6301,13 @@ class _SetupScreenState extends State<SetupScreen> {
       // em si nunca é guardada, só um sal aleatório para repetir a derivação.
       final salt = await PadlockVaultKey.createSalt();
       final derivedKey = await PadlockVaultKey.deriveKey(key, salt);
+      // Guarda o hash da chave ANTES de tocar no Hive - é isto que o ecrã de
+      // login usa para validar a frase sem nunca abrir o cofre com a chave
+      // errada (ver explicação completa em PadlockVaultKey.storeKeyHash).
+      await PadlockVaultKey.storeKeyHash('padlock_vault_keyhash', derivedKey);
       final newVault = await Hive.openBox('padlock_vault', encryptionCipher: HiveAesCipher(derivedKey));
-      // Valor de controlo: permite ao ecrã de login detetar uma frase errada
-      // mesmo quando o cofre está vazio (sem isto, um cofre vazio aceitava
-      // qualquer frase, porque não havia nada para falhar a decifrar).
+      // Valor de controlo: segunda camada de validação, para o caso raro de
+      // o cofre ficar corrompido por outra razão.
       await newVault.put('_vault_canary', 'padlock_ok');
 
       if (PadlockNetwork.pendingFcmToken != null) {
@@ -6193,6 +6326,7 @@ class _SetupScreenState extends State<SetupScreen> {
       }
     } catch (e) {
       await PadlockVaultKey.wipe();
+      await PadlockVaultKey.wipeKeyHash('padlock_vault_keyhash');
       if (Hive.isBoxOpen('padlock_vault')) {
         try { await Hive.box('padlock_vault').close(); } catch (_) {}
       }
@@ -6404,26 +6538,37 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     try {
-      // Se um logout anterior tiver ficado a meio (ex: fechar o cofre demorou
-      // demasiado e desistimos à espera), o Hive podia achar que a caixa
-      // ainda está aberta e devolvê-la tal e qual, SEM voltar a validar a
-      // frase - isto garante que valida sempre, mesmo nesse caso raro.
+      final derivedKey = await PadlockVaultKey.deriveKey(inputKey, salt);
+
+      // NUNCA chamar Hive.openBox com uma chave ainda não confirmada. Duas
+      // descobertas juntas explicam o bug relatado ("depois de errar uma
+      // vez, mesmo a chave CERTA passa a ser recusada, só resolve
+      // reinstalando"): 1) a cifra do Hive não é autenticada, decifrar com a
+      // chave errada nem sempre dá erro, às vezes dá LIXO que parece válido;
+      // 2) quando o Hive falha a meio de abrir uma caixa, pode ficar
+      // registado internamente como "aberta" mesmo sem o estar de verdade -
+      // e todas as tentativas seguintes (mesmo com a chave certa) recebiam
+      // essa MESMA instância avariada em vez de abrirem de novo. A validação
+      // aqui é feita à parte, num hash simples, ANTES de sequer tocar no
+      // Hive - assim o Hive só é aberto quando já se sabe, com toda a
+      // certeza, que a chave está certa.
+      final validKey = await PadlockVaultKey.verifyKeyHash('padlock_vault_keyhash', derivedKey);
+      if (!validKey) {
+        throw Exception('Invalid Decryption Key.');
+      }
+
       if (Hive.isBoxOpen('padlock_vault')) {
         try { await Hive.box('padlock_vault').close(); } catch (_) {}
       }
-      final derivedKey = await PadlockVaultKey.deriveKey(inputKey, salt);
       final opened = await Hive.openBox('padlock_vault', encryptionCipher: HiveAesCipher(derivedKey));
 
-      // FALHA DE SEGURANÇA REAL E MAIS PROFUNDA DO QUE PARECIA: a cifra do
-      // Hive não é autenticada (não tem MAC/GCM) - decifrar com a chave
-      // ERRADA não produz sempre um erro, produz LIXO. Esse lixo às vezes
-      // engana o descodificador do Hive e parece um valor válido (um ID
-      // "diferente" a aparecer do nada era exatamente isto a acontecer). Por
-      // isso a verificação tem de ser ESTRITA: só um valor de controlo
-      // EXATO conta, nunca "se há lá alguma coisa gravada".
+      // Segunda camada, dentro do próprio cofre - deve confirmar sempre,
+      // dado que a chave já foi validada acima. Se alguma vez não bater
+      // certo, é sinal de o próprio ficheiro do cofre estar corrompido, não
+      // de a frase estar errada.
       final canary = opened.get('_vault_canary');
       if (canary != 'padlock_ok') {
-        throw Exception('Invalid Decryption Key.');
+        throw Exception('Vault data is corrupted (key was correct, but the vault file itself is damaged).');
       }
 
       PadlockNetwork.isUnlocked = true;
@@ -6466,7 +6611,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid Decryption Key.')),
+          SnackBar(content: Text('$e'.replaceFirst('Exception: ', ''))),
         );
       }
     }
@@ -6668,17 +6813,31 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
       if (salt == null) throw Exception('Vault Files not initialized on this device.');
 
       final derivedKey = await PadlockVaultKey.deriveKey(code, salt);
+
+      // Nunca abrir o Hive com uma chave ainda não confirmada - mesma razão
+      // do login principal: uma chave errada pode não dar erro nenhum (só
+      // lixo que parece válido), e uma abertura falhada pode deixar a caixa
+      // presa, recusando a chave certa nas tentativas seguintes.
+      if (firstTime) {
+        await PadlockVaultKey.storeKeyHash('padlock_vault_files_keyhash', derivedKey);
+      } else {
+        final validKey = await PadlockVaultKey.verifyKeyHash('padlock_vault_files_keyhash', derivedKey);
+        if (!validKey) {
+          throw Exception('Invalid Vault Files code.');
+        }
+      }
+
+      if (Hive.isBoxOpen('padlock_vault_files')) {
+        try { await Hive.box('padlock_vault_files').close(); } catch (_) {}
+      }
       final filesBox = await Hive.openBox('padlock_vault_files', encryptionCipher: HiveAesCipher(derivedKey));
 
-      // A cifra do Hive não é autenticada - chave errada pode produzir lixo
-      // que ainda assim "parece" um valor válido nalgumas leituras. Por isso
-      // a verificação é estrita: só o valor de controlo exato conta, nunca
-      // "se há lá alguma coisa gravada" (isso já deixou passar chaves erradas).
+      // Segunda camada, dentro do próprio cofre.
       final canary = filesBox.get('_vault_canary');
       if (firstTime) {
         await filesBox.put('_vault_canary', 'padlock_ok');
       } else if (canary != 'padlock_ok') {
-        throw Exception('Invalid Vault Files code.');
+        throw Exception('Vault Files data is corrupted (code was correct, but the vault file itself is damaged).');
       }
 
       await VaultFilesStore.migratePending(filesBox);
@@ -6690,14 +6849,17 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
         );
       }
     } catch (e) {
-      if (firstTime) await VaultFilesKey.wipe();
+      if (firstTime) {
+        await VaultFilesKey.wipe();
+        await PadlockVaultKey.wipeKeyHash('padlock_vault_files_keyhash');
+      }
       if (Hive.isBoxOpen('padlock_vault_files')) {
         try { await Hive.box('padlock_vault_files').close(); } catch (_) {}
       }
       if (mounted) {
         setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(firstTime ? 'Setup failed: $e' : 'Invalid Vault Files code.')),
+          SnackBar(content: Text('$e'.replaceFirst('Exception: ', ''))),
         );
       }
     }
@@ -7127,21 +7289,33 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
       if (salt == null) throw Exception('Crypto Vault not initialized on this device.');
 
       final derivedKey = await PadlockVaultKey.deriveKey(code, salt);
+
+      // Nunca abrir o Hive com uma chave ainda não confirmada - mesma razão
+      // dos outros dois cofres: pode não dar erro (só lixo válido-parecido),
+      // e uma abertura falhada pode deixar a caixa presa a recusar até a
+      // chave certa depois.
+      if (!firstTime) {
+        final validKey = await PadlockVaultKey.verifyKeyHash('padlock_crypto_vault_keyhash', derivedKey);
+        if (!validKey) {
+          throw Exception('Invalid Crypto Vault code.');
+        }
+      }
+
+      if (Hive.isBoxOpen('padlock_crypto_vault')) {
+        try { await Hive.box('padlock_crypto_vault').close(); } catch (_) {}
+      }
       final walletBox = await Hive.openBox('padlock_crypto_vault', encryptionCipher: HiveAesCipher(derivedKey));
 
-      // A cifra do Hive não é autenticada - chave errada pode produzir lixo
-      // que ainda assim "parece" um valor válido nalgumas leituras (ex: um
-      // 'mnemonic' não-nulo mas ilegível). Por isso um valor de controlo
-      // EXATO, igual aos outros dois cofres, em vez de só verificar "existe
-      // alguma coisa gravada".
+      // Segunda camada, dentro do próprio cofre.
       final canary = walletBox.get('_vault_canary');
       if (!firstTime && canary != 'padlock_ok') {
-        throw Exception('Invalid Crypto Vault code.');
+        throw Exception('Crypto Vault data is corrupted (code was correct, but the vault file itself is damaged).');
       }
 
       CryptoWalletKey.markUnlocked();
 
       if (firstTime) {
+        await PadlockVaultKey.storeKeyHash('padlock_crypto_vault_keyhash', derivedKey);
         await walletBox.put('_vault_canary', 'padlock_ok');
         if (restoredMnemonic != null) {
           // Restauro: a frase já é conhecida do utilizador, não voltamos a mostrá-la.
@@ -7163,14 +7337,17 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
         );
       }
     } catch (e) {
-      if (firstTime) await CryptoWalletKey.wipe();
+      if (firstTime) {
+        await CryptoWalletKey.wipe();
+        await PadlockVaultKey.wipeKeyHash('padlock_crypto_vault_keyhash');
+      }
       if (Hive.isBoxOpen('padlock_crypto_vault')) {
         try { await Hive.box('padlock_crypto_vault').close(); } catch (_) {}
       }
       if (mounted) {
         setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(firstTime ? 'Setup failed: $e' : 'Invalid Crypto Vault code.')),
+          SnackBar(content: Text('$e'.replaceFirst('Exception: ', ''))),
         );
       }
     }
