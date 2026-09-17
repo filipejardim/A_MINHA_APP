@@ -66,6 +66,8 @@ dependencies:
   bip32: ^2.0.0
   web3dart: ^2.7.3
   http: ^1.2.2
+  share_plus: ^13.3.0
+  path_provider: ^2.1.6
 
 dev_dependencies:
   flutter_test:

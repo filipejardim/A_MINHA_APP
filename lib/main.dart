@@ -33,6 +33,8 @@ import 'package:bip39_mnemonic/bip39_mnemonic.dart' as bip39;
 import 'package:bip32/bip32.dart' as bip32;
 import 'package:web3dart/web3dart.dart';
 import 'package:http/http.dart' as http;
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 // Serviço de rede para conectar ao servidor
 class PadlockNetwork {
@@ -2333,6 +2335,11 @@ Future<void> _generateNewId() async {
     PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'register', 'senderId': newId, 'fcmToken': Hive.box('padlock_vault').get('my_fcm_token')}));
   }
 Future<void> _logout() async {
+    // Se ainda houver uma chamada ligada (ou minimizada em bolha), fecha-a
+    // primeiro - sem isto, a chamada continuava ativa em segundo plano
+    // mesmo depois de "sair" do cofre, o que não faz sentido nenhum de
+    // segurança (o cofre está trancado, mas a chamada encriptada continua).
+    PadlockCallOverlay.hide();
     final vault = Hive.box('padlock_vault');
     vault.put('chats', jsonEncode(_chats));
     try {
@@ -7275,6 +7282,11 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
   Timer? _sessionTimer;
   List<Map<String, dynamic>> _entries = [];
   late TabController _tabController;
+  // IDs a meio de um envio - sem isto, o botão de enviar não dava nenhuma
+  // pista visual de que já estava a trabalhar, e parecia "não fazer nada"
+  // ao primeiro toque (convidando a carregar outra vez, e possivelmente
+  // enviar o ficheiro em duplicado).
+  final Set<String> _sendingIds = {};
 
   @override
   void initState() {
@@ -7326,25 +7338,63 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
     _refresh();
   }
 
+  static const _imageExtensions = {'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic', 'heif'};
+
+  bool _looksLikeImage(String fileName) {
+    final dot = fileName.lastIndexOf('.');
+    if (dot == -1) return false;
+    return _imageExtensions.contains(fileName.substring(dot + 1).toLowerCase());
+  }
+
   Future<void> _importDocument() async {
-    final result = await FilePicker.platform.pickFiles(withData: true);
+    // allowMultiple para poder mandar várias fotos/documentos de uma vez -
+    // antes só o primeiro ficheiro escolhido era guardado, os outros eram
+    // descartados em silêncio.
+    final result = await FilePicker.platform.pickFiles(withData: true, allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
-    final file = result.files.first;
-    Uint8List? bytes = file.bytes;
-    if (bytes == null && file.path != null) {
-      bytes = await File(file.path!).readAsBytes();
-    }
-    if (bytes == null) return;
-    if (bytes.length > kMaxVaultFileBytes) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('File too large (max ${kMaxVaultFileBytes ~/ (1024 * 1024)}MB).')),
-        );
+
+    int imported = 0, skipped = 0;
+    for (final file in result.files) {
+      Uint8List? bytes = file.bytes;
+      if (bytes == null && file.path != null) {
+        bytes = await File(file.path!).readAsBytes();
       }
-      return;
+      if (bytes == null) continue;
+      if (bytes.length > kMaxVaultFileBytes) {
+        skipped++;
+        continue;
+      }
+      // Detecta pela extensão se é uma foto - antes, qualquer ficheiro
+      // importado (mesmo um .jpg tirado da galeria) ficava marcado sempre
+      // como "documento", sem pré-visualização de imagem nenhuma.
+      final fileKind = _looksLikeImage(file.name) ? 'photo' : 'document';
+      await VaultFilesStore.storeSent(peerId: '', fileName: file.name, fileKind: fileKind, fileBytes: bytes, direction: 'local');
+      imported++;
     }
-    await VaultFilesStore.storeSent(peerId: '', fileName: file.name, fileKind: 'document', fileBytes: bytes, direction: 'local');
     _refresh();
+    if (mounted && skipped > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$imported imported, $skipped skipped (max ${kMaxVaultFileBytes ~/ (1024 * 1024)}MB each).')),
+      );
+    }
+  }
+
+  // Escreve os bytes decifrados num ficheiro TEMPORÁRIO e abre a folha de
+  // partilha nativa do Android (guardar na galeria, enviar por outra app,
+  // etc.). O ficheiro temporário é apagado logo a seguir - nunca fica uma
+  // cópia solta em texto simples no telemóvel depois de partilhar.
+  Future<void> _exportEntry(Map<String, dynamic> entry, Uint8List bytes) async {
+    final tempDir = await getTemporaryDirectory();
+    final fileName = entry['fileName'] ?? 'padlock_file';
+    final tempFile = File('${tempDir.path}/$fileName');
+    try {
+      await tempFile.writeAsBytes(bytes);
+      await SharePlus.instance.share(ShareParams(files: [XFile(tempFile.path)]));
+    } finally {
+      try {
+        if (await tempFile.exists()) await tempFile.delete();
+      } catch (_) {}
+    }
   }
 
   void _viewEntry(Map<String, dynamic> entry) {
@@ -7355,7 +7405,20 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
         context: context,
         builder: (ctx) => Dialog(
           backgroundColor: Colors.black,
-          child: InteractiveViewer(child: Image.memory(bytes)),
+          child: Stack(
+            children: [
+              InteractiveViewer(child: Image.memory(bytes)),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconButton(
+                  icon: const Icon(Icons.ios_share, color: Colors.white),
+                  style: IconButton.styleFrom(backgroundColor: Colors.black.withValues(alpha: 0.5)),
+                  onPressed: () => _exportEntry(entry, bytes),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     } else {
@@ -7365,10 +7428,11 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
           backgroundColor: const Color(0xFF151515),
           title: Text(entry['fileName'] ?? 'Document', style: const TextStyle(color: Colors.white)),
           content: Text(
-            'This document is stored encrypted in your Vault Files (${(bytes.length / 1024).toStringAsFixed(1)} KB). A built-in previewer for documents is not available yet — export/share support can be added later.',
+            'This document is stored encrypted in your Vault Files (${(bytes.length / 1024).toStringAsFixed(1)} KB). Use Export to save it back to your phone or share it.',
             style: const TextStyle(color: Colors.white70),
           ),
           actions: [
+            TextButton(onPressed: () => _exportEntry(entry, bytes), child: const Text('Export', style: TextStyle(color: Colors.greenAccent))),
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close', style: TextStyle(color: Colors.lightBlueAccent))),
           ],
         ),
@@ -7406,6 +7470,9 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
     if (selected == null) return;
     final bytes = VaultFilesStore.readData(_box, entry['id']);
     if (bytes == null) return;
+    final entryId = entry['id'].toString();
+    if (_sendingIds.contains(entryId)) return; // já a enviar - ignora um segundo toque
+    setState(() => _sendingIds.add(entryId));
     try {
       await sendEncryptedFile(
         targetId: selected,
@@ -7416,6 +7483,8 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sent.')));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send: $e')));
+    } finally {
+      if (mounted) setState(() => _sendingIds.remove(entryId));
     }
   }
 
@@ -7454,7 +7523,9 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                IconButton(icon: const Icon(Icons.send, color: Colors.greenAccent, size: 20), onPressed: () => _sendEntry(entry)),
+                _sendingIds.contains(entry['id'].toString())
+                    ? const SizedBox(width: 20, height: 20, child: Padding(padding: EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.greenAccent)))
+                    : IconButton(icon: const Icon(Icons.send, color: Colors.greenAccent, size: 20), onPressed: () => _sendEntry(entry)),
                 IconButton(icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20), onPressed: () => _deleteEntry(entry)),
               ],
             ),
