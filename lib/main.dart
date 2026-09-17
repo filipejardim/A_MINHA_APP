@@ -304,6 +304,20 @@ class CryptoWalletKey {
   }
 }
 
+// Uma moeda/token suportado pela carteira. contractAddress == null significa
+// a moeda nativa da rede (POL); com endereço, é um token ERC-20 (ex: USDC).
+// coingeckoId == null significa stablecoin - assumido a valer sempre ~1 USD,
+// em vez de gastar mais um pedido de rede para confirmar o óbvio.
+class CryptoToken {
+  final String symbol;
+  final String name;
+  final int decimals;
+  final EthereumAddress? contractAddress;
+  final String? coingeckoId;
+  const CryptoToken({required this.symbol, required this.name, required this.decimals, this.contractAddress, this.coingeckoId});
+  bool get isNative => contractAddress == null;
+}
+
 // FASE 1 do Secure Crypto Vault: carteira não-custodial (a frase-semente
 // nunca sai do telemóvel, nunca é enviada a nenhum servidor). Rede: Polygon
 // Amoy (TESTNET) por agora - de propósito, para se poder testar tudo com
@@ -317,6 +331,90 @@ class PadlockWallet {
   static const String rpcUrlFallback = 'https://polygon-amoy-bor-rpc.publicnode.com';
   static const int chainId = 80002; // Polygon Amoy (rede de teste)
   static const String derivationPath = "m/44'/60'/0'/0/0";
+
+  // Endereço oficial do contrato USDC de testnet na Polygon Amoy, confirmado
+  // na documentação da Circle (developers.circle.com/stablecoins/usdc-contract-addresses).
+  // NÃO inventar/adivinhar endereços de tokens - um contrato errado pode
+  // parecer funcionar e na verdade não mover fundo nenhum, ou pior.
+  static final EthereumAddress usdcAddress = EthereumAddress.fromHex('0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582');
+
+  // Lista de moedas que a carteira sabe mostrar/enviar. Adicionar mais no
+  // futuro é só acrescentar aqui, desde que o endereço do contrato seja
+  // confirmado numa fonte oficial primeiro.
+  static List<CryptoToken> get supportedTokens => [
+        const CryptoToken(symbol: 'POL', name: 'Polygon (native)', decimals: 18, coingeckoId: 'polygon-ecosystem-token'),
+        CryptoToken(symbol: 'USDC', name: 'USD Coin (testnet)', decimals: 6, contractAddress: usdcAddress),
+      ];
+
+  static const String _erc20AbiJson = '''
+[
+  {"type":"function","name":"balanceOf","stateMutability":"view","inputs":[{"name":"account","type":"address"}],"outputs":[{"name":"","type":"uint256"}]},
+  {"type":"function","name":"transfer","stateMutability":"nonpayable","inputs":[{"name":"to","type":"address"},{"name":"amount","type":"uint256"}],"outputs":[{"name":"","type":"bool"}]}
+]
+''';
+
+  static DeployedContract _erc20Contract(EthereumAddress address) {
+    return DeployedContract(ContractAbi.fromJson(_erc20AbiJson, 'ERC20'), address);
+  }
+
+  // Converte a quantidade "humana" (ex: "12.5") para a unidade mais pequena
+  // do token (ex: wei), a partir do TEXTO - nunca por multiplicação em vírgula
+  // flutuante, que podia arredondar o valor de uma transação real.
+  static BigInt parseUnits(String amount, int decimals) {
+    final parts = amount.split('.');
+    final wholePart = parts[0].isEmpty ? '0' : parts[0];
+    String fracPart = parts.length > 1 ? parts[1] : '';
+    if (fracPart.length > decimals) fracPart = fracPart.substring(0, decimals);
+    fracPart = fracPart.padRight(decimals, '0');
+    return BigInt.parse(wholePart + (fracPart.isEmpty ? '' : fracPart));
+  }
+
+  static String formatUnits(BigInt raw, int decimals) {
+    final divisor = BigInt.from(10).pow(decimals);
+    final whole = raw ~/ divisor;
+    final fraction = (raw % divisor).toString().padLeft(decimals, '0');
+    final trimmed = fraction.replaceFirst(RegExp(r'0+$'), '');
+    return trimmed.isEmpty ? whole.toString() : '$whole.$trimmed';
+  }
+
+  static Future<BigInt> getTokenBalanceRaw(EthereumAddress owner, CryptoToken token) async {
+    if (token.isNative) {
+      final amount = await getBalance(owner);
+      return amount.getInWei;
+    }
+    try {
+      return await _withClient(rpcUrl, (client) => _readBalance(client, owner, token.contractAddress!));
+    } catch (e) {
+      print('Erro ao ler saldo do token na RPC principal, a tentar reserva: $e');
+      return await _withClient(rpcUrlFallback, (client) => _readBalance(client, owner, token.contractAddress!));
+    }
+  }
+
+  static Future<BigInt> _readBalance(Web3Client client, EthereumAddress owner, EthereumAddress tokenAddress) async {
+    final contract = _erc20Contract(tokenAddress);
+    final result = await client.call(contract: contract, function: contract.function('balanceOf'), params: [owner]);
+    return result.first as BigInt;
+  }
+
+  // Cotação em USD via CoinGecko (API pública, sem chave). Stablecoins não
+  // chamam a rede - valem sempre ~1 USD por definição. Devolve null se a
+  // rede falhar, para o ecrã mostrar "sem cotação" em vez de um valor errado.
+  static Future<double?> fetchUsdPrice(CryptoToken token) async {
+    if (token.coingeckoId == null) return 1.0;
+    try {
+      final response = await http
+          .get(Uri.parse('https://api.coingecko.com/api/v3/simple/price?ids=${token.coingeckoId}&vs_currencies=usd'))
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode != 200) return null;
+      final decoded = jsonDecode(response.body) as Map<String, dynamic>;
+      final entry = decoded[token.coingeckoId] as Map<String, dynamic>?;
+      final price = entry?['usd'];
+      return price is num ? price.toDouble() : null;
+    } catch (e) {
+      print('Erro ao obter cotação USD de ${token.symbol}: $e');
+      return null;
+    }
+  }
 
   static bip39.Mnemonic generateMnemonic() {
     return bip39.Mnemonic.generate(bip39.Language.english);
@@ -364,6 +462,32 @@ class PadlockWallet {
       return await _withClient(rpcUrlFallback, (client) => client.sendTransaction(
             credentials,
             Transaction(to: to, value: amount),
+            chainId: chainId,
+          ));
+    }
+  }
+
+  // Envio de token ERC-20 (ex: USDC) - a transação vai PARA o contrato do
+  // token (não para o destinatário), com os dados codificados a dizer
+  // "transfere X para Y". A frase-semente continua a nunca sair do telemóvel.
+  static Future<String> sendErc20({
+    required EthPrivateKey credentials,
+    required EthereumAddress to,
+    required EthereumAddress token,
+    required BigInt rawAmount,
+  }) async {
+    final data = _erc20Contract(token).function('transfer').encodeCall([to, rawAmount]);
+    try {
+      return await _withClient(rpcUrl, (client) => client.sendTransaction(
+            credentials,
+            Transaction(to: token, data: data),
+            chainId: chainId,
+          ));
+    } catch (e) {
+      print('Erro ao enviar token na RPC principal, a tentar reserva: $e');
+      return await _withClient(rpcUrlFallback, (client) => client.sendTransaction(
+            credentials,
+            Transaction(to: token, data: data),
             chainId: chainId,
           ));
     }
@@ -7639,7 +7763,10 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
   Timer? _sessionTimer;
   EthereumAddress? _address;
   EthPrivateKey? _credentials;
-  String _balanceText = 'Loading...';
+  // Uma entrada por moeda suportada: texto do saldo já formatado + cotação
+  // USD (null enquanto não chegou/falhou), para mostrar "≈ $X.XX" por baixo.
+  final Map<String, String> _balanceText = {for (final t in PadlockWallet.supportedTokens) t.symbol: 'Loading...'};
+  final Map<String, double?> _usdPrice = {for (final t in PadlockWallet.supportedTokens) t.symbol: null};
   bool _isRefreshing = false;
 
   @override
@@ -7679,15 +7806,22 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
   Future<void> _refreshBalance() async {
     if (_address == null) return;
     setState(() => _isRefreshing = true);
-    try {
-      final balance = await PadlockWallet.getBalance(_address!);
-      if (mounted) setState(() => _balanceText = '${balance.getValueInUnit(EtherUnit.ether)} POL');
-    } catch (e) {
-      print('Erro ao carregar saldo (ambas as RPCs falharam): $e');
-      if (mounted) setState(() => _balanceText = 'Could not load balance');
-    } finally {
-      if (mounted) setState(() => _isRefreshing = false);
-    }
+    await Future.wait(PadlockWallet.supportedTokens.map((token) async {
+      try {
+        final raw = await PadlockWallet.getTokenBalanceRaw(_address!, token);
+        final price = await PadlockWallet.fetchUsdPrice(token);
+        if (mounted) {
+          setState(() {
+            _balanceText[token.symbol] = PadlockWallet.formatUnits(raw, token.decimals);
+            _usdPrice[token.symbol] = price;
+          });
+        }
+      } catch (e) {
+        print('Erro ao carregar saldo de ${token.symbol} (ambas as RPCs falharam): $e');
+        if (mounted) setState(() => _balanceText[token.symbol] = 'Could not load balance');
+      }
+    }));
+    if (mounted) setState(() => _isRefreshing = false);
   }
 
   void _showQr() {
@@ -7785,22 +7919,48 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
                   ),
                   child: const Icon(Icons.diamond, color: Colors.lightBlueAccent, size: 34),
                 ),
-                const SizedBox(height: 24),
-                const Text('Balance', style: TextStyle(color: Colors.grey, fontSize: 12)),
-                const SizedBox(height: 6),
+                const SizedBox(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(_balanceText, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                    const Text('Balances', style: TextStyle(color: Colors.grey, fontSize: 12)),
                     IconButton(
                       icon: _isRefreshing
                           ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.lightBlueAccent))
-                          : const Icon(Icons.refresh, color: Colors.lightBlueAccent, size: 20),
+                          : const Icon(Icons.refresh, color: Colors.lightBlueAccent, size: 18),
                       onPressed: _isRefreshing ? null : _refreshBalance,
                     ),
                   ],
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 4),
+                ...PadlockWallet.supportedTokens.map((token) {
+                  final priceKnown = _usdPrice[token.symbol];
+                  final numericBalance = double.tryParse(_balanceText[token.symbol] ?? '');
+                  final usdText = (priceKnown != null && numericBalance != null)
+                      ? '≈ \$${(numericBalance * priceKnown).toStringAsFixed(2)}'
+                      : null;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('${token.symbol}: ', style: const TextStyle(color: Colors.lightBlueAccent, fontSize: 16, fontWeight: FontWeight.bold)),
+                        Flexible(
+                          child: Text(
+                            _balanceText[token.symbol] ?? 'Loading...',
+                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (usdText != null) ...[
+                          const SizedBox(width: 6),
+                          Text(usdText, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        ],
+                      ],
+                    ),
+                  );
+                }),
+                const SizedBox(height: 20),
                 if (_address != null)
                   Text(_address!.hexEip55, style: const TextStyle(color: Colors.white54, fontSize: 11), textAlign: TextAlign.center),
                 const SizedBox(height: 30),
@@ -7863,6 +8023,33 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
   final TextEditingController _addressController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
   bool _isSending = false;
+  CryptoToken _selectedToken = PadlockWallet.supportedTokens.first;
+  bool _amountInUsd = false;
+  double? _price; // cotação USD da moeda escolhida - null enquanto carrega/falha
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchPrice();
+    _amountController.addListener(() => setState(() {}));
+  }
+
+  Future<void> _fetchPrice() async {
+    setState(() => _price = null);
+    final p = await PadlockWallet.fetchUsdPrice(_selectedToken);
+    if (mounted) setState(() => _price = p);
+  }
+
+  // Texto de ajuda por baixo do campo de montante: mostra a conversão para o
+  // outro lado (USD <-> cripto), consoante o que a pessoa está a escrever.
+  String? get _conversionHint {
+    final typed = double.tryParse(_amountController.text.trim().replaceAll(',', '.'));
+    if (typed == null || _price == null) return null;
+    if (_amountInUsd) {
+      return '≈ ${(typed / _price!).toStringAsFixed(6)} ${_selectedToken.symbol}';
+    }
+    return '≈ \$${(typed * _price!).toStringAsFixed(2)}';
+  }
 
   Future<void> _scanAddress() async {
     try {
@@ -7916,22 +8103,49 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
       return;
     }
 
-    final amountValue = double.tryParse(amountText);
-    if (amountValue == null || amountValue <= 0) {
+    final typedValue = double.tryParse(amountText);
+    if (typedValue == null || typedValue <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Enter a valid amount.')),
       );
       return;
     }
 
+    // Se o montante foi escrito em dólares, converte para a moeda ANTES de
+    // formar a transação - só a partir daqui é que o valor tem de ser exato
+    // ao cêntimo do token (a conversão $ -> cripto já é, por natureza, uma
+    // estimativa, dado que a cotação nunca é perfeitamente instantânea).
+    String cryptoAmountText;
+    if (_amountInUsd) {
+      if (_price == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Price not loaded yet - try again in a moment.')),
+        );
+        return;
+      }
+      cryptoAmountText = (typedValue / _price!).toStringAsFixed(_selectedToken.decimals.clamp(0, 8));
+    } else {
+      cryptoAmountText = amountText;
+    }
+
     setState(() => _isSending = true);
     try {
-      final amount = EtherAmount.fromBigInt(EtherUnit.wei, BigInt.from(amountValue * 1e18));
-      final txHash = await PadlockWallet.sendTransaction(
-        credentials: widget.credentials,
-        to: toAddress,
-        amount: amount,
-      );
+      final rawAmount = PadlockWallet.parseUnits(cryptoAmountText, _selectedToken.decimals);
+      final String txHash;
+      if (_selectedToken.isNative) {
+        txHash = await PadlockWallet.sendTransaction(
+          credentials: widget.credentials,
+          to: toAddress,
+          amount: EtherAmount.fromBigInt(EtherUnit.wei, rawAmount),
+        );
+      } else {
+        txHash = await PadlockWallet.sendErc20(
+          credentials: widget.credentials,
+          to: toAddress,
+          token: _selectedToken.contractAddress!,
+          rawAmount: rawAmount,
+        );
+      }
       if (mounted) {
         showDialog(
           context: context,
@@ -8006,15 +8220,67 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
+                // Escolha da moeda a enviar - cada uma tem o seu próprio saldo
+                // e (se aplicável) a sua própria cotação USD.
+                DropdownButtonFormField<CryptoToken>(
+                  initialValue: _selectedToken,
+                  dropdownColor: const Color(0xFF151515),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Coin',
+                    labelStyle: const TextStyle(color: Colors.grey),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.lightBlueAccent), borderRadius: BorderRadius.all(Radius.circular(8))),
+                  ),
+                  items: PadlockWallet.supportedTokens
+                      .map((token) => DropdownMenuItem(value: token, child: Text('${token.symbol} - ${token.name}')))
+                      .toList(),
+                  onChanged: (token) {
+                    if (token == null) return;
+                    setState(() => _selectedToken = token);
+                    _fetchPrice();
+                  },
+                ),
+                const SizedBox(height: 12),
+                // Alternar entre escrever o montante na própria moeda ou em
+                // dólares (a app converte automaticamente para a moeda).
+                Row(
+                  children: [
+                    const Text('Amount in:', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    const SizedBox(width: 10),
+                    ChoiceChip(
+                      label: Text(_selectedToken.symbol),
+                      selected: !_amountInUsd,
+                      onSelected: (_) => setState(() => _amountInUsd = false),
+                      selectedColor: Colors.lightBlueAccent,
+                      labelStyle: TextStyle(color: !_amountInUsd ? Colors.black : Colors.white70),
+                      backgroundColor: const Color(0xFF1a1a1a),
+                    ),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: const Text('USD'),
+                      selected: _amountInUsd,
+                      onSelected: (_) => setState(() => _amountInUsd = true),
+                      selectedColor: Colors.lightBlueAccent,
+                      labelStyle: TextStyle(color: _amountInUsd ? Colors.black : Colors.white70),
+                      backgroundColor: const Color(0xFF1a1a1a),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: _amountController,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    labelText: 'Amount (POL)',
+                    labelText: _amountInUsd ? 'Amount (USD)' : 'Amount (${_selectedToken.symbol})',
                     labelStyle: const TextStyle(color: Colors.grey),
                     enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
                     focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.lightBlueAccent), borderRadius: BorderRadius.all(Radius.circular(8))),
+                    helperText: _price == null
+                        ? 'Loading price...'
+                        : (_conversionHint ?? 'Price: \$${_price!.toStringAsFixed(_price! < 1 ? 6 : 2)} / ${_selectedToken.symbol}'),
+                    helperStyle: const TextStyle(color: Colors.grey, fontSize: 11),
                   ),
                 ),
                 const SizedBox(height: 28),
