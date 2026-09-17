@@ -7759,6 +7759,59 @@ void openCryptoVault(BuildContext context) {
   }
 }
 
+// ATENÇÃO - REMOVER ANTES DE PUBLICAR NA PLAY STORE: código de testador
+// temporário para o programador conseguir entrar no Crypto Vault sem
+// precisar de configurar já as subscrições na Google Play Console. Só
+// desbloqueia o ecrã do Crypto Vault (não é uma falha de segurança das
+// mensagens/chamadas - é só a barreira de pagamento). Ainda assim, quem
+// tiver este código de código-fonte consegue Premium grátis, por isso tem
+// de sair antes de a app ir para produção a sério.
+const String _kCryptoVaultTesterCode = 'PADLOCK_TESTER_2026';
+
+void _showCryptoVaultTesterUnlock(BuildContext dialogContext) {
+  final controller = TextEditingController();
+  showDialog(
+    context: dialogContext,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: const Color(0xFF151515),
+      shape: RoundedRectangleBorder(
+        side: const BorderSide(color: Colors.amber, width: 1.5),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      title: const Text('Código de Testador', style: TextStyle(color: Colors.amber, fontSize: 14)),
+      content: TextField(
+        controller: controller,
+        obscureText: true,
+        style: const TextStyle(color: Colors.white),
+        decoration: const InputDecoration(hintText: 'Código', hintStyle: TextStyle(color: Colors.grey)),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
+        ),
+        TextButton(
+          onPressed: () async {
+            if (controller.text.trim() == _kCryptoVaultTesterCode) {
+              await Hive.box('padlock_vault').put('is_premium', true);
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (dialogContext.mounted) {
+                Navigator.pop(dialogContext); // fecha o dialog "PREMIUM REQUIRED"
+                Navigator.of(dialogContext).push(
+                  MaterialPageRoute(builder: (context) => const CryptoVaultGateScreen()),
+                );
+              }
+            } else {
+              Navigator.pop(ctx);
+            }
+          },
+          child: const Text('UNLOCK', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
+        ),
+      ],
+    ),
+  );
+}
+
 void showPremiumRequiredDialog(BuildContext context) {
   showDialog(
     context: context,
@@ -7768,12 +7821,15 @@ void showPremiumRequiredDialog(BuildContext context) {
         side: const BorderSide(color: Colors.lightBlueAccent, width: 1.5),
         borderRadius: BorderRadius.circular(12),
       ),
-      title: const Row(
-        children: [
-          Text('💎', style: TextStyle(fontSize: 22)),
-          SizedBox(width: 10),
-          Text('PREMIUM REQUIRED', style: TextStyle(color: Colors.lightBlueAccent, fontWeight: FontWeight.bold, fontSize: 14)),
-        ],
+      title: GestureDetector(
+        onLongPress: () => _showCryptoVaultTesterUnlock(context),
+        child: const Row(
+          children: [
+            Text('💎', style: TextStyle(fontSize: 22)),
+            SizedBox(width: 10),
+            Text('PREMIUM REQUIRED', style: TextStyle(color: Colors.lightBlueAccent, fontWeight: FontWeight.bold, fontSize: 14)),
+          ],
+        ),
       ),
       content: const Text(
         'Store all your cryptocurrencies in a military-grade local vault. Send funds to anyone and receive from anywhere, with zero middlemen and absolute privacy.\n\n'
