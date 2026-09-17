@@ -94,6 +94,40 @@ static final List<dynamic> earlyCandidates = [];
   }
 }
 
+// Mostra a chamada como uma camada persistente por cima de toda a app
+// (Overlay do Flutter), em vez de uma rota normal do Navigator. Antes, o
+// ActiveCallScreen era uma rota como outra qualquer - um simples toque no
+// botão de voltar do Android destruía a chamada por completo (fechava a
+// ligação com o outro lado sem aviso nenhum: "o outro lado ficava em
+// Connecting... com o Morse a tocar sem parar"). Agora a chamada nunca é
+// destruída por navegar para outro lado - fica minimizada numa bolha
+// pequena, e só termina de verdade ao carregar no botão vermelho de
+// desligar. `minimized` é a única fonte de verdade: o ActiveCallScreen lê-a
+// para decidir se mostra o ecrã inteiro ou a bolha, e o botão de voltar do
+// Android (ver _PadlockAppState.didPopRoute) escreve nela em vez de fechar
+// a app ou voltar ao ecrã anterior.
+class PadlockCallOverlay {
+  static OverlayEntry? _entry;
+  static final ValueNotifier<bool> minimized = ValueNotifier(false);
+
+  static bool get isActive => _entry != null;
+
+  static void show(Widget screen) {
+    hide();
+    final overlayState = navigatorKey.currentState?.overlay;
+    if (overlayState == null) return;
+    minimized.value = false;
+    _entry = OverlayEntry(builder: (context) => screen);
+    overlayState.insert(_entry!);
+  }
+
+  static void hide() {
+    _entry?.remove();
+    _entry = null;
+    minimized.value = false;
+  }
+}
+
 // Chave do cofre derivada da frase de encriptação escolhida pelo utilizador
 // (Argon2id), ao estilo VeraCrypt: sem a frase certa, os dados ficam
 // matematicamente ilegíveis mesmo com o telemóvel fisicamente comprometido
@@ -1040,20 +1074,16 @@ void main() async {
 
       void abrirEcraChamada(int tentativas) {
         if (navigatorKey.currentState != null) {
-          navigatorKey.currentState?.push(
-            MaterialPageRoute(
-              builder: (context) => ActiveCallScreen(
-                local: t['EN']!,
-                recipientName: targetId,
-                targetId: targetId,
-                isIncoming: true,
-                channel: PadlockNetwork.channel,
-                incomingSdp: sdp,
-                acceptedViaCallKit: true,
-                isVideo: isVideoCall,
-              ),
-            ),
-          );
+          PadlockCallOverlay.show(ActiveCallScreen(
+            local: t['EN']!,
+            recipientName: targetId,
+            targetId: targetId,
+            isIncoming: true,
+            channel: PadlockNetwork.channel,
+            incomingSdp: sdp,
+            acceptedViaCallKit: true,
+            isVideo: isVideoCall,
+          ));
         } else if (tentativas > 0) {
           Future.delayed(const Duration(milliseconds: 200), () => abrirEcraChamada(tentativas - 1));
         }
@@ -1179,19 +1209,15 @@ androidImplementation?.requestNotificationsPermission();
       PadlockNetwork.pendingCallData = {'targetId': senderId, 'sdp': message.data['sdp'], 'isVideo': isVideoCall};
       if (!PadlockNetwork.isUnlocked) return;
       Future.delayed(const Duration(seconds: 1), () {
-        navigatorKey.currentState?.push(
-          MaterialPageRoute(
-            builder: (context) => ActiveCallScreen(
-              local: t['EN']!,
-              recipientName: senderId,
-              targetId: senderId,
-              isIncoming: true,
-              incomingSdp: message.data['sdp'],
-              channel: PadlockNetwork.channel,
-              isVideo: isVideoCall,
-            ),
-          ),
-        );
+        PadlockCallOverlay.show(ActiveCallScreen(
+          local: t['EN']!,
+          recipientName: senderId,
+          targetId: senderId,
+          isIncoming: true,
+          incomingSdp: message.data['sdp'],
+          channel: PadlockNetwork.channel,
+          isVideo: isVideoCall,
+        ));
       });
     }
   });
@@ -1203,18 +1229,14 @@ androidImplementation?.requestNotificationsPermission();
       final isVideoCall = message.data['isVideo'] == 'true';
       PadlockNetwork.pendingCallData = {'targetId': senderId, 'sdp': message.data['sdp'], 'isVideo': isVideoCall};
       if (!PadlockNetwork.isUnlocked) return;
-      navigatorKey.currentState?.push(
-        MaterialPageRoute(
-          builder: (context) => ActiveCallScreen(
-            local: t['EN']!,
-            recipientName: senderId,
-            targetId: senderId,
-            isIncoming: true,
-            channel: PadlockNetwork.channel,
-            isVideo: isVideoCall,
-          ),
-        ),
-      );
+      PadlockCallOverlay.show(ActiveCallScreen(
+        local: t['EN']!,
+        recipientName: senderId,
+        targetId: senderId,
+        isIncoming: true,
+        channel: PadlockNetwork.channel,
+        isVideo: isVideoCall,
+      ));
     }
   });
   runApp(PadlockApp(isFirstTime: isFirstTime));
@@ -1229,8 +1251,34 @@ class PadlockApp extends StatefulWidget {
   State<PadlockApp> createState() => _PadlockAppState();
 }
 
-class _PadlockAppState extends State<PadlockApp> {
+class _PadlockAppState extends State<PadlockApp> with WidgetsBindingObserver {
   String _currentLanguage = 'EN';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Botão de voltar do Android, capturado ao nível da app inteira,
+  // independentemente do ecrã em que se está. Enquanto a chamada estiver a
+  // ecrã inteiro, minimiza-a em vez de fazer o que quer que o ecrã por
+  // baixo fizesse - é isto que impede o botão de voltar de destruir a
+  // chamada, seja qual for o ecrã aberto por baixo.
+  @override
+  Future<bool> didPopRoute() async {
+    if (PadlockCallOverlay.isActive && !PadlockCallOverlay.minimized.value) {
+      PadlockCallOverlay.minimized.value = true;
+      return true;
+    }
+    return false;
+  }
 
   void _changeLanguage(String lang) {
     setState(() {
@@ -1801,20 +1849,16 @@ if (chaveTrancada == null) {
         }
         
                if (mounted) {
-   navigatorKey.currentState?.push(
-  MaterialPageRoute(
-    builder: (context) => ActiveCallScreen(
-      local: t[Hive.box('padlock_vault').get('language') ?? 'EN'] ?? t['EN']!,
-      recipientName: data['senderId'],
-      targetId: data['senderId'],
-      isIncoming: true,
-      channel: PadlockNetwork.channel,
-      incomingSdp: data['sdp'],
-      acceptedViaCallKit: false,
-      isVideo: data['isVideo'] == true,
-    ),
-  ),
-);
+  PadlockCallOverlay.show(ActiveCallScreen(
+    local: t[Hive.box('padlock_vault').get('language') ?? 'EN'] ?? t['EN']!,
+    recipientName: data['senderId'],
+    targetId: data['senderId'],
+    isIncoming: true,
+    channel: PadlockNetwork.channel,
+    incomingSdp: data['sdp'],
+    acceptedViaCallKit: false,
+    isVideo: data['isVideo'] == true,
+  ));
 }
 }
               else if (data['type'] == 'secure_message') {
@@ -4061,32 +4105,24 @@ flexibleSpace: Container(
           IconButton(
             icon: const Icon(Icons.phone, color: Colors.greenAccent),
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => ActiveCallScreen(
-                    local: widget.local,
-                    recipientName: widget.chatData['name'],
-                    targetId: widget.chatData['id'],
-                    channel: PadlockNetwork.channel, // <--- A PEÇA QUE FALTAVA PARA O SINAL SAIR DO TELEMÓVEL!
-                  ),
-                ),
-              );
+              PadlockCallOverlay.show(ActiveCallScreen(
+                local: widget.local,
+                recipientName: widget.chatData['name'],
+                targetId: widget.chatData['id'],
+                channel: PadlockNetwork.channel, // <--- A PEÇA QUE FALTAVA PARA O SINAL SAIR DO TELEMÓVEL!
+              ));
             },
           ),
           IconButton(
             icon: const Icon(Icons.videocam, color: Colors.lightBlueAccent),
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => ActiveCallScreen(
-                    local: widget.local,
-                    recipientName: widget.chatData['name'],
-                    targetId: widget.chatData['id'],
-                    channel: PadlockNetwork.channel,
-                    isVideo: true,
-                  ),
-                ),
-              );
+              PadlockCallOverlay.show(ActiveCallScreen(
+                local: widget.local,
+                recipientName: widget.chatData['name'],
+                targetId: widget.chatData['id'],
+                channel: PadlockNetwork.channel,
+                isVideo: true,
+              ));
             },
           ),
           PopupMenuButton<String>(
@@ -5509,6 +5545,7 @@ bool _isRemoteSet = false;
   bool _videoRenderersReady = false;
   bool _swapVideos = false; // toca na imagem pequena para trocar com o ecrã grande
   Offset? _pipOffset; // posição do quadradinho pequeno (arrastável), null = ainda não definida (usa a posição por omissão)
+  Offset? _bubbleOffset; // posição da bolha minimizada (arrastável), null = ainda não definida
   @override
   void initState() {
     super.initState();
@@ -5601,11 +5638,9 @@ bool _isRemoteSet = false;
             flutterLocalNotificationsPlugin.cancel(99);
             _audioPlayer.play(AssetSource('sounds/end_call.mp3'));
             Future.delayed(const Duration(milliseconds: 500), () {
-            if (widget.acceptedViaCallKit) {
-              SystemNavigator.pop(); // Mata a app se atendeu fora
-            } else if (mounted && Navigator.canPop(context)) {
-              Navigator.pop(context); // Volta ao chat se atendeu dentro
-            }
+            // A chamada já não é uma rota (ver PadlockCallOverlay) - fechar
+            // é sempre isto, nunca matar a app nem mexer no Navigator.
+            PadlockCallOverlay.hide();
           });
           }
         }
@@ -5684,8 +5719,7 @@ if (!widget.acceptedViaCallKit) {
       if (mounted && !_callHandled) {
         _callHandled = true;
         _logMissedCall();
-        endCall(widget.targetId);
-        Navigator.pop(context);
+        endCall(widget.targetId); // endCall já fecha a chamada (PadlockCallOverlay.hide())
       }
     });
   }
@@ -5754,10 +5788,7 @@ if (!widget.acceptedViaCallKit) {
                    state == RTCIceConnectionState.RTCIceConnectionStateClosed) {
           // Falha crítica irrecuperável ou chamada terminada
           _audioPlayer.stop();
-          endCall(widget.targetId); // Isto chama o som puup que já corrigiste em baixo
-          if (mounted && ModalRoute.of(context)?.isCurrent == true) {
-            Navigator.pop(context);
-          }
+          endCall(widget.targetId); // já chama PadlockCallOverlay.hide() e o som de fim de chamada
         }
       });
     };
@@ -5973,14 +6004,11 @@ flutterLocalNotificationsPlugin.cancel(99);
     
     PadlockNetwork.pendingCallData = null;
 
-    if (mounted) {
-      if (Navigator.canPop(context)) {
-        Navigator.pop(context); 
-      } else {
-        SystemNavigator.pop(); 
-      }
-    }
-  } 
+    // A chamada nunca é a única rota (ver PadlockCallOverlay) - o ecrã
+    // principal está sempre por baixo, por isso nunca é preciso matar a
+    // app aqui, mesmo tendo sido aceite via CallKit com a app fechada.
+    PadlockCallOverlay.hide();
+  }
   void _toggleMute() {
     if (_localStream != null) {
       setState(() {
@@ -6001,6 +6029,83 @@ flutterLocalNotificationsPlugin.cancel(99);
 
   @override
   Widget build(BuildContext context) {
+    // A chamada agora vive numa camada persistente (Overlay), não numa rota -
+    // por isso decide aqui, sozinha, se mostra o ecrã inteiro ou só a bolha
+    // pequena minimizada, em vez de depender do Navigator para isso.
+    return ValueListenableBuilder<bool>(
+      valueListenable: PadlockCallOverlay.minimized,
+      builder: (context, isMinimized, child) {
+        return isMinimized ? _buildMinimizedBubble(context) : _buildFullScreenCall(context);
+      },
+    );
+  }
+
+  // Bolha pequena e arrastável, visível por cima de qualquer ecrã da app
+  // (chat, contactos, Crypto Vault, Vault Files, ...) enquanto a chamada
+  // continua ligada por baixo. Tocar reabre o ecrã inteiro; a chamada só
+  // termina de facto ao carregar no botão vermelho de desligar - nunca
+  // simplesmente por navegar para outro lado.
+  Widget _buildMinimizedBubble(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+    const double bubbleWidth = 160, bubbleHeight = 56;
+    final offset = _bubbleOffset ?? Offset(16, screenSize.height - 220);
+    return Stack(
+      children: [
+        Positioned(
+          left: offset.dx,
+          top: offset.dy,
+          child: GestureDetector(
+            onTap: () => PadlockCallOverlay.minimized.value = false,
+            onPanUpdate: (details) {
+              setState(() {
+                final current = _bubbleOffset ?? offset;
+                final newX = (current.dx + details.delta.dx).clamp(0.0, screenSize.width - bubbleWidth);
+                final newY = (current.dy + details.delta.dy).clamp(0.0, screenSize.height - bubbleHeight);
+                _bubbleOffset = Offset(newX, newY);
+              });
+            },
+            child: Container(
+              width: bubbleWidth,
+              height: bubbleHeight,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF101411).withValues(alpha: 0.95),
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(color: _callStatusColor.withValues(alpha: 0.7), width: 1.5),
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.5), blurRadius: 10, spreadRadius: 1)],
+              ),
+              child: Row(
+                children: [
+                  Icon(widget.isVideo ? Icons.videocam : Icons.call, color: _callStatusColor, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(widget.recipientName, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                        Text(_callStatusText, overflow: TextOverflow.ellipsis, style: TextStyle(color: _callStatusColor, fontSize: 10)),
+                      ],
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      _callHandled = true;
+                      _callTimeoutTimer?.cancel();
+                      endCall(widget.targetId);
+                    },
+                    child: const Icon(Icons.call_end, color: Color(0xFFFF1515), size: 22),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFullScreenCall(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -6016,6 +6121,22 @@ flutterLocalNotificationsPlugin.cancel(99);
               ),
             ),
           ), // 1. Fundo do Matrix em código  ),
+          // Botão de minimizar - sempre visível (voz ou vídeo), no topo à
+          // esquerda para não conflitar com o quadradinho da câmara (topo à
+          // direita) nem com a barra de nome/estado do vídeo (centro).
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.only(left: 12, top: 4),
+              child: GestureDetector(
+                onTap: () => PadlockCallOverlay.minimized.value = true,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.black.withValues(alpha: 0.4)),
+                  child: const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 22),
+                ),
+              ),
+            ),
+          ),
           // Camada escura mais transparente para o verde do Matrix brilhar bem
           if (widget.isVideo && _videoRenderersReady)
             Positioned.fill(
@@ -6237,10 +6358,7 @@ flutterLocalNotificationsPlugin.cancel(99);
                                 onPress: () {
                                   _callHandled = true;
                                   _callTimeoutTimer?.cancel();
-                                  endCall(widget.targetId);
-                                if (mounted && ModalRoute.of(context)?.isCurrent == true) {
-              Navigator.pop(context);
-            }
+                                  endCall(widget.targetId); // já fecha a chamada (PadlockCallOverlay.hide())
                                 },
                               ),
                               const SizedBox(width: 40),
@@ -6769,28 +6887,27 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (mounted) {
         final pendingCall = PadlockNetwork.pendingCallData;
+        // Vai sempre para o ecrã principal primeiro - mesmo havendo uma
+        // chamada à espera. Antes, a chamada substituía o ecrã de login
+        // como única rota, sem nada por baixo para onde voltar; agora ela
+        // é mostrada por cima (ver PadlockCallOverlay), com o ecrã
+        // principal já pronto por baixo para quando ela for minimizada ou
+        // terminar.
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => MainNavigationScreen(currentLanguage: 'EN', onLanguageChange: (lang) {})),
+        );
         if (pendingCall != null) {
-          // Havia uma chamada à espera (aceite via CallKit com a app morta):
-          // entra direto na chamada em vez do ecrã principal.
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => ActiveCallScreen(
-                local: t['EN']!,
-                recipientName: pendingCall['targetId'],
-                targetId: pendingCall['targetId'],
-                isIncoming: true,
-                channel: PadlockNetwork.channel,
-                incomingSdp: pendingCall['sdp'],
-                acceptedViaCallKit: true,
-                isVideo: pendingCall['isVideo'] == true,
-              ),
-            ),
-          );
-        } else {
-          // Redireciona para o ecrã principal da aplicação
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => MainNavigationScreen(currentLanguage: 'EN', onLanguageChange: (lang) {})),
-          );
+          // Havia uma chamada à espera (aceite via CallKit com a app morta).
+          PadlockCallOverlay.show(ActiveCallScreen(
+            local: t['EN']!,
+            recipientName: pendingCall['targetId'],
+            targetId: pendingCall['targetId'],
+            isIncoming: true,
+            channel: PadlockNetwork.channel,
+            incomingSdp: pendingCall['sdp'],
+            acceptedViaCallKit: true,
+            isVideo: pendingCall['isVideo'] == true,
+          ));
         }
       }
     } catch (e) {
