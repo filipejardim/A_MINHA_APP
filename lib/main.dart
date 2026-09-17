@@ -28,6 +28,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:record/record.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:bip39_mnemonic/bip39_mnemonic.dart' as bip39;
+import 'package:bip32/bip32.dart' as bip32;
+import 'package:web3dart/web3dart.dart';
+import 'package:http/http.dart' as http;
 import 'dart:io';
 // Serviço de rede para conectar ao servidor
 class PadlockNetwork {
@@ -119,6 +124,51 @@ class PadlockVaultKey {
   }
 }
 
+// Compra dentro da app via Google Play Billing - é o ÚNICO método de
+// pagamento que a Play Store permite para desbloquear conteúdo digital
+// dentro de uma app (usar PayPal ou uma carteira cripto para isto viola as
+// regras da loja e é motivo de remoção). Os IDs abaixo têm de corresponder
+// EXATAMENTE aos produtos de subscrição criados na Google Play Console -
+// sem isso, queryProductDetails devolve uma lista vazia e a compra falha.
+class PremiumService {
+  static const String monthlyProductId = 'padlock_premium_monthly';
+  static const String yearlyProductId = 'padlock_premium_yearly';
+
+  static StreamSubscription<List<PurchaseDetails>>? _subscription;
+
+  static bool get isPremium =>
+      Hive.box('padlock_vault').get('is_premium', defaultValue: false) == true;
+
+  static void init() {
+    _subscription?.cancel();
+    _subscription = InAppPurchase.instance.purchaseStream.listen((purchases) {
+      for (final purchase in purchases) {
+        if (purchase.status == PurchaseStatus.purchased || purchase.status == PurchaseStatus.restored) {
+          Hive.box('padlock_vault').put('is_premium', true);
+        } else if (purchase.status == PurchaseStatus.error) {
+          print('Erro na compra Premium: ${purchase.error}');
+        }
+        if (purchase.pendingCompletePurchase) {
+          InAppPurchase.instance.completePurchase(purchase);
+        }
+      }
+    }, onError: (e) => print('Erro no stream de compras: $e'));
+  }
+
+  static Future<void> buy(String productId) async {
+    final available = await InAppPurchase.instance.isAvailable();
+    if (!available) {
+      throw Exception('Google Play Billing not available on this device.');
+    }
+    final response = await InAppPurchase.instance.queryProductDetails({productId});
+    if (response.productDetails.isEmpty) {
+      throw Exception('Subscription "$productId" not found - it must be created in Google Play Console first.');
+    }
+    final purchaseParam = PurchaseParam(productDetails: response.productDetails.first);
+    await InAppPurchase.instance.buyNonConsumable(purchaseParam: purchaseParam);
+  }
+}
+
 // Cofre à parte para o "Secure Vault Files": um código de entrada PRÓPRIO,
 // diferente do código que abre a app - quem sabe o código da app não vê
 // automaticamente as fotos/documentos. Mesma técnica (Argon2id) que o
@@ -161,6 +211,87 @@ class VaultFilesKey {
   static Future<void> wipe() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_saltPrefsKey);
+  }
+}
+
+// Cofre da carteira cripto - código de entrada próprio (terceiro código,
+// além do da app e do Vault Files), mesma técnica Argon2id.
+class CryptoWalletKey {
+  static const String _saltPrefsKey = 'padlock_crypto_wallet_salt';
+  static DateTime? _unlockedUntil;
+
+  static bool get isUnlocked =>
+      _unlockedUntil != null && DateTime.now().isBefore(_unlockedUntil!);
+
+  static void markUnlocked() {
+    _unlockedUntil = DateTime.now().add(const Duration(minutes: 5));
+  }
+
+  static void lock() {
+    _unlockedUntil = null;
+  }
+
+  static Future<bool> hasVault() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_saltPrefsKey) != null;
+  }
+
+  static Future<Uint8List> createSalt() async {
+    final random = Random.secure();
+    final salt = Uint8List.fromList(List<int>.generate(16, (_) => random.nextInt(256)));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_saltPrefsKey, base64Encode(salt));
+    return salt;
+  }
+
+  static Future<Uint8List?> getSalt() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saltBase64 = prefs.getString(_saltPrefsKey);
+    if (saltBase64 == null) return null;
+    return base64Decode(saltBase64);
+  }
+
+  static Future<void> wipe() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_saltPrefsKey);
+  }
+}
+
+// FASE 1 do Secure Crypto Vault: carteira não-custodial (a frase-semente
+// nunca sai do telemóvel, nunca é enviada a nenhum servidor). Rede: Polygon
+// Amoy (TESTNET) por agora - de propósito, para se poder testar tudo com
+// tokens de teste sem qualquer valor real antes de alguma vez ligar a uma
+// rede com dinheiro a sério.
+class PadlockWallet {
+  static const String rpcUrl = 'https://rpc-amoy.polygon.technology';
+  static const int chainId = 80002; // Polygon Amoy (rede de teste)
+  static const String derivationPath = "m/44'/60'/0'/0/0";
+
+  static bip39.Mnemonic generateMnemonic() {
+    return bip39.Mnemonic.generate(bip39.Language.english);
+  }
+
+  static EthPrivateKey credentialsFromMnemonic(bip39.Mnemonic mnemonic) {
+    final root = bip32.BIP32.fromSeed(Uint8List.fromList(mnemonic.seed));
+    final child = root.derivePath(derivationPath);
+    return EthPrivateKey(Uint8List.fromList(child.privateKey!));
+  }
+
+  static Future<void> storeMnemonic(Box walletBox, String sentence) async {
+    await walletBox.put('mnemonic', sentence);
+  }
+
+  static String? readMnemonic(Box walletBox) {
+    return walletBox.get('mnemonic');
+  }
+
+  static Future<EtherAmount> getBalance(EthereumAddress address) async {
+    final client = Web3Client(rpcUrl, http.Client());
+    try {
+      return await client.getBalance(address);
+    } finally {
+      client.dispose();
+    }
   }
 }
 
@@ -481,6 +612,30 @@ class PadlockRatchet {
     await vault.put('skipped_keys_$peerId', jsonEncode(skipped));
     return finalKey;
   }
+
+  // Destruição forense completa do canal com um contacto: apaga TODO o
+  // estado do Double Ratchet (cadeias, chaves de ratchet, raiz) e a chave
+  // pública trancada pelo TOFU. Sem isto, apagar/bloquear um contacto só
+  // parecia destruir as chaves - o estado do ratchet e o pin do TOFU
+  // continuavam no disco, extraíveis numa análise forense.
+  static Future<void> purgeContactKeys(String peerId) async {
+    final vault = Hive.box('padlock_vault');
+    await vault.delete('shared_secret_$peerId');
+    await vault.delete('private_key_$peerId');
+    await vault.delete('chain_send_$peerId');
+    await vault.delete('chain_recv_$peerId');
+    await vault.delete('chain_send_n_$peerId');
+    await vault.delete('chain_recv_n_$peerId');
+    await vault.delete('chain_send_pn_$peerId');
+    await vault.delete('skipped_keys_$peerId');
+    await vault.delete('dr_root_$peerId');
+    await vault.delete('dr_dhs_priv_$peerId');
+    await vault.delete('dr_dhs_pub_$peerId');
+    await vault.delete('dr_dhr_pub_$peerId');
+    await vault.delete('chave_publica_trancada_$peerId');
+    await vault.delete('my_public_key_$peerId');
+    await vault.delete('their_public_key_$peerId');
+  }
 }
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -717,6 +872,7 @@ androidImplementation?.requestNotificationsPermission();
 
   // 3. Arranca a rede (ainda sem identidade - só liga o túnel WebSocket)
   PadlockNetwork.initNetworkListener();
+  PremiumService.init();
   bool isFirstTime = !(await PadlockVaultKey.hasVault());
   FirebaseMessaging.instance.getInitialMessage().then((message) {
     if (message != null && message.data['action'] == 'call_offer') {
@@ -1547,6 +1703,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
                 for (var msg in chat['messages']) {
                   if (msg['timestamp'] == targetTimestamp) {
                     msg['text'] = '00000000000000000000000000000000'; // Destruição forense da RAM
+                    if (msg['audioBase64'] != null) msg['audioBase64'] = ''; // idem para mensagens de voz
                   }
                 }
                 chat['messages'].removeWhere((msg) => msg['timestamp'] == targetTimestamp);
@@ -1698,7 +1855,13 @@ final int msgTimestamp = data['timestamp'] ?? 0;
       final before = (chat['messages'] as List).length;
       (chat['messages'] as List).removeWhere((msg) {
         final timestamp = msg['timestamp'] ?? now;
-        return (now - timestamp) > limitMillis;
+        final expired = (now - timestamp) > limitMillis;
+        if (expired) {
+          // Destruição forense: sobregrava antes de largar a referência.
+          msg['text'] = '00000000000000000000000000000000';
+          if (msg['audioBase64'] != null) msg['audioBase64'] = '';
+        }
+        return expired;
       });
       if ((chat['messages'] as List).length != before) changedAny = true;
     }
@@ -2010,8 +2173,7 @@ await PadlockRatchet.establishChains(
                     final vault = Hive.box('padlock_vault');
 await vault.put('contacts', jsonEncode(_contacts)); // Espera que grave os contactos
 await vault.put('chats', jsonEncode(_chats));       // Espera que grave os chats
-await vault.delete('shared_secret_$cId');           // Destrói a chave do segredo
-await vault.delete('private_key_$cId');             // Destrói a chave privada
+await PadlockRatchet.purgeContactKeys(cId ?? '');   // Destroi todo o estado do ratchet e o "pin" do TOFU
 
 // O "KILL SWITCH": Força o telemóvel a raspar o disco físico na hora
 await vault.flush();
@@ -2956,6 +3118,7 @@ Future<void> _processoMensagem = Future.value();
                     for (var i = 0; i < widget.chatData['messages'].length; i++) {
                       if (widget.chatData['messages'][i]['timestamp'] == targetTimestamp) {
                         widget.chatData['messages'][i]['text'] = '00000000000000000000000000000000';
+                        if (widget.chatData['messages'][i]['audioBase64'] != null) widget.chatData['messages'][i]['audioBase64'] = '';
                       }
                     }
                     // 2. Limpeza local: Remove do ecrã
@@ -2974,6 +3137,7 @@ Future<void> _processoMensagem = Future.value();
                     // 1. Sobregravação na RAM de todas as mensagens do chat
                     for (var i = 0; i < widget.chatData['messages'].length; i++) {
                       widget.chatData['messages'][i]['text'] = '00000000000000000000000000000000';
+                      if (widget.chatData['messages'][i]['audioBase64'] != null) widget.chatData['messages'][i]['audioBase64'] = '';
                     }
                     // 2. Esvazia a lista totalmente
                     widget.chatData['messages'].clear();
@@ -3162,6 +3326,7 @@ void _checkExpiredMessages() {
       for (var msg in widget.chatData['messages']) {
         if (msg['timestamp'] == timestamp) {
           msg['text'] = '00000000000000000000000000000000';
+          if (msg['audioBase64'] != null) msg['audioBase64'] = '';
         }
       }
     });
@@ -3602,6 +3767,7 @@ flexibleSpace: Container(
                 if (widget.chatData['messages'] != null) {
                   for (var i = 0; i < widget.chatData['messages'].length; i++) {
                     widget.chatData['messages'][i]['text'] = '00000000000000000000000000000000';
+                    if (widget.chatData['messages'][i]['audioBase64'] != null) widget.chatData['messages'][i]['audioBase64'] = '';
                   }
                   widget.chatData['messages'].clear();
                 }
@@ -3623,7 +3789,7 @@ flexibleSpace: Container(
               child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
             ),
            TextButton(
-                      onPressed: () {
+                      onPressed: () async {
                         final cId = widget.chatData['id'];
 
                         setState(() {
@@ -3648,13 +3814,11 @@ flexibleSpace: Container(
                           print('Erro ao enviar sinal de aniquilação no bloqueio: $e');
                         }
 
-                        // 3. Queima as chaves criptográficas (Obriga a novo pedido)
+                        // 3. Queima todo o estado criptográfico (Obriga a novo pedido)
                         final vault = Hive.box('padlock_vault');
-                        vault.delete('shared_secret_$cId');
-                        vault.delete('private_key_$cId');
+                        await PadlockRatchet.purgeContactKeys(cId);
 
                         // 4. Grava o bloqueio permanente no cofre local
-                       
       final String? chatsJson = vault.get('chats');
       if (chatsJson != null) {
         List<dynamic> allChats = jsonDecode(chatsJson);
@@ -4397,7 +4561,7 @@ class SettingsScreen extends StatelessWidget {
         child: Text('Maximum security storage for your digital assets.', style: TextStyle(color: Colors.white60, fontSize: 11)),
       ),
       trailing: const Icon(Icons.chevron_right, color: Colors.lightBlueAccent),
-      onTap: () => showPremiumRequiredDialog(context),
+      onTap: () => openCryptoVault(context),
     );
   }
 
@@ -4691,7 +4855,7 @@ Widget build(BuildContext context) {
               
               // NOVO BOTÃO: SECURE CRYPTO VAULT (Substitui o Regen)
               InkWell(
-                onTap: () => showPremiumRequiredDialog(context),
+                onTap: () => openCryptoVault(context),
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   width: 82,
@@ -6712,6 +6876,453 @@ class SpeedDialLikeFab extends StatelessWidget {
   }
 }
 
+// ----------------------------------------------------
+// SECURE CRYPTO VAULT - carteira não-custodial (FASE 1: gerar, receber, ver saldo)
+// ----------------------------------------------------
+class CryptoVaultGateScreen extends StatefulWidget {
+  const CryptoVaultGateScreen({super.key});
+  @override
+  State<CryptoVaultGateScreen> createState() => _CryptoVaultGateScreenState();
+}
+
+class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
+  final TextEditingController _codeController = TextEditingController();
+  final TextEditingController _mnemonicController = TextEditingController();
+  bool _obscureText = true;
+  bool _isProcessing = false;
+  bool? _isFirstTime;
+  bool _restoreMode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    CryptoWalletKey.hasVault().then((has) {
+      if (mounted) setState(() => _isFirstTime = !has);
+    });
+  }
+
+  Future<void> _submit() async {
+    final code = _codeController.text.trim();
+    final firstTime = _isFirstTime == true;
+
+    if (firstTime && _passphraseScore(code) < 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Code is too weak: use at least 10 characters and avoid repeated or sequential patterns.')),
+      );
+      return;
+    }
+    if (!firstTime && code.isEmpty) return;
+
+    // Restaurar carteira existente (telemóvel novo, reinstalação): a frase
+    // de recuperação tem de ser válida ANTES de sequer criar o cofre.
+    bip39.Mnemonic? restoredMnemonic;
+    if (firstTime && _restoreMode) {
+      final sentence = _mnemonicController.text.trim().toLowerCase();
+      try {
+        restoredMnemonic = bip39.Mnemonic.fromSentence(sentence, bip39.Language.english);
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid recovery phrase - check the words and try again.')),
+        );
+        return;
+      }
+    }
+
+    setState(() => _isProcessing = true);
+    try {
+      final salt = firstTime ? await CryptoWalletKey.createSalt() : await CryptoWalletKey.getSalt();
+      if (salt == null) throw Exception('Crypto Vault not initialized on this device.');
+
+      final derivedKey = await PadlockVaultKey.deriveKey(code, salt);
+      final walletBox = await Hive.openBox('padlock_crypto_vault', encryptionCipher: HiveAesCipher(derivedKey));
+      walletBox.get('mnemonic'); // força uma leitura já para validar a chave, se já houver dados
+      CryptoWalletKey.markUnlocked();
+
+      if (firstTime) {
+        if (restoredMnemonic != null) {
+          // Restauro: a frase já é conhecida do utilizador, não voltamos a mostrá-la.
+          await PadlockWallet.storeMnemonic(walletBox, restoredMnemonic.sentence);
+        } else {
+          final mnemonic = PadlockWallet.generateMnemonic();
+          await PadlockWallet.storeMnemonic(walletBox, mnemonic.sentence);
+          if (mounted) {
+            await Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => MnemonicRevealScreen(sentence: mnemonic.sentence)),
+            );
+          }
+        }
+      }
+
+      if (mounted) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const CryptoVaultHomeScreen()),
+        );
+      }
+    } catch (e) {
+      if (firstTime) await CryptoWalletKey.wipe();
+      if (Hive.isBoxOpen('padlock_crypto_vault')) {
+        try { await Hive.box('padlock_crypto_vault').close(); } catch (_) {}
+      }
+      if (mounted) {
+        setState(() => _isProcessing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(firstTime ? 'Setup failed: $e' : 'Invalid Crypto Vault code.')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isFirstTime == null) {
+      return const Scaffold(
+        backgroundColor: Colors.black,
+        body: Center(child: CircularProgressIndicator(color: Colors.amber)),
+      );
+    }
+    final firstTime = _isFirstTime!;
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text('Secure Crypto Vault', style: TextStyle(color: Colors.amber)),
+        iconTheme: const IconThemeData(color: Colors.amber),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/fundo matrix.png'),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(Colors.black87, BlendMode.darken),
+          ),
+        ),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(28.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('💎', style: TextStyle(fontSize: 60)),
+                const SizedBox(height: 20),
+                Text(
+                  firstTime ? 'CREATE CRYPTO VAULT CODE' : 'ENTER CRYPTO VAULT CODE',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  firstTime
+                      ? 'This code is separate from your app and Vault Files codes. It protects a brand-new, non-custodial wallet that only you control.'
+                      : 'Enter your Crypto Vault code to access your wallet.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey.shade400, fontSize: 12, height: 1.3),
+                ),
+                if (firstTime) ...[
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => setState(() => _restoreMode = !_restoreMode),
+                    child: Text(
+                      _restoreMode ? '← Create a new wallet instead' : 'I already have a recovery phrase (lost phone / reinstall)',
+                      style: const TextStyle(color: Colors.lightBlueAccent, fontSize: 12),
+                    ),
+                  ),
+                ],
+                if (_restoreMode) ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _mnemonicController,
+                    maxLines: 3,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Your 12-word recovery phrase',
+                      labelStyle: const TextStyle(color: Colors.grey),
+                      hintText: 'word1 word2 word3 ...',
+                      hintStyle: TextStyle(color: Colors.grey.shade700),
+                      enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
+                      focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.amber), borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                TextField(
+                  controller: _codeController,
+                  obscureText: _obscureText,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: firstTime ? 'Set Crypto Vault Code (for THIS device)' : 'Crypto Vault Code',
+                    labelStyle: const TextStyle(color: Colors.grey),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.amber), borderRadius: BorderRadius.circular(8)),
+                    prefixIcon: const Icon(Icons.lock, color: Colors.amber),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureText ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+                      onPressed: () => setState(() => _obscureText = !_obscureText),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.amber,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    onPressed: _isProcessing ? null : _submit,
+                    child: _isProcessing
+                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black))
+                        : Text(
+                            firstTime ? (_restoreMode ? 'RESTORE WALLET' : 'CREATE WALLET') : 'UNLOCK',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Mostra a frase-semente UMA VEZ, obrigando confirmação de que foi guardada
+// em papel/offline antes de avançar - tal como qualquer carteira a sério
+// (MetaMask, Trust Wallet). Sem isto, perder o telemóvel = perder os fundos
+// para sempre, sem hipótese de recuperação - a Padlock nunca guarda cópia.
+class MnemonicRevealScreen extends StatefulWidget {
+  final String sentence;
+  const MnemonicRevealScreen({super.key, required this.sentence});
+  @override
+  State<MnemonicRevealScreen> createState() => _MnemonicRevealScreenState();
+}
+
+class _MnemonicRevealScreenState extends State<MnemonicRevealScreen> {
+  bool _confirmed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final words = widget.sentence.split(' ');
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          automaticallyImplyLeading: false,
+          title: const Text('Your Recovery Phrase', style: TextStyle(color: Colors.amber)),
+        ),
+        body: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              const Text(
+                '⚠️ Write these 12 words down on paper, in order, and keep them somewhere safe and offline. Anyone with these words can steal your funds. Padlock does NOT store this phrase anywhere and cannot recover it for you.',
+                style: TextStyle(color: Colors.redAccent, fontSize: 12, height: 1.4),
+              ),
+              const SizedBox(height: 20),
+              Expanded(
+                child: GridView.builder(
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, childAspectRatio: 2.5, crossAxisSpacing: 8, mainAxisSpacing: 8),
+                  itemCount: words.length,
+                  itemBuilder: (context, index) => Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF151515),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text('${index + 1}. ${words[index]}', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  ),
+                ),
+              ),
+              CheckboxListTile(
+                value: _confirmed,
+                onChanged: (v) => setState(() => _confirmed = v ?? false),
+                title: const Text('I have written down these words and stored them safely offline.', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                activeColor: Colors.amber,
+                controlAffinity: ListTileControlAffinity.leading,
+              ),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black),
+                  onPressed: _confirmed ? () => Navigator.pop(context) : null,
+                  child: const Text('CONTINUE', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// SECURE CRYPTO VAULT - saldo e receção. Enviar fica para a fase 2, depois
+// de confirmares que isto funciona bem num telemóvel real.
+class CryptoVaultHomeScreen extends StatefulWidget {
+  const CryptoVaultHomeScreen({super.key});
+  @override
+  State<CryptoVaultHomeScreen> createState() => _CryptoVaultHomeScreenState();
+}
+
+class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
+  Timer? _sessionTimer;
+  EthereumAddress? _address;
+  String _balanceText = 'Loading...';
+  bool _isRefreshing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWallet();
+    _sessionTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!CryptoWalletKey.isUnlocked) _lockAndExit();
+    });
+  }
+
+  @override
+  void dispose() {
+    _sessionTimer?.cancel();
+    super.dispose();
+  }
+
+  Box get _box => Hive.box('padlock_crypto_vault');
+
+  void _lockAndExit() {
+    CryptoWalletKey.lock();
+    if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
+  Future<void> _loadWallet() async {
+    final sentence = PadlockWallet.readMnemonic(_box);
+    if (sentence == null) return;
+    final mnemonic = bip39.Mnemonic.fromSentence(sentence, bip39.Language.english);
+    final credentials = PadlockWallet.credentialsFromMnemonic(mnemonic);
+    setState(() => _address = credentials.address);
+    await _refreshBalance();
+  }
+
+  Future<void> _refreshBalance() async {
+    if (_address == null) return;
+    setState(() => _isRefreshing = true);
+    try {
+      final balance = await PadlockWallet.getBalance(_address!);
+      if (mounted) setState(() => _balanceText = '${balance.getValueInUnit(EtherUnit.ether)} POL');
+    } catch (e) {
+      if (mounted) setState(() => _balanceText = 'Could not load balance');
+    } finally {
+      if (mounted) setState(() => _isRefreshing = false);
+    }
+  }
+
+  void _showQr() {
+    if (_address == null) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF151515),
+        title: const Text('Receive', style: TextStyle(color: Colors.amber)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              color: Colors.white,
+              child: QrImageView(data: _address!.hexEip55, size: 200),
+            ),
+            const SizedBox(height: 16),
+            SelectableText(_address!.hexEip55, style: const TextStyle(color: Colors.white, fontSize: 11)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: _address!.hexEip55));
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Address copied.')));
+            },
+            child: const Text('COPY', style: TextStyle(color: Colors.amber)),
+          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CLOSE', style: TextStyle(color: Colors.grey))),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text('Secure Crypto Vault', style: TextStyle(color: Colors.amber)),
+        iconTheme: const IconThemeData(color: Colors.amber),
+        actions: [
+          IconButton(icon: const Icon(Icons.lock, color: Colors.amber), onPressed: _lockAndExit),
+        ],
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/fundo matrix.png'),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(Colors.black87, BlendMode.darken),
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                  decoration: BoxDecoration(color: Colors.redAccent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+                  child: const Text('⚠️ TESTNET (Polygon Amoy) - these are NOT real funds.', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 30),
+                const Text('Balance', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(_balanceText, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                    IconButton(
+                      icon: _isRefreshing
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber))
+                          : const Icon(Icons.refresh, color: Colors.amber, size: 20),
+                      onPressed: _isRefreshing ? null : _refreshBalance,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 40),
+                if (_address != null)
+                  Text(_address!.hexEip55, style: const TextStyle(color: Colors.white54, fontSize: 11), textAlign: TextAlign.center),
+                const SizedBox(height: 30),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black),
+                  onPressed: _showQr,
+                  icon: const Icon(Icons.qr_code),
+                  label: const Text('RECEIVE'),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Sending funds is not available yet - it is being built and tested carefully next, since a bug there could mean permanently lost money.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class MatrixBackgroundPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -6744,6 +7355,16 @@ class MatrixBackgroundPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+void openCryptoVault(BuildContext context) {
+  if (PremiumService.isPremium) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const CryptoVaultGateScreen()),
+    );
+  } else {
+    showPremiumRequiredDialog(context);
+  }
+}
+
 void showPremiumRequiredDialog(BuildContext context) {
   showDialog(
     context: context,
@@ -6771,11 +7392,30 @@ void showPremiumRequiredDialog(BuildContext context) {
           child: const Text('CLOSE', style: TextStyle(color: Colors.grey)),
         ),
         TextButton(
-          onPressed: () {
+          onPressed: () async {
             Navigator.pop(ctx);
-            // Futura lógica de pagamento (Google Play Billing) entrará aqui
+            try {
+              await PremiumService.buy(PremiumService.monthlyProductId);
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+              }
+            }
           },
-          child: const Text('UPGRADE TO PREMIUM', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
+          child: const Text('MONTHLY', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
+        ),
+        TextButton(
+          onPressed: () async {
+            Navigator.pop(ctx);
+            try {
+              await PremiumService.buy(PremiumService.yearlyProductId);
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
+              }
+            }
+          },
+          child: const Text('YEARLY', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
         ),
       ],
     ),

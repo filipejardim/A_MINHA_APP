@@ -59,8 +59,13 @@ dependencies:
   wakelock_plus: ^1.5.2
   flutter_callkit_incoming: ^2.0.1
   image_picker: ^1.1.2
-  file_picker: ^8.1.4
+  file_picker: ^10.3.3
   record: ^6.2.1
+  in_app_purchase: ^3.3.0
+  bip39_mnemonic: ^4.1.0
+  bip32: ^2.0.0
+  web3dart: ^2.7.3
+  http: ^1.2.2
 
 dev_dependencies:
   flutter_test:
