@@ -5384,6 +5384,7 @@ bool _isRemoteSet = false;
   final RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
   bool _videoRenderersReady = false;
   bool _swapVideos = false; // toca na imagem pequena para trocar com o ecrã grande
+  Offset? _pipOffset; // posição do quadradinho pequeno (arrastável), null = ainda não definida (usa a posição por omissão)
   @override
   void initState() {
     super.initState();
@@ -5901,29 +5902,45 @@ flutterLocalNotificationsPlugin.cancel(99);
               ),
             ),
           if (widget.isVideo && _videoRenderersReady)
-            Positioned(
-              top: 50,
-              right: 16,
-              child: GestureDetector(
-                // Toca na imagem pequena para trocar com o ecrã grande - tal
-                // como funciona noutras apps de videochamada.
-                onTap: () => setState(() => _swapVideos = !_swapVideos),
-                child: Container(
-                  width: 100,
-                  height: 140,
-                  clipBehavior: Clip.antiAlias,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.6), width: 1.5),
-                  ),
-                  child: RTCVideoView(
-                    _swapVideos ? _remoteRenderer : _localRenderer,
-                    mirror: !_swapVideos,
-                    objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+            Builder(builder: (context) {
+              const double pipWidth = 100, pipHeight = 140;
+              final screenSize = MediaQuery.of(context).size;
+              // Posição por omissão: um pouco mais abaixo do que antes, para
+              // nunca começar em cima da barra do cadeado/nome no topo.
+              final offset = _pipOffset ?? Offset(screenSize.width - pipWidth - 16, 110);
+              return Positioned(
+                left: offset.dx,
+                top: offset.dy,
+                child: GestureDetector(
+                  // Toca para trocar com o ecrã grande, ou arrasta para mover
+                  // o quadradinho para onde quiseres - tal como noutras apps
+                  // de videochamada.
+                  onTap: () => setState(() => _swapVideos = !_swapVideos),
+                  onPanUpdate: (details) {
+                    setState(() {
+                      final current = _pipOffset ?? offset;
+                      final newX = (current.dx + details.delta.dx).clamp(0.0, screenSize.width - pipWidth);
+                      final newY = (current.dy + details.delta.dy).clamp(0.0, screenSize.height - pipHeight);
+                      _pipOffset = Offset(newX, newY);
+                    });
+                  },
+                  child: Container(
+                    width: pipWidth,
+                    height: pipHeight,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.6), width: 1.5),
+                    ),
+                    child: RTCVideoView(
+                      _swapVideos ? _remoteRenderer : _localRenderer,
+                      mirror: !_swapVideos,
+                      objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                    ),
                   ),
                 ),
-              ),
-            ),
+              );
+            }),
           if (widget.isVideo)
             // Nome/estado pequeninos no topo, em vez do cadeado grande a
             // meio do ecrã - só para identificar com quem estás a falar,
