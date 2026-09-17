@@ -311,6 +311,10 @@ class CryptoWalletKey {
 // rede com dinheiro a sério.
 class PadlockWallet {
   static const String rpcUrl = 'https://rpc-amoy.polygon.technology';
+  // RPC pública de reserva - a principal (metida por defeito na Polygon Amoy)
+  // por vezes está lenta ou temporariamente em baixo, o que fazia o saldo
+  // falhar a carregar sem ser por culpa nenhuma da app.
+  static const String rpcUrlFallback = 'https://polygon-amoy-bor-rpc.publicnode.com';
   static const int chainId = 80002; // Polygon Amoy (rede de teste)
   static const String derivationPath = "m/44'/60'/0'/0/0";
 
@@ -333,9 +337,42 @@ class PadlockWallet {
   }
 
   static Future<EtherAmount> getBalance(EthereumAddress address) async {
-    final client = Web3Client(rpcUrl, http.Client());
     try {
-      return await client.getBalance(address);
+      return await _withClient(rpcUrl, (client) => client.getBalance(address));
+    } catch (e) {
+      print('Erro ao ler saldo na RPC principal, a tentar reserva: $e');
+      return await _withClient(rpcUrlFallback, (client) => client.getBalance(address));
+    }
+  }
+
+  // Assina e transmite a transferência com a própria carteira do telemóvel -
+  // a frase-semente nunca sai daqui, só a transação já assinada é que segue
+  // para a rede. Testnet apenas por agora (ver aviso no ecrã).
+  static Future<String> sendTransaction({
+    required EthPrivateKey credentials,
+    required EthereumAddress to,
+    required EtherAmount amount,
+  }) async {
+    try {
+      return await _withClient(rpcUrl, (client) => client.sendTransaction(
+            credentials,
+            Transaction(to: to, value: amount),
+            chainId: chainId,
+          ));
+    } catch (e) {
+      print('Erro ao enviar transação na RPC principal, a tentar reserva: $e');
+      return await _withClient(rpcUrlFallback, (client) => client.sendTransaction(
+            credentials,
+            Transaction(to: to, value: amount),
+            chainId: chainId,
+          ));
+    }
+  }
+
+  static Future<T> _withClient<T>(String url, Future<T> Function(Web3Client client) action) async {
+    final client = Web3Client(url, http.Client());
+    try {
+      return await action(client).timeout(const Duration(seconds: 15));
     } finally {
       client.dispose();
     }
@@ -7371,7 +7408,7 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
     if (_isFirstTime == null) {
       return const Scaffold(
         backgroundColor: Colors.black,
-        body: Center(child: CircularProgressIndicator(color: Colors.amber)),
+        body: Center(child: CircularProgressIndicator(color: Colors.greenAccent)),
       );
     }
     final firstTime = _isFirstTime!;
@@ -7379,8 +7416,8 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: const Text('Secure Crypto Vault', style: TextStyle(color: Colors.amber)),
-        iconTheme: const IconThemeData(color: Colors.amber),
+        title: const Text('Secure Crypto Vault', style: TextStyle(color: Colors.greenAccent)),
+        iconTheme: const IconThemeData(color: Colors.greenAccent),
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -7433,7 +7470,7 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
                       hintText: 'word1 word2 word3 ...',
                       hintStyle: TextStyle(color: Colors.grey.shade700),
                       enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
-                      focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.amber), borderRadius: BorderRadius.circular(8)),
+                      focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.lightBlueAccent), borderRadius: BorderRadius.all(Radius.circular(8))),
                     ),
                   ),
                 ],
@@ -7446,8 +7483,8 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
                     labelText: firstTime ? 'Set Crypto Vault Code (for THIS device)' : 'Crypto Vault Code',
                     labelStyle: const TextStyle(color: Colors.grey),
                     enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
-                    focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.amber), borderRadius: BorderRadius.circular(8)),
-                    prefixIcon: const Icon(Icons.lock, color: Colors.amber),
+                    focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.lightBlueAccent), borderRadius: BorderRadius.all(Radius.circular(8))),
+                    prefixIcon: const Icon(Icons.lock, color: Colors.lightBlueAccent),
                     suffixIcon: IconButton(
                       icon: Icon(_obscureText ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
                       onPressed: () => setState(() => _obscureText = !_obscureText),
@@ -7458,19 +7495,22 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
                 SizedBox(
                   width: double.infinity,
                   height: 50,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.amber,
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      gradient: const LinearGradient(colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)]),
+                      border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.6)),
                     ),
-                    onPressed: _isProcessing ? null : _submit,
-                    child: _isProcessing
-                        ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black))
-                        : Text(
-                            firstTime ? (_restoreMode ? 'RESTORE WALLET' : 'CREATE WALLET') : 'UNLOCK',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, foregroundColor: Colors.white),
+                      onPressed: _isProcessing ? null : _submit,
+                      child: _isProcessing
+                          ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.greenAccent))
+                          : Text(
+                              firstTime ? (_restoreMode ? 'RESTORE WALLET' : 'CREATE WALLET') : 'UNLOCK',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                    ),
                   ),
                 ),
               ],
@@ -7506,9 +7546,12 @@ class _MnemonicRevealScreenState extends State<MnemonicRevealScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           automaticallyImplyLeading: false,
-          title: const Text('Your Recovery Phrase', style: TextStyle(color: Colors.amber)),
+          title: const Text('Your Recovery Phrase', style: TextStyle(color: Colors.greenAccent)),
         ),
-        body: Padding(
+        // Sem SafeArea, o botão CONTINUE e a checkbox ficavam por baixo da
+        // barra de gestos/botões do Android em telemóveis sem botões físicos.
+        body: SafeArea(
+          child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
@@ -7525,7 +7568,7 @@ class _MnemonicRevealScreenState extends State<MnemonicRevealScreen> {
                     decoration: BoxDecoration(
                       color: const Color(0xFF151515),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                      border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
                     ),
                     alignment: Alignment.center,
                     child: Text('${index + 1}. ${words[index]}', style: const TextStyle(color: Colors.white, fontSize: 13)),
@@ -7536,19 +7579,30 @@ class _MnemonicRevealScreenState extends State<MnemonicRevealScreen> {
                 value: _confirmed,
                 onChanged: (v) => setState(() => _confirmed = v ?? false),
                 title: const Text('I have written down these words and stored them safely offline.', style: TextStyle(color: Colors.white70, fontSize: 12)),
-                activeColor: Colors.amber,
+                activeColor: Colors.greenAccent,
                 controlAffinity: ListTileControlAffinity.leading,
               ),
               SizedBox(
                 width: double.infinity,
                 height: 50,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black),
-                  onPressed: _confirmed ? () => Navigator.pop(context) : null,
-                  child: const Text('CONTINUE', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    gradient: _confirmed
+                        ? const LinearGradient(colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)])
+                        : null,
+                    color: _confirmed ? null : const Color(0xFF1a1a1a),
+                    border: Border.all(color: Colors.greenAccent.withValues(alpha: _confirmed ? 0.7 : 0.2)),
+                  ),
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, foregroundColor: Colors.white),
+                    onPressed: _confirmed ? () => Navigator.pop(context) : null,
+                    child: const Text('CONTINUE', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
                 ),
               ),
             ],
+          ),
           ),
         ),
       ),
@@ -7567,6 +7621,7 @@ class CryptoVaultHomeScreen extends StatefulWidget {
 class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
   Timer? _sessionTimer;
   EthereumAddress? _address;
+  EthPrivateKey? _credentials;
   String _balanceText = 'Loading...';
   bool _isRefreshing = false;
 
@@ -7597,7 +7652,10 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
     if (sentence == null) return;
     final mnemonic = bip39.Mnemonic.fromSentence(sentence, bip39.Language.english);
     final credentials = PadlockWallet.credentialsFromMnemonic(mnemonic);
-    setState(() => _address = credentials.address);
+    setState(() {
+      _address = credentials.address;
+      _credentials = credentials;
+    });
     await _refreshBalance();
   }
 
@@ -7608,6 +7666,7 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
       final balance = await PadlockWallet.getBalance(_address!);
       if (mounted) setState(() => _balanceText = '${balance.getValueInUnit(EtherUnit.ether)} POL');
     } catch (e) {
+      print('Erro ao carregar saldo (ambas as RPCs falharam): $e');
       if (mounted) setState(() => _balanceText = 'Could not load balance');
     } finally {
       if (mounted) setState(() => _isRefreshing = false);
@@ -7620,7 +7679,8 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF151515),
-        title: const Text('Receive', style: TextStyle(color: Colors.amber)),
+        shape: RoundedRectangleBorder(side: const BorderSide(color: Colors.greenAccent, width: 1), borderRadius: BorderRadius.circular(12)),
+        title: const Text('Receive', style: TextStyle(color: Colors.greenAccent)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -7630,6 +7690,8 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
               child: QrImageView(data: _address!.hexEip55, size: 200),
             ),
             const SizedBox(height: 16),
+            const Text('Scanning or sharing this code gives out your wallet ADDRESS only - never your recovery phrase.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 10)),
+            const SizedBox(height: 10),
             SelectableText(_address!.hexEip55, style: const TextStyle(color: Colors.white, fontSize: 11)),
           ],
         ),
@@ -7639,12 +7701,22 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
               Clipboard.setData(ClipboardData(text: _address!.hexEip55));
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Address copied.')));
             },
-            child: const Text('COPY', style: TextStyle(color: Colors.amber)),
+            child: const Text('COPY', style: TextStyle(color: Colors.lightBlueAccent)),
           ),
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CLOSE', style: TextStyle(color: Colors.grey))),
         ],
       ),
     );
+  }
+
+  Future<void> _openSendScreen() async {
+    if (_address == null || _credentials == null) return;
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (context) => CryptoSendScreen(credentials: _credentials!, fromAddress: _address!),
+      ),
+    );
+    if (result == true) await _refreshBalance();
   }
 
   @override
@@ -7653,10 +7725,10 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: const Text('Secure Crypto Vault', style: TextStyle(color: Colors.amber)),
-        iconTheme: const IconThemeData(color: Colors.amber),
+        title: const Text('Secure Crypto Vault', style: TextStyle(color: Colors.greenAccent)),
+        iconTheme: const IconThemeData(color: Colors.greenAccent),
         actions: [
-          IconButton(icon: const Icon(Icons.lock, color: Colors.amber), onPressed: _lockAndExit),
+          IconButton(icon: const Icon(Icons.lock, color: Colors.greenAccent), onPressed: _lockAndExit),
         ],
       ),
       body: Container(
@@ -7678,6 +7750,25 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
                   child: const Text('⚠️ TESTNET (Polygon Amoy) - these are NOT real funds.', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(height: 30),
+                // "Tubo" espelhado verde, tal como no Perfil - a moldura da
+                // carteira, para o topo do Crypto Vault seguir o mesmo
+                // estilo visual do resto da app.
+                Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)],
+                    ),
+                    border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.7), width: 1.5),
+                    boxShadow: [BoxShadow(color: Colors.greenAccent.withValues(alpha: 0.3), blurRadius: 16, spreadRadius: 1)],
+                  ),
+                  child: const Icon(Icons.diamond, color: Colors.lightBlueAccent, size: 34),
+                ),
+                const SizedBox(height: 24),
                 const Text('Balance', style: TextStyle(color: Colors.grey, fontSize: 12)),
                 const SizedBox(height: 6),
                 Row(
@@ -7686,27 +7777,247 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
                     Text(_balanceText, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                     IconButton(
                       icon: _isRefreshing
-                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amber))
-                          : const Icon(Icons.refresh, color: Colors.amber, size: 20),
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.lightBlueAccent))
+                          : const Icon(Icons.refresh, color: Colors.lightBlueAccent, size: 20),
                       onPressed: _isRefreshing ? null : _refreshBalance,
                     ),
                   ],
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 30),
                 if (_address != null)
                   Text(_address!.hexEip55, style: const TextStyle(color: Colors.white54, fontSize: 11), textAlign: TextAlign.center),
                 const SizedBox(height: 30),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black),
-                  onPressed: _showQr,
-                  icon: const Icon(Icons.qr_code),
-                  label: const Text('RECEIVE'),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          gradient: const LinearGradient(colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)]),
+                          border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.6)),
+                        ),
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
+                          onPressed: _showQr,
+                          icon: const Icon(Icons.qr_code),
+                          label: const Text('RECEIVE'),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.lightBlueAccent.withValues(alpha: 0.8), width: 1.5),
+                        ),
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, foregroundColor: Colors.lightBlueAccent, padding: const EdgeInsets.symmetric(vertical: 14)),
+                          onPressed: (_address != null && _credentials != null) ? _openSendScreen : null,
+                          icon: const Icon(Icons.send),
+                          label: const Text('SEND'),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Sending funds is not available yet - it is being built and tested carefully next, since a bug there could mean permanently lost money.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey, fontSize: 11),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// Ecrã de envio: cola/digita ou digitaliza (câmara) o endereço de destino,
+// escreve o montante e confirma. Testnet apenas (POL sem valor real) - por
+// isso a assinatura e broadcast acontecem já aqui, sem uma segunda fase de
+// confirmação extra, ao contrário do que aconteceria numa rede a sério.
+class CryptoSendScreen extends StatefulWidget {
+  final EthPrivateKey credentials;
+  final EthereumAddress fromAddress;
+  const CryptoSendScreen({super.key, required this.credentials, required this.fromAddress});
+  @override
+  State<CryptoSendScreen> createState() => _CryptoSendScreenState();
+}
+
+class _CryptoSendScreenState extends State<CryptoSendScreen> {
+  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _amountController = TextEditingController();
+  bool _isSending = false;
+
+  Future<void> _scanAddress() async {
+    try {
+      final camStatus = await Permission.camera.request();
+      if (!camStatus.isGranted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Camera permission denied. Enable it in phone Settings > Apps > Padlock > Permissions.')),
+          );
+        }
+        return;
+      }
+      bool scanned = false;
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => Scaffold(
+            appBar: AppBar(title: const Text('Scan Wallet Address')),
+            body: MobileScanner(
+              onDetect: (capture) {
+                if (scanned) return;
+                for (final barcode in capture.barcodes) {
+                  if (barcode.rawValue != null) {
+                    scanned = true;
+                    _addressController.text = barcode.rawValue!;
+                    Navigator.pop(context);
+                    break;
+                  }
+                }
+              },
+            ),
+          ),
+        ),
+      );
+    } catch (e) {
+      print('Scan Error: $e');
+    }
+  }
+
+  Future<void> _confirmSend() async {
+    final addressText = _addressController.text.trim();
+    final amountText = _amountController.text.trim().replaceAll(',', '.');
+
+    EthereumAddress toAddress;
+    try {
+      toAddress = EthereumAddress.fromHex(addressText);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid wallet address.')),
+      );
+      return;
+    }
+
+    final amountValue = double.tryParse(amountText);
+    if (amountValue == null || amountValue <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid amount.')),
+      );
+      return;
+    }
+
+    setState(() => _isSending = true);
+    try {
+      final amount = EtherAmount.fromBigInt(EtherUnit.wei, BigInt.from(amountValue * 1e18));
+      final txHash = await PadlockWallet.sendTransaction(
+        credentials: widget.credentials,
+        to: toAddress,
+        amount: amount,
+      );
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF151515),
+            shape: RoundedRectangleBorder(side: const BorderSide(color: Colors.greenAccent, width: 1), borderRadius: BorderRadius.circular(12)),
+            title: const Text('Transaction Sent', style: TextStyle(color: Colors.greenAccent)),
+            content: SelectableText(txHash, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  Navigator.pop(context, true);
+                },
+                child: const Text('DONE', style: TextStyle(color: Colors.lightBlueAccent)),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Send failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        title: const Text('Send', style: TextStyle(color: Colors.lightBlueAccent)),
+        iconTheme: const IconThemeData(color: Colors.lightBlueAccent),
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage('assets/fundo matrix.png'),
+            fit: BoxFit.cover,
+            colorFilter: ColorFilter.mode(Colors.black87, BlendMode.darken),
+          ),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+                  decoration: BoxDecoration(color: Colors.redAccent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
+                  child: const Text('⚠️ TESTNET (Polygon Amoy) - these are NOT real funds.', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: _addressController,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  decoration: InputDecoration(
+                    labelText: 'Recipient wallet address',
+                    labelStyle: const TextStyle(color: Colors.grey),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.lightBlueAccent), borderRadius: BorderRadius.all(Radius.circular(8))),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.qr_code_scanner, color: Colors.lightBlueAccent),
+                      onPressed: _scanAddress,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: _amountController,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Amount (POL)',
+                    labelStyle: const TextStyle(color: Colors.grey),
+                    enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
+                    focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.lightBlueAccent), borderRadius: BorderRadius.all(Radius.circular(8))),
+                  ),
+                ),
+                const SizedBox(height: 28),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      gradient: const LinearGradient(colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)]),
+                      border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.6)),
+                    ),
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, foregroundColor: Colors.white),
+                      onPressed: _isSending ? null : _confirmSend,
+                      child: _isSending
+                          ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.greenAccent))
+                          : const Text('CONFIRM & SEND', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
                 ),
               ],
             ),
