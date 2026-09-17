@@ -1121,7 +1121,7 @@ void main() async {
           }
         }
 
-      } else if (event!.event == Event.actionCallTimeout) {
+      } else if (event.event == Event.actionCallTimeout) {
         final targetId = event.body['extra']['targetId'];
         if (!Hive.isBoxOpen('padlock_vault')) return; // cofre ainda fechado (sem PIN): não há onde gravar
         final vault = Hive.box('padlock_vault');
@@ -1656,7 +1656,6 @@ class MainNavigationScreen extends StatefulWidget {
 }
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> with WidgetsBindingObserver {
-   final _storage = const FlutterSecureStorage();
    int _lastNotifiedTimestamp = 0;
   String _username = "Carregando...";
   int _currentIndex = 0;
@@ -2193,8 +2192,6 @@ final int msgTimestamp = data['timestamp'] ?? 0;
     super.dispose();
   }
 
-  
-  Timer? _gracePeriodTimer;
   Timer? _statusTimer; // O nosso Radar de Estado Online
   Timer? _inactivityTimer;
   Timer? _destructTimer;
@@ -3061,7 +3058,7 @@ setState(() {
           label: (() {
             final padlock = context.findAncestorStateOfType<_PadlockAppState>();
             final lang = padlock?._currentLanguage ?? 'EN';
-            return (t[lang]?['chats'] as String?) ?? 'Chats';
+            return t[lang]?['chats'] ?? 'Chats';
           }()),
         ),
         BottomNavigationBarItem(
@@ -3070,7 +3067,7 @@ setState(() {
           label: (() {
             final padlock = context.findAncestorStateOfType<_PadlockAppState>();
             final lang = padlock?._currentLanguage ?? 'EN';
-            return (t[lang]?['contacts'] as String?) ?? 'Contacts';
+            return t[lang]?['contacts'] ?? 'Contacts';
           }()),
         ),
         BottomNavigationBarItem(
@@ -3079,7 +3076,7 @@ setState(() {
           label: (() {
             final padlock = context.findAncestorStateOfType<_PadlockAppState>();
             final lang = padlock?._currentLanguage ?? 'EN';
-            return (t[lang]?['settings'] as String?) ?? 'Settings';
+            return t[lang]?['settings'] ?? 'Settings';
           }()),
         ),
         BottomNavigationBarItem(
@@ -3088,7 +3085,7 @@ setState(() {
           label: (() {
             final padlock = context.findAncestorStateOfType<_PadlockAppState>();
             final lang = padlock?._currentLanguage ?? 'EN';
-            return (t[lang]?['profile'] as String?) ?? 'Profile';
+            return t[lang]?['profile'] ?? 'Profile';
           }()),
         ),
   ],
@@ -5490,40 +5487,6 @@ Widget build(BuildContext context) {
   );
 }
 }
-void _showQrDialog(BuildContext context, String id, [dynamic local]) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1A1A1A),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: const BorderSide(color: Color(0xFF8B0000), width: 1.5),
-        ),
-        title: const Text(
-          'Your QR Code',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: SizedBox(
-          width: 220,
-          height: 220,
-          child: Center(
-            child: Text(
-              id,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(local?['close'] ?? 'close', style: const TextStyle(color: Color(0xFF8B0000))),
-          ),
-        ],
-      ),
-    );
-  }
-
 // -
 //---------------------------------------------------
 // ACTIVE CALL SCREEN
