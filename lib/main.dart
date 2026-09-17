@@ -62,6 +62,14 @@ class PadlockNetwork {
   }
   static bool isUnlocked = false;
   static String? pendingFcmToken;
+  // Guarda partilhada entre TODOS os temporizadores de bloqueio automático
+  // (sessão principal aos 15 min, Vault Files e Crypto Vault aos 5 min cada
+  // um por si). Sem isto, dois destes podiam disparar quase ao mesmo tempo
+  // e mexer no MESMO Navigator em simultâneo (um a fechar tudo até à
+  // primeira rota, outro a substituir essa mesma rota pelo LoginScreen) -
+  // essa corrida é a explicação mais provável para o ecrã branco preso,
+  // exigindo fechar a app à força.
+  static bool isPerformingAutoLock = false;
 
   static Map<String, dynamic>? pendingCallData;
   static WebSocketChannel? channel;
@@ -2335,6 +2343,12 @@ Future<void> _generateNewId() async {
     PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'register', 'senderId': newId, 'fcmToken': Hive.box('padlock_vault').get('my_fcm_token')}));
   }
 Future<void> _logout() async {
+    // Evita entrar em conflito com o bloqueio automático do Vault Files ou
+    // do Crypto Vault, caso disparem quase ao mesmo tempo (ver comentário
+    // em PadlockNetwork.isPerformingAutoLock) - o primeiro a chegar aqui
+    // "ganha", os outros simplesmente não mexem no Navigator.
+    if (PadlockNetwork.isPerformingAutoLock) return;
+    PadlockNetwork.isPerformingAutoLock = true;
     // Se ainda houver uma chamada ligada (ou minimizada em bolha), fecha-a
     // primeiro - sem isto, a chamada continuava ativa em segundo plano
     // mesmo depois de "sair" do cofre, o que não faz sentido nenhum de
@@ -2358,10 +2372,17 @@ Future<void> _logout() async {
 
     PadlockNetwork.disconnect();
     PadlockNetwork.isUnlocked = false;
-    if (!mounted) return;
+    if (!mounted) {
+      PadlockNetwork.isPerformingAutoLock = false;
+      return;
+    }
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (context) => const LoginScreen()),
     );
+    // Não repõe a flag para false aqui de propósito: esta rota vai ser
+    // completamente substituída pelo LoginScreen, o que já cria uma
+    // _MainNavigationScreenState nova (e outro temporizador de 15 min) da
+    // próxima vez que se entrar - não há bloqueio nenhum para desbloquear.
   }
  // Função acionada pela rede P2P quando chega um pedido de nova conexão
   void mostrarPedidoDeConexao(String incomingId, String? senderPubKey) {
@@ -2695,7 +2716,11 @@ if (context.mounted) {
     ];
 
      return Listener(
-      
+      // Faltava isto: o Listener existia mas não tinha nenhum callback
+      // ligado, por isso nunca reiniciava o temporizador de inatividade -
+      // na prática, a "sessão de 15 minutos" disparava sempre 15 minutos
+      // depois do login, sem ligar nenhuma se estavas mesmo a usar a app.
+      onPointerDown: (_) => _resetInactivityTimer(),
       behavior: HitTestBehavior.translucent,
       child: Scaffold(
        appBar: AppBar(
@@ -7321,8 +7346,17 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
   }
 
   void _lockAndExit() {
+    // Evita mexer no Navigator ao mesmo tempo que outro bloqueio automático
+    // (sessão principal, ou o Crypto Vault) - dois a fazê-lo em simultâneo
+    // é a explicação mais provável para o ecrã a ficar todo branco e preso.
+    if (PadlockNetwork.isPerformingAutoLock) return;
+    PadlockNetwork.isPerformingAutoLock = true;
     VaultFilesKey.lock();
     if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+    // Este ecrã continua a existir por baixo (só saímos dele, a app não
+    // termina) - por isso a flag tem de ser reposta, para o próximo
+    // bloqueio automático voltar a funcionar mais tarde.
+    Future.delayed(const Duration(seconds: 2), () => PadlockNetwork.isPerformingAutoLock = false);
   }
 
   Future<void> _takePhoto() async {
@@ -7975,8 +8009,14 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
   Box get _box => Hive.box('padlock_crypto_vault');
 
   void _lockAndExit() {
+    // Mesma razão do Vault Files: evita dois bloqueios automáticos a mexer
+    // no Navigator ao mesmo tempo (a explicação mais provável para o ecrã
+    // ficar todo branco e preso).
+    if (PadlockNetwork.isPerformingAutoLock) return;
+    PadlockNetwork.isPerformingAutoLock = true;
     CryptoWalletKey.lock();
     if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+    Future.delayed(const Duration(seconds: 2), () => PadlockNetwork.isPerformingAutoLock = false);
   }
 
   Future<void> _loadWallet() async {
