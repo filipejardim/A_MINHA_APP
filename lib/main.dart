@@ -1284,24 +1284,31 @@ androidImplementation?.requestNotificationsPermission();
       ));
     }
   });
-  runApp(PadlockApp(isFirstTime: isFirstTime));
+  // O idioma escolhido tem de sobreviver a fechar a app - antes só durava
+  // enquanto a app ficava aberta, voltando sempre a inglês ao reabrir.
+  // Lido via SharedPreferences (não o cofre Hive) porque tem de estar
+  // disponível mesmo antes do login/PIN.
+  final savedLanguage = (await SharedPreferences.getInstance()).getString('app_language') ?? 'EN';
+  runApp(PadlockApp(isFirstTime: isFirstTime, initialLanguage: savedLanguage));
 }
 
 class PadlockApp extends StatefulWidget {
   final bool isFirstTime;
-  
-  const PadlockApp({super.key, required this.isFirstTime});
+  final String initialLanguage;
+
+  const PadlockApp({super.key, required this.isFirstTime, this.initialLanguage = 'EN'});
 
   @override
   State<PadlockApp> createState() => _PadlockAppState();
 }
 
 class _PadlockAppState extends State<PadlockApp> with WidgetsBindingObserver {
-  String _currentLanguage = 'EN';
+  late String _currentLanguage;
 
   @override
   void initState() {
     super.initState();
+    _currentLanguage = widget.initialLanguage;
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -1329,6 +1336,7 @@ class _PadlockAppState extends State<PadlockApp> with WidgetsBindingObserver {
     setState(() {
       _currentLanguage = lang;
     });
+    SharedPreferences.getInstance().then((prefs) => prefs.setString('app_language', lang));
   }
 
   @override
