@@ -1447,6 +1447,55 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'Privacy ID',
     'profile_bio_paragraph': 'Engineered with military-grade Zero-Knowledge encryption.\nAll communications operate strictly Peer-to-Peer (P2P).\nMessages automatically self-destruct after 24 hours\nusing secure anti-trace memory sanitization.\nZero trace, zero logs, total privacy.',
     'close_button': 'Close',
+    'crypto_code_too_weak': 'Code is too weak: use at least 10 characters and avoid repeated or sequential patterns.',
+    'invalid_recovery_phrase': 'Invalid recovery phrase - check the words and try again.',
+    'crypto_vault_not_initialized': 'Crypto Vault not initialized on this device.',
+    'invalid_crypto_vault_code': 'Invalid Crypto Vault code.',
+    'crypto_vault_corrupted': 'Crypto Vault data is corrupted (code was correct, but the vault file itself is damaged).',
+    'create_crypto_vault_code_title': 'CREATE CRYPTO VAULT CODE',
+    'enter_crypto_vault_code_title': 'ENTER CRYPTO VAULT CODE',
+    'crypto_code_desc_create': 'This code is separate from your app and Vault Files codes. It protects a brand-new, non-custodial wallet that only you control.',
+    'crypto_code_desc_enter': 'Enter your Crypto Vault code to access your wallet.',
+    'create_new_wallet_instead': '← Create a new wallet instead',
+    'already_have_recovery_phrase': 'I already have a recovery phrase (lost phone / reinstall)',
+    'recovery_phrase_label': 'Your 12-word recovery phrase',
+    'recovery_phrase_hint': 'word1 word2 word3 ...',
+    'set_crypto_vault_code_label': 'Set Crypto Vault Code (for THIS device)',
+    'crypto_vault_code_label': 'Crypto Vault Code',
+    'restore_wallet_button': 'RESTORE WALLET',
+    'create_wallet_button': 'CREATE WALLET',
+    'unlock_button': 'UNLOCK',
+    'recovery_phrase_title': 'Your Recovery Phrase',
+    'recovery_phrase_warning': '⚠️ Write these 12 words down on paper, in order, and keep them somewhere safe and offline. Anyone with these words can steal your funds. Padlock does NOT store this phrase anywhere and cannot recover it for you.',
+    'recovery_phrase_confirm_checkbox': 'I have written down these words and stored them safely offline.',
+    'continue_button': 'CONTINUE',
+    'loading_text': 'Loading...',
+    'could_not_load_balance': 'Could not load balance',
+    'receive_dialog_title': 'Receive',
+    'receive_address_warning': 'Scanning or sharing this code gives out your wallet ADDRESS only - never your recovery phrase.',
+    'address_copied_toast': 'Address copied.',
+    'copy_button': 'COPY',
+    'testnet_warning': '⚠️ TESTNET (Polygon Amoy) - these are NOT real funds.',
+    'balances_label': 'Balances',
+    'receive_button': 'RECEIVE',
+    'send_button': 'SEND',
+    'camera_permission_denied': 'Camera permission denied. Enable it in phone Settings > Apps > Padlock > Permissions.',
+    'scan_wallet_address_title': 'Scan Wallet Address',
+    'invalid_wallet_address': 'Invalid wallet address.',
+    'enter_valid_amount': 'Enter a valid amount.',
+    'price_not_loaded': 'Price not loaded yet - try again in a moment.',
+    'transaction_sent_title': 'Transaction Sent',
+    'done_button': 'DONE',
+    'send_failed_prefix': 'Send failed',
+    'send_title': 'Send',
+    'recipient_address_label': 'Recipient wallet address',
+    'coin_label': 'Coin',
+    'amount_in_label': 'Amount in:',
+    'amount_usd_label': 'Amount (USD)',
+    'amount_label_prefix': 'Amount',
+    'loading_price': 'Loading price...',
+    'price_label_prefix': 'Price',
+    'confirm_send_button': 'CONFIRM & SEND',
   },
   'PT': {
     'chats': 'Conversas',
@@ -1532,6 +1581,55 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'ID de Privacidade',
     'profile_bio_paragraph': 'Construído com encriptação de Conhecimento-Zero de nível militar.\nTodas as comunicações funcionam estritamente Peer-to-Peer (P2P).\nAs mensagens autodestroem-se automaticamente ao fim de 24 horas\nusando sanitização de memória anti-rasto segura.\nZero rasto, zero registos, privacidade total.',
     'close_button': 'Fechar',
+    'crypto_code_too_weak': 'O código é fraco demais: usa pelo menos 10 caracteres e evita padrões repetidos ou sequenciais.',
+    'invalid_recovery_phrase': 'Frase de recuperação inválida - verifica as palavras e tenta novamente.',
+    'crypto_vault_not_initialized': 'Crypto Vault não inicializado neste dispositivo.',
+    'invalid_crypto_vault_code': 'Código do Crypto Vault inválido.',
+    'crypto_vault_corrupted': 'Os dados do Crypto Vault estão corrompidos (o código estava certo, mas o próprio ficheiro do cofre está danificado).',
+    'create_crypto_vault_code_title': 'CRIAR CÓDIGO DO CRYPTO VAULT',
+    'enter_crypto_vault_code_title': 'INTRODUZIR CÓDIGO DO CRYPTO VAULT',
+    'crypto_code_desc_create': 'Este código é separado dos códigos da app e do Vault Files. Protege uma carteira nova, não-custodial, que só tu controlas.',
+    'crypto_code_desc_enter': 'Introduz o teu código do Crypto Vault para aceder à tua carteira.',
+    'create_new_wallet_instead': '← Criar uma carteira nova em vez disso',
+    'already_have_recovery_phrase': 'Já tenho uma frase de recuperação (perdi o telemóvel / reinstalei)',
+    'recovery_phrase_label': 'A tua frase de recuperação de 12 palavras',
+    'recovery_phrase_hint': 'palavra1 palavra2 palavra3 ...',
+    'set_crypto_vault_code_label': 'Definir Código do Crypto Vault (para ESTE dispositivo)',
+    'crypto_vault_code_label': 'Código do Crypto Vault',
+    'restore_wallet_button': 'RESTAURAR CARTEIRA',
+    'create_wallet_button': 'CRIAR CARTEIRA',
+    'unlock_button': 'DESBLOQUEAR',
+    'recovery_phrase_title': 'A Tua Frase de Recuperação',
+    'recovery_phrase_warning': '⚠️ Escreve estas 12 palavras em papel, pela ordem certa, e guarda-as num sítio seguro e offline. Quem tiver estas palavras pode roubar os teus fundos. A Padlock NÃO guarda esta frase em lado nenhum e não a consegue recuperar por ti.',
+    'recovery_phrase_confirm_checkbox': 'Já escrevi estas palavras e guardei-as em segurança offline.',
+    'continue_button': 'CONTINUAR',
+    'loading_text': 'A carregar...',
+    'could_not_load_balance': 'Não foi possível carregar o saldo',
+    'receive_dialog_title': 'Receber',
+    'receive_address_warning': 'Digitalizar ou partilhar este código só dá o ENDEREÇO da tua carteira - nunca a tua frase de recuperação.',
+    'address_copied_toast': 'Endereço copiado.',
+    'copy_button': 'COPIAR',
+    'testnet_warning': '⚠️ REDE DE TESTE (Polygon Amoy) - isto NÃO são fundos reais.',
+    'balances_label': 'Saldos',
+    'receive_button': 'RECEBER',
+    'send_button': 'ENVIAR',
+    'camera_permission_denied': 'Permissão da câmara negada. Ativa-a em Definições do telemóvel > Apps > Padlock > Permissões.',
+    'scan_wallet_address_title': 'Digitalizar Endereço de Carteira',
+    'invalid_wallet_address': 'Endereço de carteira inválido.',
+    'enter_valid_amount': 'Introduz um montante válido.',
+    'price_not_loaded': 'A cotação ainda não carregou - tenta novamente daqui a pouco.',
+    'transaction_sent_title': 'Transação Enviada',
+    'done_button': 'CONCLUÍDO',
+    'send_failed_prefix': 'Falha ao enviar',
+    'send_title': 'Enviar',
+    'recipient_address_label': 'Endereço da carteira do destinatário',
+    'coin_label': 'Moeda',
+    'amount_in_label': 'Montante em:',
+    'amount_usd_label': 'Montante (USD)',
+    'amount_label_prefix': 'Montante',
+    'loading_price': 'A carregar cotação...',
+    'price_label_prefix': 'Cotação',
+    'confirm_send_button': 'CONFIRMAR E ENVIAR',
   },
   'ES': {
     'chats': 'Chats',
@@ -1617,6 +1715,55 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'ID de Privacidad',
     'profile_bio_paragraph': 'Construido con encriptación de Conocimiento Cero de nivel militar.\nTodas las comunicaciones funcionan estrictamente Peer-to-Peer (P2P).\nLos mensajes se autodestruyen automáticamente tras 24 horas\nusando sanitización de memoria antirrastreo segura.\nCero rastro, cero registros, privacidad total.',
     'close_button': 'Cerrar',
+    'crypto_code_too_weak': 'El código es demasiado débil: usa al menos 10 caracteres y evita patrones repetidos o secuenciales.',
+    'invalid_recovery_phrase': 'Frase de recuperación inválida - revisa las palabras e inténtalo de nuevo.',
+    'crypto_vault_not_initialized': 'Crypto Vault no inicializado en este dispositivo.',
+    'invalid_crypto_vault_code': 'Código de Crypto Vault inválido.',
+    'crypto_vault_corrupted': 'Los datos del Crypto Vault están corruptos (el código era correcto, pero el propio archivo de la bóveda está dañado).',
+    'create_crypto_vault_code_title': 'CREAR CÓDIGO DE CRYPTO VAULT',
+    'enter_crypto_vault_code_title': 'INTRODUCIR CÓDIGO DE CRYPTO VAULT',
+    'crypto_code_desc_create': 'Este código es independiente de los códigos de la app y de Vault Files. Protege una billetera nueva, no custodial, que solo tú controlas.',
+    'crypto_code_desc_enter': 'Introduce tu código de Crypto Vault para acceder a tu billetera.',
+    'create_new_wallet_instead': '← Crear una billetera nueva en su lugar',
+    'already_have_recovery_phrase': 'Ya tengo una frase de recuperación (perdí el móvil / reinstalé)',
+    'recovery_phrase_label': 'Tu frase de recuperación de 12 palabras',
+    'recovery_phrase_hint': 'palabra1 palabra2 palabra3 ...',
+    'set_crypto_vault_code_label': 'Establecer Código de Crypto Vault (para ESTE dispositivo)',
+    'crypto_vault_code_label': 'Código de Crypto Vault',
+    'restore_wallet_button': 'RESTAURAR BILLETERA',
+    'create_wallet_button': 'CREAR BILLETERA',
+    'unlock_button': 'DESBLOQUEAR',
+    'recovery_phrase_title': 'Tu Frase de Recuperación',
+    'recovery_phrase_warning': '⚠️ Escribe estas 12 palabras en papel, en orden, y guárdalas en un lugar seguro y sin conexión. Cualquiera con estas palabras puede robar tus fondos. Padlock NO guarda esta frase en ningún sitio ni puede recuperarla por ti.',
+    'recovery_phrase_confirm_checkbox': 'Ya escribí estas palabras y las guardé de forma segura sin conexión.',
+    'continue_button': 'CONTINUAR',
+    'loading_text': 'Cargando...',
+    'could_not_load_balance': 'No se pudo cargar el saldo',
+    'receive_dialog_title': 'Recibir',
+    'receive_address_warning': 'Escanear o compartir este código solo da la DIRECCIÓN de tu billetera - nunca tu frase de recuperación.',
+    'address_copied_toast': 'Dirección copiada.',
+    'copy_button': 'COPIAR',
+    'testnet_warning': '⚠️ RED DE PRUEBA (Polygon Amoy) - esto NO son fondos reales.',
+    'balances_label': 'Saldos',
+    'receive_button': 'RECIBIR',
+    'send_button': 'ENVIAR',
+    'camera_permission_denied': 'Permiso de cámara denegado. Actívalo en Ajustes del teléfono > Apps > Padlock > Permisos.',
+    'scan_wallet_address_title': 'Escanear Dirección de Billetera',
+    'invalid_wallet_address': 'Dirección de billetera inválida.',
+    'enter_valid_amount': 'Introduce un monto válido.',
+    'price_not_loaded': 'La cotización aún no se cargó - inténtalo de nuevo en un momento.',
+    'transaction_sent_title': 'Transacción Enviada',
+    'done_button': 'HECHO',
+    'send_failed_prefix': 'Error al enviar',
+    'send_title': 'Enviar',
+    'recipient_address_label': 'Dirección de la billetera del destinatario',
+    'coin_label': 'Moneda',
+    'amount_in_label': 'Monto en:',
+    'amount_usd_label': 'Monto (USD)',
+    'amount_label_prefix': 'Monto',
+    'loading_price': 'Cargando cotización...',
+    'price_label_prefix': 'Cotización',
+    'confirm_send_button': 'CONFIRMAR Y ENVIAR',
   },
   'FR': {
     'chats': 'Chats',
@@ -1702,6 +1849,55 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'ID de Confidentialité',
     'profile_bio_paragraph': 'Conçu avec un chiffrement Zero-Knowledge de niveau militaire.\nToutes les communications fonctionnent strictement en Pair-à-Pair (P2P).\nLes messages s\'autodétruisent automatiquement après 24 heures\nen utilisant une désinfection de mémoire anti-traçage sécurisée.\nAucune trace, aucun journal, confidentialité totale.',
     'close_button': 'Fermer',
+    'crypto_code_too_weak': 'Le code est trop faible : utilisez au moins 10 caractères et évitez les motifs répétés ou séquentiels.',
+    'invalid_recovery_phrase': 'Phrase de récupération invalide - vérifiez les mots et réessayez.',
+    'crypto_vault_not_initialized': 'Crypto Vault non initialisé sur cet appareil.',
+    'invalid_crypto_vault_code': 'Code de Crypto Vault invalide.',
+    'crypto_vault_corrupted': 'Les données du Crypto Vault sont corrompues (le code était correct, mais le fichier du coffre lui-même est endommagé).',
+    'create_crypto_vault_code_title': 'CRÉER UN CODE CRYPTO VAULT',
+    'enter_crypto_vault_code_title': 'ENTRER LE CODE CRYPTO VAULT',
+    'crypto_code_desc_create': 'Ce code est distinct des codes de l\'app et de Vault Files. Il protège un tout nouveau portefeuille non dépositaire que vous seul contrôlez.',
+    'crypto_code_desc_enter': 'Entrez votre code Crypto Vault pour accéder à votre portefeuille.',
+    'create_new_wallet_instead': '← Créer un nouveau portefeuille à la place',
+    'already_have_recovery_phrase': 'J\'ai déjà une phrase de récupération (téléphone perdu / réinstallation)',
+    'recovery_phrase_label': 'Votre phrase de récupération de 12 mots',
+    'recovery_phrase_hint': 'mot1 mot2 mot3 ...',
+    'set_crypto_vault_code_label': 'Définir le Code Crypto Vault (pour CET appareil)',
+    'crypto_vault_code_label': 'Code Crypto Vault',
+    'restore_wallet_button': 'RESTAURER LE PORTEFEUILLE',
+    'create_wallet_button': 'CRÉER LE PORTEFEUILLE',
+    'unlock_button': 'DÉVERROUILLER',
+    'recovery_phrase_title': 'Votre Phrase de Récupération',
+    'recovery_phrase_warning': '⚠️ Écrivez ces 12 mots sur papier, dans l\'ordre, et conservez-les dans un endroit sûr et hors ligne. Quiconque possède ces mots peut voler vos fonds. Padlock NE stocke PAS cette phrase et ne peut pas la récupérer pour vous.',
+    'recovery_phrase_confirm_checkbox': 'J\'ai écrit ces mots et je les ai stockés en sécurité hors ligne.',
+    'continue_button': 'CONTINUER',
+    'loading_text': 'Chargement...',
+    'could_not_load_balance': 'Impossible de charger le solde',
+    'receive_dialog_title': 'Recevoir',
+    'receive_address_warning': 'Scanner ou partager ce code ne donne que l\'ADRESSE de votre portefeuille - jamais votre phrase de récupération.',
+    'address_copied_toast': 'Adresse copiée.',
+    'copy_button': 'COPIER',
+    'testnet_warning': '⚠️ RÉSEAU DE TEST (Polygon Amoy) - ce ne sont PAS des fonds réels.',
+    'balances_label': 'Soldes',
+    'receive_button': 'RECEVOIR',
+    'send_button': 'ENVOYER',
+    'camera_permission_denied': 'Permission caméra refusée. Activez-la dans Paramètres du téléphone > Applications > Padlock > Permissions.',
+    'scan_wallet_address_title': 'Scanner l\'Adresse du Portefeuille',
+    'invalid_wallet_address': 'Adresse de portefeuille invalide.',
+    'enter_valid_amount': 'Entrez un montant valide.',
+    'price_not_loaded': 'Le cours n\'est pas encore chargé - réessayez dans un instant.',
+    'transaction_sent_title': 'Transaction Envoyée',
+    'done_button': 'TERMINÉ',
+    'send_failed_prefix': 'Échec de l\'envoi',
+    'send_title': 'Envoyer',
+    'recipient_address_label': 'Adresse du portefeuille du destinataire',
+    'coin_label': 'Devise',
+    'amount_in_label': 'Montant en :',
+    'amount_usd_label': 'Montant (USD)',
+    'amount_label_prefix': 'Montant',
+    'loading_price': 'Chargement du cours...',
+    'price_label_prefix': 'Cours',
+    'confirm_send_button': 'CONFIRMER ET ENVOYER',
   },
   'DE': {
     'chats': 'Chats',
@@ -1787,6 +1983,55 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'Datenschutz-ID',
     'profile_bio_paragraph': 'Entwickelt mit militärischer Zero-Knowledge-Verschlüsselung.\nAlle Kommunikationen erfolgen strikt Peer-to-Peer (P2P).\nNachrichten werden nach 24 Stunden automatisch selbst zerstört\ndurch sichere Anti-Trace-Speicherbereinigung.\nKeine Spuren, keine Protokolle, totale Privatsphäre.',
     'close_button': 'Schließen',
+    'crypto_code_too_weak': 'Der Code ist zu schwach: Verwenden Sie mindestens 10 Zeichen und vermeiden Sie wiederholte oder fortlaufende Muster.',
+    'invalid_recovery_phrase': 'Ungültige Wiederherstellungsphrase - überprüfen Sie die Wörter und versuchen Sie es erneut.',
+    'crypto_vault_not_initialized': 'Crypto Vault auf diesem Gerät nicht initialisiert.',
+    'invalid_crypto_vault_code': 'Ungültiger Crypto-Vault-Code.',
+    'crypto_vault_corrupted': 'Die Crypto-Vault-Daten sind beschädigt (der Code war korrekt, aber die Tresordatei selbst ist beschädigt).',
+    'create_crypto_vault_code_title': 'CRYPTO-VAULT-CODE ERSTELLEN',
+    'enter_crypto_vault_code_title': 'CRYPTO-VAULT-CODE EINGEBEN',
+    'crypto_code_desc_create': 'Dieser Code ist getrennt von den Codes der App und von Vault Files. Er schützt eine brandneue, nicht verwahrte Wallet, die nur Sie kontrollieren.',
+    'crypto_code_desc_enter': 'Geben Sie Ihren Crypto-Vault-Code ein, um auf Ihre Wallet zuzugreifen.',
+    'create_new_wallet_instead': '← Stattdessen eine neue Wallet erstellen',
+    'already_have_recovery_phrase': 'Ich habe bereits eine Wiederherstellungsphrase (Telefon verloren / neu installiert)',
+    'recovery_phrase_label': 'Ihre 12-Wörter-Wiederherstellungsphrase',
+    'recovery_phrase_hint': 'wort1 wort2 wort3 ...',
+    'set_crypto_vault_code_label': 'Crypto-Vault-Code festlegen (für DIESES Gerät)',
+    'crypto_vault_code_label': 'Crypto-Vault-Code',
+    'restore_wallet_button': 'WALLET WIEDERHERSTELLEN',
+    'create_wallet_button': 'WALLET ERSTELLEN',
+    'unlock_button': 'ENTSPERREN',
+    'recovery_phrase_title': 'Ihre Wiederherstellungsphrase',
+    'recovery_phrase_warning': '⚠️ Schreiben Sie diese 12 Wörter in der richtigen Reihenfolge auf Papier und bewahren Sie sie an einem sicheren Ort offline auf. Jeder mit diesen Wörtern kann Ihre Gelder stehlen. Padlock speichert diese Phrase NICHT und kann sie nicht für Sie wiederherstellen.',
+    'recovery_phrase_confirm_checkbox': 'Ich habe diese Wörter aufgeschrieben und sicher offline aufbewahrt.',
+    'continue_button': 'WEITER',
+    'loading_text': 'Wird geladen...',
+    'could_not_load_balance': 'Guthaben konnte nicht geladen werden',
+    'receive_dialog_title': 'Empfangen',
+    'receive_address_warning': 'Das Scannen oder Teilen dieses Codes gibt nur die ADRESSE Ihrer Wallet preis - niemals Ihre Wiederherstellungsphrase.',
+    'address_copied_toast': 'Adresse kopiert.',
+    'copy_button': 'KOPIEREN',
+    'testnet_warning': '⚠️ TESTNETZ (Polygon Amoy) - dies ist KEIN echtes Geld.',
+    'balances_label': 'Guthaben',
+    'receive_button': 'EMPFANGEN',
+    'send_button': 'SENDEN',
+    'camera_permission_denied': 'Kamerazugriff verweigert. Aktivieren Sie ihn in den Telefoneinstellungen > Apps > Padlock > Berechtigungen.',
+    'scan_wallet_address_title': 'Wallet-Adresse scannen',
+    'invalid_wallet_address': 'Ungültige Wallet-Adresse.',
+    'enter_valid_amount': 'Geben Sie einen gültigen Betrag ein.',
+    'price_not_loaded': 'Kurs noch nicht geladen - versuchen Sie es gleich noch einmal.',
+    'transaction_sent_title': 'Transaktion Gesendet',
+    'done_button': 'FERTIG',
+    'send_failed_prefix': 'Senden fehlgeschlagen',
+    'send_title': 'Senden',
+    'recipient_address_label': 'Wallet-Adresse des Empfängers',
+    'coin_label': 'Münze',
+    'amount_in_label': 'Betrag in:',
+    'amount_usd_label': 'Betrag (USD)',
+    'amount_label_prefix': 'Betrag',
+    'loading_price': 'Kurs wird geladen...',
+    'price_label_prefix': 'Kurs',
+    'confirm_send_button': 'BESTÄTIGEN & SENDEN',
   },
   'RU': {
     'chats': 'Чаты',
@@ -1872,6 +2117,55 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'ID конфиденциальности',
     'profile_bio_paragraph': 'Создано с шифрованием Zero-Knowledge военного уровня.\nВсе коммуникации работают строго по принципу P2P (точка-точка).\nСообщения автоматически самоуничтожаются через 24 часа\nс использованием безопасной защиты памяти от отслеживания.\nНи следа, ни логов, полная конфиденциальность.',
     'close_button': 'Закрыть',
+    'crypto_code_too_weak': 'Код слишком слабый: используйте не менее 10 символов и избегайте повторяющихся или последовательных шаблонов.',
+    'invalid_recovery_phrase': 'Неверная фраза восстановления - проверьте слова и попробуйте снова.',
+    'crypto_vault_not_initialized': 'Crypto Vault не инициализирован на этом устройстве.',
+    'invalid_crypto_vault_code': 'Неверный код Crypto Vault.',
+    'crypto_vault_corrupted': 'Данные Crypto Vault повреждены (код был верным, но сам файл хранилища повреждён).',
+    'create_crypto_vault_code_title': 'СОЗДАТЬ КОД CRYPTO VAULT',
+    'enter_crypto_vault_code_title': 'ВВЕСТИ КОД CRYPTO VAULT',
+    'crypto_code_desc_create': 'Этот код отделён от кодов приложения и Vault Files. Он защищает совершенно новый некастодиальный кошелёк, который контролируете только вы.',
+    'crypto_code_desc_enter': 'Введите код Crypto Vault для доступа к кошельку.',
+    'create_new_wallet_instead': '← Создать новый кошелёк вместо этого',
+    'already_have_recovery_phrase': 'У меня уже есть фраза восстановления (потерян телефон / переустановка)',
+    'recovery_phrase_label': 'Ваша фраза восстановления из 12 слов',
+    'recovery_phrase_hint': 'слово1 слово2 слово3 ...',
+    'set_crypto_vault_code_label': 'Установить код Crypto Vault (для ЭТОГО устройства)',
+    'crypto_vault_code_label': 'Код Crypto Vault',
+    'restore_wallet_button': 'ВОССТАНОВИТЬ КОШЕЛЁК',
+    'create_wallet_button': 'СОЗДАТЬ КОШЕЛЁК',
+    'unlock_button': 'РАЗБЛОКИРОВАТЬ',
+    'recovery_phrase_title': 'Ваша фраза восстановления',
+    'recovery_phrase_warning': '⚠️ Запишите эти 12 слов на бумаге по порядку и храните в надёжном офлайн-месте. Любой, у кого есть эти слова, может украсть ваши средства. Padlock НЕ хранит эту фразу нигде и не может восстановить её за вас.',
+    'recovery_phrase_confirm_checkbox': 'Я записал эти слова и надёжно сохранил их офлайн.',
+    'continue_button': 'ПРОДОЛЖИТЬ',
+    'loading_text': 'Загрузка...',
+    'could_not_load_balance': 'Не удалось загрузить баланс',
+    'receive_dialog_title': 'Получить',
+    'receive_address_warning': 'Сканирование или передача этого кода раскрывает только АДРЕС вашего кошелька - никогда не фразу восстановления.',
+    'address_copied_toast': 'Адрес скопирован.',
+    'copy_button': 'КОПИРОВАТЬ',
+    'testnet_warning': '⚠️ ТЕСТОВАЯ СЕТЬ (Polygon Amoy) - это НЕ реальные средства.',
+    'balances_label': 'Балансы',
+    'receive_button': 'ПОЛУЧИТЬ',
+    'send_button': 'ОТПРАВИТЬ',
+    'camera_permission_denied': 'Доступ к камере запрещён. Включите его в настройках телефона > Приложения > Padlock > Разрешения.',
+    'scan_wallet_address_title': 'Сканировать Адрес Кошелька',
+    'invalid_wallet_address': 'Неверный адрес кошелька.',
+    'enter_valid_amount': 'Введите корректную сумму.',
+    'price_not_loaded': 'Курс ещё не загружен - попробуйте снова через мгновение.',
+    'transaction_sent_title': 'Транзакция Отправлена',
+    'done_button': 'ГОТОВО',
+    'send_failed_prefix': 'Ошибка отправки',
+    'send_title': 'Отправить',
+    'recipient_address_label': 'Адрес кошелька получателя',
+    'coin_label': 'Монета',
+    'amount_in_label': 'Сумма в:',
+    'amount_usd_label': 'Сумма (USD)',
+    'amount_label_prefix': 'Сумма',
+    'loading_price': 'Загрузка курса...',
+    'price_label_prefix': 'Курс',
+    'confirm_send_button': 'ПОДТВЕРДИТЬ И ОТПРАВИТЬ',
   },
   'UK': {
     'chats': 'Чати',
@@ -1957,6 +2251,55 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'ID конфіденційності',
     'profile_bio_paragraph': 'Створено з шифруванням Zero-Knowledge військового рівня.\nУсі комунікації працюють строго за принципом P2P (точка-точка).\nПовідомлення автоматично самознищуються через 24 години\nіз використанням безпечного захисту пам\'яті від відстеження.\nЖодного сліду, жодних журналів, повна конфіденційність.',
     'close_button': 'Закрити',
+    'crypto_code_too_weak': 'Код надто слабкий: використовуйте щонайменше 10 символів і уникайте повторюваних чи послідовних шаблонів.',
+    'invalid_recovery_phrase': 'Невірна фраза відновлення - перевірте слова і спробуйте ще раз.',
+    'crypto_vault_not_initialized': 'Crypto Vault не ініціалізовано на цьому пристрої.',
+    'invalid_crypto_vault_code': 'Невірний код Crypto Vault.',
+    'crypto_vault_corrupted': 'Дані Crypto Vault пошкоджені (код був правильний, але сам файл сховища пошкоджено).',
+    'create_crypto_vault_code_title': 'СТВОРИТИ КОД CRYPTO VAULT',
+    'enter_crypto_vault_code_title': 'ВВЕСТИ КОД CRYPTO VAULT',
+    'crypto_code_desc_create': 'Цей код відокремлений від кодів додатку та Vault Files. Він захищає абсолютно новий некастодіальний гаманець, який контролюєте лише ви.',
+    'crypto_code_desc_enter': 'Введіть код Crypto Vault для доступу до гаманця.',
+    'create_new_wallet_instead': '← Створити новий гаманець замість цього',
+    'already_have_recovery_phrase': 'У мене вже є фраза відновлення (втрачено телефон / перевстановлення)',
+    'recovery_phrase_label': 'Ваша фраза відновлення з 12 слів',
+    'recovery_phrase_hint': 'слово1 слово2 слово3 ...',
+    'set_crypto_vault_code_label': 'Встановити код Crypto Vault (для ЦЬОГО пристрою)',
+    'crypto_vault_code_label': 'Код Crypto Vault',
+    'restore_wallet_button': 'ВІДНОВИТИ ГАМАНЕЦЬ',
+    'create_wallet_button': 'СТВОРИТИ ГАМАНЕЦЬ',
+    'unlock_button': 'РОЗБЛОКУВАТИ',
+    'recovery_phrase_title': 'Ваша Фраза Відновлення',
+    'recovery_phrase_warning': '⚠️ Запишіть ці 12 слів на папері по порядку і зберігайте в надійному офлайн-місці. Будь-хто з цими словами може викрасти ваші кошти. Padlock НЕ зберігає цю фразу ніде і не може відновити її за вас.',
+    'recovery_phrase_confirm_checkbox': 'Я записав ці слова і надійно зберіг їх офлайн.',
+    'continue_button': 'ПРОДОВЖИТИ',
+    'loading_text': 'Завантаження...',
+    'could_not_load_balance': 'Не вдалося завантажити баланс',
+    'receive_dialog_title': 'Отримати',
+    'receive_address_warning': 'Сканування або передача цього коду розкриває лише АДРЕСУ вашого гаманця - ніколи не фразу відновлення.',
+    'address_copied_toast': 'Адресу скопійовано.',
+    'copy_button': 'КОПІЮВАТИ',
+    'testnet_warning': '⚠️ ТЕСТОВА МЕРЕЖА (Polygon Amoy) - це НЕ реальні кошти.',
+    'balances_label': 'Баланси',
+    'receive_button': 'ОТРИМАТИ',
+    'send_button': 'НАДІСЛАТИ',
+    'camera_permission_denied': 'Доступ до камери заборонено. Увімкніть його в налаштуваннях телефону > Додатки > Padlock > Дозволи.',
+    'scan_wallet_address_title': 'Сканувати Адресу Гаманця',
+    'invalid_wallet_address': 'Невірна адреса гаманця.',
+    'enter_valid_amount': 'Введіть коректну суму.',
+    'price_not_loaded': 'Курс ще не завантажено - спробуйте ще раз за мить.',
+    'transaction_sent_title': 'Транзакцію Надіслано',
+    'done_button': 'ГОТОВО',
+    'send_failed_prefix': 'Помилка надсилання',
+    'send_title': 'Надіслати',
+    'recipient_address_label': 'Адреса гаманця отримувача',
+    'coin_label': 'Монета',
+    'amount_in_label': 'Сума в:',
+    'amount_usd_label': 'Сума (USD)',
+    'amount_label_prefix': 'Сума',
+    'loading_price': 'Завантаження курсу...',
+    'price_label_prefix': 'Курс',
+    'confirm_send_button': 'ПІДТВЕРДИТИ Й НАДІСЛАТИ',
   },
   'ZH': {
     'chats': '聊天',
@@ -2042,6 +2385,55 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': '隐私 ID',
     'profile_bio_paragraph': '采用军事级零知识加密技术打造。\n所有通信严格采用点对点（P2P）方式运行。\n消息在 24 小时后使用安全的反追踪内存清理技术自动销毁。\n零痕迹，零日志，完全隐私。',
     'close_button': '关闭',
+    'crypto_code_too_weak': '密码太弱：请至少使用 10 个字符，并避免重复或连续的模式。',
+    'invalid_recovery_phrase': '恢复短语无效 - 请检查单词并重试。',
+    'crypto_vault_not_initialized': '此设备上尚未初始化 Crypto Vault。',
+    'invalid_crypto_vault_code': 'Crypto Vault 密码无效。',
+    'crypto_vault_corrupted': 'Crypto Vault 数据已损坏（密码正确，但保险库文件本身已损坏）。',
+    'create_crypto_vault_code_title': '创建 CRYPTO VAULT 密码',
+    'enter_crypto_vault_code_title': '输入 CRYPTO VAULT 密码',
+    'crypto_code_desc_create': '此密码与应用和 Vault Files 密码是分开的。它保护一个全新的、非托管的、只有您能控制的钱包。',
+    'crypto_code_desc_enter': '输入您的 Crypto Vault 密码以访问您的钱包。',
+    'create_new_wallet_instead': '← 改为创建新钱包',
+    'already_have_recovery_phrase': '我已经有恢复短语（手机丢失/重新安装）',
+    'recovery_phrase_label': '您的 12 个单词恢复短语',
+    'recovery_phrase_hint': '单词1 单词2 单词3 ...',
+    'set_crypto_vault_code_label': '设置 Crypto Vault 密码（用于此设备）',
+    'crypto_vault_code_label': 'Crypto Vault 密码',
+    'restore_wallet_button': '恢复钱包',
+    'create_wallet_button': '创建钱包',
+    'unlock_button': '解锁',
+    'recovery_phrase_title': '您的恢复短语',
+    'recovery_phrase_warning': '⚠️ 请按顺序将这 12 个单词写在纸上，并妥善保存在安全的离线地方。任何拥有这些单词的人都可以窃取您的资金。Padlock 不会在任何地方存储此短语，也无法为您恢复它。',
+    'recovery_phrase_confirm_checkbox': '我已写下这些单词并安全地离线保存。',
+    'continue_button': '继续',
+    'loading_text': '加载中...',
+    'could_not_load_balance': '无法加载余额',
+    'receive_dialog_title': '接收',
+    'receive_address_warning': '扫描或分享此代码只会透露您钱包的地址 - 绝不会透露您的恢复短语。',
+    'address_copied_toast': '地址已复制。',
+    'copy_button': '复制',
+    'testnet_warning': '⚠️ 测试网络（Polygon Amoy）- 这不是真实资金。',
+    'balances_label': '余额',
+    'receive_button': '接收',
+    'send_button': '发送',
+    'camera_permission_denied': '相机权限被拒绝。请在手机设置 > 应用 > Padlock > 权限中启用。',
+    'scan_wallet_address_title': '扫描钱包地址',
+    'invalid_wallet_address': '钱包地址无效。',
+    'enter_valid_amount': '请输入有效金额。',
+    'price_not_loaded': '价格尚未加载 - 请稍后再试。',
+    'transaction_sent_title': '交易已发送',
+    'done_button': '完成',
+    'send_failed_prefix': '发送失败',
+    'send_title': '发送',
+    'recipient_address_label': '收款人钱包地址',
+    'coin_label': '币种',
+    'amount_in_label': '金额单位：',
+    'amount_usd_label': '金额（美元）',
+    'amount_label_prefix': '金额',
+    'loading_price': '正在加载价格...',
+    'price_label_prefix': '价格',
+    'confirm_send_button': '确认并发送',
   },
   'KO': {
     'chats': '채팅',
@@ -2127,6 +2519,55 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': '개인정보 ID',
     'profile_bio_paragraph': '군사급 제로 지식 암호화로 설계되었습니다.\n모든 통신은 엄격하게 P2P(피어 투 피어) 방식으로 작동합니다.\n메시지는 안전한 추적 방지 메모리 삭제 기술을 사용하여 24시간 후 자동으로 파기됩니다.\n흔적 없음, 로그 없음, 완전한 개인정보 보호.',
     'close_button': '닫기',
+    'crypto_code_too_weak': '코드가 너무 약합니다: 최소 10자를 사용하고 반복되거나 순차적인 패턴을 피하세요.',
+    'invalid_recovery_phrase': '복구 문구가 잘못되었습니다 - 단어를 확인하고 다시 시도하세요.',
+    'crypto_vault_not_initialized': '이 기기에서 Crypto Vault가 초기화되지 않았습니다.',
+    'invalid_crypto_vault_code': 'Crypto Vault 코드가 잘못되었습니다.',
+    'crypto_vault_corrupted': 'Crypto Vault 데이터가 손상되었습니다(코드는 맞지만 보관함 파일 자체가 손상됨).',
+    'create_crypto_vault_code_title': 'CRYPTO VAULT 코드 생성',
+    'enter_crypto_vault_code_title': 'CRYPTO VAULT 코드 입력',
+    'crypto_code_desc_create': '이 코드는 앱 및 Vault Files 코드와 별개입니다. 오직 사용자만 제어하는 완전히 새로운 비수탁형 지갑을 보호합니다.',
+    'crypto_code_desc_enter': '지갑에 접근하려면 Crypto Vault 코드를 입력하세요.',
+    'create_new_wallet_instead': '← 대신 새 지갑 만들기',
+    'already_have_recovery_phrase': '이미 복구 문구가 있습니다 (휴대폰 분실 / 재설치)',
+    'recovery_phrase_label': '12단어 복구 문구',
+    'recovery_phrase_hint': '단어1 단어2 단어3 ...',
+    'set_crypto_vault_code_label': 'Crypto Vault 코드 설정 (이 기기용)',
+    'crypto_vault_code_label': 'Crypto Vault 코드',
+    'restore_wallet_button': '지갑 복원',
+    'create_wallet_button': '지갑 생성',
+    'unlock_button': '잠금 해제',
+    'recovery_phrase_title': '복구 문구',
+    'recovery_phrase_warning': '⚠️ 이 12개 단어를 순서대로 종이에 적어 안전한 오프라인 장소에 보관하세요. 이 단어를 아는 사람은 누구나 자금을 훔칠 수 있습니다. Padlock은 이 문구를 어디에도 저장하지 않으며 대신 복구할 수 없습니다.',
+    'recovery_phrase_confirm_checkbox': '이 단어들을 적어서 안전하게 오프라인으로 보관했습니다.',
+    'continue_button': '계속',
+    'loading_text': '로딩 중...',
+    'could_not_load_balance': '잔액을 불러올 수 없습니다',
+    'receive_dialog_title': '받기',
+    'receive_address_warning': '이 코드를 스캔하거나 공유하면 지갑 주소만 노출됩니다 - 복구 문구는 절대 노출되지 않습니다.',
+    'address_copied_toast': '주소가 복사되었습니다.',
+    'copy_button': '복사',
+    'testnet_warning': '⚠️ 테스트넷 (Polygon Amoy) - 실제 자금이 아닙니다.',
+    'balances_label': '잔액',
+    'receive_button': '받기',
+    'send_button': '보내기',
+    'camera_permission_denied': '카메라 권한이 거부되었습니다. 휴대폰 설정 > 앱 > Padlock > 권한에서 활성화하세요.',
+    'scan_wallet_address_title': '지갑 주소 스캔',
+    'invalid_wallet_address': '지갑 주소가 잘못되었습니다.',
+    'enter_valid_amount': '유효한 금액을 입력하세요.',
+    'price_not_loaded': '가격이 아직 로드되지 않았습니다 - 잠시 후 다시 시도하세요.',
+    'transaction_sent_title': '거래 전송됨',
+    'done_button': '완료',
+    'send_failed_prefix': '전송 실패',
+    'send_title': '보내기',
+    'recipient_address_label': '수신자 지갑 주소',
+    'coin_label': '코인',
+    'amount_in_label': '단위:',
+    'amount_usd_label': '금액 (USD)',
+    'amount_label_prefix': '금액',
+    'loading_price': '가격 로딩 중...',
+    'price_label_prefix': '가격',
+    'confirm_send_button': '확인 및 전송',
   },
   'AR': {
     'chats': 'الدردشات',
@@ -2212,6 +2653,55 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'معرّف الخصوصية',
     'profile_bio_paragraph': 'مصمم بتشفير Zero-Knowledge بمستوى عسكري.\nتعمل جميع الاتصالات بشكل صارم نظير إلى نظير (P2P).\nتُدمَّر الرسائل تلقائيًا بعد 24 ساعة\nباستخدام تعقيم ذاكرة آمن مضاد للتتبع.\nبدون أثر، بدون سجلات، خصوصية تامة.',
     'close_button': 'إغلاق',
+    'crypto_code_too_weak': 'الرمز ضعيف جدًا: استخدم 10 أحرف على الأقل وتجنب الأنماط المتكررة أو المتسلسلة.',
+    'invalid_recovery_phrase': 'عبارة الاسترداد غير صالحة - تحقق من الكلمات وحاول مرة أخرى.',
+    'crypto_vault_not_initialized': 'لم يتم تهيئة Crypto Vault على هذا الجهاز.',
+    'invalid_crypto_vault_code': 'رمز Crypto Vault غير صالح.',
+    'crypto_vault_corrupted': 'بيانات Crypto Vault تالفة (الرمز كان صحيحًا، لكن ملف الخزنة نفسه تالف).',
+    'create_crypto_vault_code_title': 'إنشاء رمز CRYPTO VAULT',
+    'enter_crypto_vault_code_title': 'أدخل رمز CRYPTO VAULT',
+    'crypto_code_desc_create': 'هذا الرمز منفصل عن رمز التطبيق ورموز Vault Files. إنه يحمي محفظة جديدة تمامًا غير وصائية تتحكم فيها أنت فقط.',
+    'crypto_code_desc_enter': 'أدخل رمز Crypto Vault للوصول إلى محفظتك.',
+    'create_new_wallet_instead': '← إنشاء محفظة جديدة بدلاً من ذلك',
+    'already_have_recovery_phrase': 'لدي بالفعل عبارة استرداد (فقدت الهاتف / أعدت التثبيت)',
+    'recovery_phrase_label': 'عبارة الاسترداد المكونة من 12 كلمة',
+    'recovery_phrase_hint': 'كلمة1 كلمة2 كلمة3 ...',
+    'set_crypto_vault_code_label': 'تعيين رمز Crypto Vault (لهذا الجهاز)',
+    'crypto_vault_code_label': 'رمز Crypto Vault',
+    'restore_wallet_button': 'استعادة المحفظة',
+    'create_wallet_button': 'إنشاء المحفظة',
+    'unlock_button': 'إلغاء القفل',
+    'recovery_phrase_title': 'عبارة الاسترداد الخاصة بك',
+    'recovery_phrase_warning': '⚠️ اكتب هذه الكلمات الـ 12 على ورقة، بالترتيب، واحتفظ بها في مكان آمن وغير متصل بالإنترنت. يمكن لأي شخص يملك هذه الكلمات سرقة أموالك. لا تخزّن Padlock هذه العبارة في أي مكان ولا يمكنها استعادتها لك.',
+    'recovery_phrase_confirm_checkbox': 'لقد كتبت هذه الكلمات وحفظتها بأمان دون اتصال بالإنترنت.',
+    'continue_button': 'متابعة',
+    'loading_text': 'جارٍ التحميل...',
+    'could_not_load_balance': 'تعذّر تحميل الرصيد',
+    'receive_dialog_title': 'استلام',
+    'receive_address_warning': 'مسح أو مشاركة هذا الرمز يكشف فقط عن عنوان محفظتك - وليس عبارة الاسترداد أبدًا.',
+    'address_copied_toast': 'تم نسخ العنوان.',
+    'copy_button': 'نسخ',
+    'testnet_warning': '⚠️ شبكة اختبار (Polygon Amoy) - هذه ليست أموالًا حقيقية.',
+    'balances_label': 'الأرصدة',
+    'receive_button': 'استلام',
+    'send_button': 'إرسال',
+    'camera_permission_denied': 'تم رفض إذن الكاميرا. فعّله في إعدادات الهاتف > التطبيقات > Padlock > الأذونات.',
+    'scan_wallet_address_title': 'مسح عنوان المحفظة',
+    'invalid_wallet_address': 'عنوان محفظة غير صالح.',
+    'enter_valid_amount': 'أدخل مبلغًا صالحًا.',
+    'price_not_loaded': 'لم يتم تحميل السعر بعد - حاول مرة أخرى بعد قليل.',
+    'transaction_sent_title': 'تم إرسال المعاملة',
+    'done_button': 'تم',
+    'send_failed_prefix': 'فشل الإرسال',
+    'send_title': 'إرسال',
+    'recipient_address_label': 'عنوان محفظة المستلم',
+    'coin_label': 'العملة',
+    'amount_in_label': 'المبلغ بـ:',
+    'amount_usd_label': 'المبلغ (USD)',
+    'amount_label_prefix': 'المبلغ',
+    'loading_price': 'جارٍ تحميل السعر...',
+    'price_label_prefix': 'السعر',
+    'confirm_send_button': 'تأكيد وإرسال',
   },
   'TR': {
     'chats': 'Sohbetler',
@@ -2297,6 +2787,55 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'Gizlilik Kimliği',
     'profile_bio_paragraph': 'Askeri düzeyde Sıfır Bilgi şifrelemesiyle tasarlandı.\nTüm iletişimler kesinlikle Eşler Arası (P2P) çalışır.\nMesajlar, güvenli iz karşıtı bellek temizleme kullanılarak 24 saat sonra otomatik olarak kendini imha eder.\nSıfır iz, sıfır günlük, tam gizlilik.',
     'close_button': 'Kapat',
+    'crypto_code_too_weak': 'Kod çok zayıf: en az 10 karakter kullanın ve tekrarlanan veya sıralı desenlerden kaçının.',
+    'invalid_recovery_phrase': 'Geçersiz kurtarma ifadesi - kelimeleri kontrol edin ve tekrar deneyin.',
+    'crypto_vault_not_initialized': 'Bu cihazda Crypto Vault başlatılmadı.',
+    'invalid_crypto_vault_code': 'Geçersiz Crypto Vault kodu.',
+    'crypto_vault_corrupted': 'Crypto Vault verileri bozuk (kod doğruydu, ancak kasa dosyasının kendisi hasarlı).',
+    'create_crypto_vault_code_title': 'CRYPTO VAULT KODU OLUŞTUR',
+    'enter_crypto_vault_code_title': 'CRYPTO VAULT KODUNU GİRİN',
+    'crypto_code_desc_create': 'Bu kod, uygulama ve Vault Files kodlarından ayrıdır. Yalnızca sizin kontrol ettiğiniz yepyeni, saklayıcısız bir cüzdanı korur.',
+    'crypto_code_desc_enter': 'Cüzdanınıza erişmek için Crypto Vault kodunuzu girin.',
+    'create_new_wallet_instead': '← Bunun yerine yeni bir cüzdan oluştur',
+    'already_have_recovery_phrase': 'Zaten bir kurtarma ifadem var (telefon kayboldu / yeniden kuruldu)',
+    'recovery_phrase_label': '12 kelimelik kurtarma ifadeniz',
+    'recovery_phrase_hint': 'kelime1 kelime2 kelime3 ...',
+    'set_crypto_vault_code_label': 'Crypto Vault Kodu Belirle (BU cihaz için)',
+    'crypto_vault_code_label': 'Crypto Vault Kodu',
+    'restore_wallet_button': 'CÜZDANI GERİ YÜKLE',
+    'create_wallet_button': 'CÜZDAN OLUŞTUR',
+    'unlock_button': 'KİLİDİ AÇ',
+    'recovery_phrase_title': 'Kurtarma İfadeniz',
+    'recovery_phrase_warning': '⚠️ Bu 12 kelimeyi sırayla kağıda yazın ve güvenli, çevrimdışı bir yerde saklayın. Bu kelimelere sahip olan herkes fonlarınızı çalabilir. Padlock bu ifadeyi hiçbir yerde saklamaz ve sizin için kurtaramaz.',
+    'recovery_phrase_confirm_checkbox': 'Bu kelimeleri yazdım ve çevrimdışı olarak güvenli bir şekilde sakladım.',
+    'continue_button': 'DEVAM ET',
+    'loading_text': 'Yükleniyor...',
+    'could_not_load_balance': 'Bakiye yüklenemedi',
+    'receive_dialog_title': 'Al',
+    'receive_address_warning': 'Bu kodu taramak veya paylaşmak yalnızca cüzdan ADRESİNİZİ verir - kurtarma ifadenizi asla vermez.',
+    'address_copied_toast': 'Adres kopyalandı.',
+    'copy_button': 'KOPYALA',
+    'testnet_warning': '⚠️ TEST AĞI (Polygon Amoy) - bunlar GERÇEK paralar değildir.',
+    'balances_label': 'Bakiyeler',
+    'receive_button': 'AL',
+    'send_button': 'GÖNDER',
+    'camera_permission_denied': 'Kamera izni reddedildi. Telefon Ayarları > Uygulamalar > Padlock > İzinler bölümünden etkinleştirin.',
+    'scan_wallet_address_title': 'Cüzdan Adresini Tara',
+    'invalid_wallet_address': 'Geçersiz cüzdan adresi.',
+    'enter_valid_amount': 'Geçerli bir miktar girin.',
+    'price_not_loaded': 'Fiyat henüz yüklenmedi - birazdan tekrar deneyin.',
+    'transaction_sent_title': 'İşlem Gönderildi',
+    'done_button': 'BİTTİ',
+    'send_failed_prefix': 'Gönderme başarısız',
+    'send_title': 'Gönder',
+    'recipient_address_label': 'Alıcı cüzdan adresi',
+    'coin_label': 'Coin',
+    'amount_in_label': 'Miktar birimi:',
+    'amount_usd_label': 'Miktar (USD)',
+    'amount_label_prefix': 'Miktar',
+    'loading_price': 'Fiyat yükleniyor...',
+    'price_label_prefix': 'Fiyat',
+    'confirm_send_button': 'ONAYLA VE GÖNDER',
   },
   'IT': {
     'chats': 'Chat',
@@ -2382,6 +2921,55 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'ID Privacy',
     'profile_bio_paragraph': 'Progettato con crittografia Zero-Knowledge di livello militare.\nTutte le comunicazioni funzionano rigorosamente Peer-to-Peer (P2P).\nI messaggi si autodistruggono automaticamente dopo 24 ore\nutilizzando una sanificazione della memoria anti-tracciamento sicura.\nNessuna traccia, nessun registro, privacy totale.',
     'close_button': 'Chiudi',
+    'crypto_code_too_weak': 'Il codice è troppo debole: usa almeno 10 caratteri ed evita schemi ripetuti o sequenziali.',
+    'invalid_recovery_phrase': 'Frase di recupero non valida - controlla le parole e riprova.',
+    'crypto_vault_not_initialized': 'Crypto Vault non inizializzato su questo dispositivo.',
+    'invalid_crypto_vault_code': 'Codice Crypto Vault non valido.',
+    'crypto_vault_corrupted': 'I dati del Crypto Vault sono corrotti (il codice era corretto, ma il file del caveau stesso è danneggiato).',
+    'create_crypto_vault_code_title': 'CREA CODICE CRYPTO VAULT',
+    'enter_crypto_vault_code_title': 'INSERISCI CODICE CRYPTO VAULT',
+    'crypto_code_desc_create': 'Questo codice è separato dai codici dell\'app e di Vault Files. Protegge un portafoglio nuovo di zecca, non custodial, che controlli solo tu.',
+    'crypto_code_desc_enter': 'Inserisci il tuo codice Crypto Vault per accedere al tuo portafoglio.',
+    'create_new_wallet_instead': '← Crea invece un nuovo portafoglio',
+    'already_have_recovery_phrase': 'Ho già una frase di recupero (telefono perso / reinstallato)',
+    'recovery_phrase_label': 'La tua frase di recupero di 12 parole',
+    'recovery_phrase_hint': 'parola1 parola2 parola3 ...',
+    'set_crypto_vault_code_label': 'Imposta Codice Crypto Vault (per QUESTO dispositivo)',
+    'crypto_vault_code_label': 'Codice Crypto Vault',
+    'restore_wallet_button': 'RIPRISTINA PORTAFOGLIO',
+    'create_wallet_button': 'CREA PORTAFOGLIO',
+    'unlock_button': 'SBLOCCA',
+    'recovery_phrase_title': 'La Tua Frase di Recupero',
+    'recovery_phrase_warning': '⚠️ Scrivi queste 12 parole su carta, in ordine, e conservale in un luogo sicuro e offline. Chiunque abbia queste parole può rubare i tuoi fondi. Padlock NON memorizza questa frase da nessuna parte e non può recuperarla per te.',
+    'recovery_phrase_confirm_checkbox': 'Ho scritto queste parole e le ho conservate in sicurezza offline.',
+    'continue_button': 'CONTINUA',
+    'loading_text': 'Caricamento...',
+    'could_not_load_balance': 'Impossibile caricare il saldo',
+    'receive_dialog_title': 'Ricevi',
+    'receive_address_warning': 'Scansionare o condividere questo codice rivela solo l\'INDIRIZZO del tuo portafoglio - mai la tua frase di recupero.',
+    'address_copied_toast': 'Indirizzo copiato.',
+    'copy_button': 'COPIA',
+    'testnet_warning': '⚠️ RETE DI TEST (Polygon Amoy) - questi NON sono fondi reali.',
+    'balances_label': 'Saldi',
+    'receive_button': 'RICEVI',
+    'send_button': 'INVIA',
+    'camera_permission_denied': 'Permesso fotocamera negato. Attivalo in Impostazioni telefono > App > Padlock > Autorizzazioni.',
+    'scan_wallet_address_title': 'Scansiona Indirizzo Portafoglio',
+    'invalid_wallet_address': 'Indirizzo del portafoglio non valido.',
+    'enter_valid_amount': 'Inserisci un importo valido.',
+    'price_not_loaded': 'Quotazione non ancora caricata - riprova tra un momento.',
+    'transaction_sent_title': 'Transazione Inviata',
+    'done_button': 'FATTO',
+    'send_failed_prefix': 'Invio non riuscito',
+    'send_title': 'Invia',
+    'recipient_address_label': 'Indirizzo del portafoglio del destinatario',
+    'coin_label': 'Moneta',
+    'amount_in_label': 'Importo in:',
+    'amount_usd_label': 'Importo (USD)',
+    'amount_label_prefix': 'Importo',
+    'loading_price': 'Caricamento quotazione...',
+    'price_label_prefix': 'Quotazione',
+    'confirm_send_button': 'CONFERMA E INVIA',
   },
   'JA': {
     'chats': 'チャット',
@@ -2467,6 +3055,55 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'プライバシーID',
     'profile_bio_paragraph': '軍事レベルのゼロ知識暗号化で構築。\nすべての通信は厳密にピアツーピア（P2P）で動作します。\nメッセージは安全な追跡防止メモリ消去技術を使用して24時間後に自動的に自己破棄されます。\n痕跡ゼロ、ログゼロ、完全なプライバシー。',
     'close_button': '閉じる',
+    'crypto_code_too_weak': 'コードが弱すぎます：少なくとも10文字を使用し、繰り返しや連続したパターンを避けてください。',
+    'invalid_recovery_phrase': 'リカバリーフレーズが無効です - 単語を確認して再試行してください。',
+    'crypto_vault_not_initialized': 'このデバイスでCrypto Vaultが初期化されていません。',
+    'invalid_crypto_vault_code': 'Crypto Vaultコードが無効です。',
+    'crypto_vault_corrupted': 'Crypto Vaultのデータが破損しています（コードは正しいですが、保管庫ファイル自体が破損しています）。',
+    'create_crypto_vault_code_title': 'CRYPTO VAULTコードを作成',
+    'enter_crypto_vault_code_title': 'CRYPTO VAULTコードを入力',
+    'crypto_code_desc_create': 'このコードはアプリやVault Filesのコードとは別です。あなただけが管理する、まったく新しい非管理型ウォレットを保護します。',
+    'crypto_code_desc_enter': 'ウォレットにアクセスするにはCrypto Vaultコードを入力してください。',
+    'create_new_wallet_instead': '← 代わりに新しいウォレットを作成',
+    'already_have_recovery_phrase': 'すでにリカバリーフレーズを持っています（携帯電話を紛失/再インストール）',
+    'recovery_phrase_label': '12語のリカバリーフレーズ',
+    'recovery_phrase_hint': '単語1 単語2 単語3 ...',
+    'set_crypto_vault_code_label': 'Crypto Vaultコードを設定（このデバイス用）',
+    'crypto_vault_code_label': 'Crypto Vaultコード',
+    'restore_wallet_button': 'ウォレットを復元',
+    'create_wallet_button': 'ウォレットを作成',
+    'unlock_button': 'ロック解除',
+    'recovery_phrase_title': 'リカバリーフレーズ',
+    'recovery_phrase_warning': '⚠️ この12語を順番に紙に書き留め、安全なオフラインの場所に保管してください。これらの単語を持つ人は誰でもあなたの資金を盗むことができます。Padlockはこのフレーズをどこにも保存せず、あなたのために復元することはできません。',
+    'recovery_phrase_confirm_checkbox': 'これらの単語を書き留め、安全にオフラインで保管しました。',
+    'continue_button': '続ける',
+    'loading_text': '読み込み中...',
+    'could_not_load_balance': '残高を読み込めませんでした',
+    'receive_dialog_title': '受け取る',
+    'receive_address_warning': 'このコードをスキャンまたは共有すると、ウォレットのアドレスのみが公開されます - リカバリーフレーズは決して公開されません。',
+    'address_copied_toast': 'アドレスをコピーしました。',
+    'copy_button': 'コピー',
+    'testnet_warning': '⚠️ テストネット（Polygon Amoy）- これらは実際の資金ではありません。',
+    'balances_label': '残高',
+    'receive_button': '受け取る',
+    'send_button': '送る',
+    'camera_permission_denied': 'カメラの許可が拒否されました。電話の設定 > アプリ > Padlock > 権限で有効にしてください。',
+    'scan_wallet_address_title': 'ウォレットアドレスをスキャン',
+    'invalid_wallet_address': 'ウォレットアドレスが無効です。',
+    'enter_valid_amount': '有効な金額を入力してください。',
+    'price_not_loaded': '価格がまだ読み込まれていません - 少し待ってから再試行してください。',
+    'transaction_sent_title': '取引送信済み',
+    'done_button': '完了',
+    'send_failed_prefix': '送信失敗',
+    'send_title': '送る',
+    'recipient_address_label': '受取人のウォレットアドレス',
+    'coin_label': 'コイン',
+    'amount_in_label': '金額の単位：',
+    'amount_usd_label': '金額（USD）',
+    'amount_label_prefix': '金額',
+    'loading_price': '価格を読み込み中...',
+    'price_label_prefix': '価格',
+    'confirm_send_button': '確認して送信',
   },
   'HI': {
     'chats': 'चैट',
@@ -2552,6 +3189,55 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'गोपनीयता ID',
     'profile_bio_paragraph': 'सैन्य-स्तर की ज़ीरो-नॉलेज एन्क्रिप्शन के साथ बनाया गया।\nसभी संचार सख्ती से पीयर-टू-पीयर (P2P) पर काम करते हैं।\nसंदेश सुरक्षित एंटी-ट्रेस मेमोरी सैनिटाइजेशन का उपयोग करके 24 घंटे बाद स्वतः नष्ट हो जाते हैं।\nशून्य निशान, शून्य लॉग, पूर्ण गोपनीयता।',
     'close_button': 'बंद करें',
+    'crypto_code_too_weak': 'कोड बहुत कमज़ोर है: कम से कम 10 अक्षरों का उपयोग करें और दोहराए जाने वाले या क्रमिक पैटर्न से बचें।',
+    'invalid_recovery_phrase': 'अमान्य रिकवरी फ्रेज़ - शब्दों की जाँच करें और फिर से प्रयास करें।',
+    'crypto_vault_not_initialized': 'इस डिवाइस पर Crypto Vault प्रारंभ नहीं किया गया है।',
+    'invalid_crypto_vault_code': 'अमान्य Crypto Vault कोड।',
+    'crypto_vault_corrupted': 'Crypto Vault डेटा दूषित है (कोड सही था, लेकिन वॉल्ट फ़ाइल स्वयं क्षतिग्रस्त है)।',
+    'create_crypto_vault_code_title': 'CRYPTO VAULT कोड बनाएं',
+    'enter_crypto_vault_code_title': 'CRYPTO VAULT कोड दर्ज करें',
+    'crypto_code_desc_create': 'यह कोड आपके ऐप और Vault Files कोड से अलग है। यह एक बिल्कुल नए, गैर-कस्टोडियल वॉलेट की रक्षा करता है जिसे केवल आप नियंत्रित करते हैं।',
+    'crypto_code_desc_enter': 'अपने वॉलेट तक पहुंचने के लिए अपना Crypto Vault कोड दर्ज करें।',
+    'create_new_wallet_instead': '← इसके बजाय एक नया वॉलेट बनाएं',
+    'already_have_recovery_phrase': 'मेरे पास पहले से ही एक रिकवरी फ्रेज़ है (फोन खो गया / पुनः स्थापित किया)',
+    'recovery_phrase_label': 'आपका 12-शब्द रिकवरी फ्रेज़',
+    'recovery_phrase_hint': 'शब्द1 शब्द2 शब्द3 ...',
+    'set_crypto_vault_code_label': 'Crypto Vault कोड सेट करें (इस डिवाइस के लिए)',
+    'crypto_vault_code_label': 'Crypto Vault कोड',
+    'restore_wallet_button': 'वॉलेट पुनर्स्थापित करें',
+    'create_wallet_button': 'वॉलेट बनाएं',
+    'unlock_button': 'अनलॉक करें',
+    'recovery_phrase_title': 'आपका रिकवरी फ्रेज़',
+    'recovery_phrase_warning': '⚠️ इन 12 शब्दों को क्रम में कागज़ पर लिखें, और उन्हें कहीं सुरक्षित और ऑफ़लाइन रखें। इन शब्दों वाला कोई भी व्यक्ति आपका धन चुरा सकता है। Padlock इस फ्रेज़ को कहीं भी संग्रहीत नहीं करता और आपके लिए इसे पुनर्प्राप्त नहीं कर सकता।',
+    'recovery_phrase_confirm_checkbox': 'मैंने ये शब्द लिख लिए हैं और उन्हें सुरक्षित रूप से ऑफ़लाइन संग्रहीत कर लिया है।',
+    'continue_button': 'जारी रखें',
+    'loading_text': 'लोड हो रहा है...',
+    'could_not_load_balance': 'बैलेंस लोड नहीं हो सका',
+    'receive_dialog_title': 'प्राप्त करें',
+    'receive_address_warning': 'इस कोड को स्कैन या साझा करने से केवल आपके वॉलेट का पता ही मिलता है - कभी भी आपका रिकवरी फ्रेज़ नहीं।',
+    'address_copied_toast': 'पता कॉपी किया गया।',
+    'copy_button': 'कॉपी करें',
+    'testnet_warning': '⚠️ टेस्टनेट (Polygon Amoy) - ये वास्तविक धनराशि नहीं हैं।',
+    'balances_label': 'बैलेंस',
+    'receive_button': 'प्राप्त करें',
+    'send_button': 'भेजें',
+    'camera_permission_denied': 'कैमरा अनुमति अस्वीकृत। फ़ोन सेटिंग्स > ऐप्स > Padlock > अनुमतियों में इसे सक्षम करें।',
+    'scan_wallet_address_title': 'वॉलेट पता स्कैन करें',
+    'invalid_wallet_address': 'अमान्य वॉलेट पता।',
+    'enter_valid_amount': 'एक वैध राशि दर्ज करें।',
+    'price_not_loaded': 'कीमत अभी लोड नहीं हुई - कुछ देर बाद फिर से प्रयास करें।',
+    'transaction_sent_title': 'लेनदेन भेजा गया',
+    'done_button': 'हो गया',
+    'send_failed_prefix': 'भेजना विफल',
+    'send_title': 'भेजें',
+    'recipient_address_label': 'प्राप्तकर्ता का वॉलेट पता',
+    'coin_label': 'कॉइन',
+    'amount_in_label': 'राशि इकाई:',
+    'amount_usd_label': 'राशि (USD)',
+    'amount_label_prefix': 'राशि',
+    'loading_price': 'कीमत लोड हो रही है...',
+    'price_label_prefix': 'कीमत',
+    'confirm_send_button': 'पुष्टि करें और भेजें',
   },
   'NL': {
     'chats': 'Chats',
@@ -2637,6 +3323,55 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'Privacy-ID',
     'profile_bio_paragraph': 'Ontworpen met militaire Zero-Knowledge-versleuteling.\nAlle communicatie werkt strikt Peer-to-Peer (P2P).\nBerichten vernietigen zichzelf automatisch na 24 uur\nmet behulp van veilige anti-tracering geheugensanering.\nGeen spoor, geen logboeken, volledige privacy.',
     'close_button': 'Sluiten',
+    'crypto_code_too_weak': 'Code is te zwak: gebruik minstens 10 tekens en vermijd herhalende of opeenvolgende patronen.',
+    'invalid_recovery_phrase': 'Ongeldige herstelzin - controleer de woorden en probeer het opnieuw.',
+    'crypto_vault_not_initialized': 'Crypto Vault is niet geïnitialiseerd op dit apparaat.',
+    'invalid_crypto_vault_code': 'Ongeldige Crypto Vault-code.',
+    'crypto_vault_corrupted': 'Crypto Vault-gegevens zijn beschadigd (code was correct, maar het kluisbestand zelf is beschadigd).',
+    'create_crypto_vault_code_title': 'MAAK CRYPTO VAULT-CODE',
+    'enter_crypto_vault_code_title': 'VOER CRYPTO VAULT-CODE IN',
+    'crypto_code_desc_create': 'Deze code is anders dan die van je app en Vault Files. Het beschermt een volledig nieuwe, non-custodiale wallet die alleen jij beheert.',
+    'crypto_code_desc_enter': 'Voer je Crypto Vault-code in om toegang te krijgen tot je wallet.',
+    'create_new_wallet_instead': '← Maak in plaats daarvan een nieuwe wallet',
+    'already_have_recovery_phrase': 'Ik heb al een herstelzin (telefoon kwijt / opnieuw geïnstalleerd)',
+    'recovery_phrase_label': 'Je herstelzin van 12 woorden',
+    'recovery_phrase_hint': 'woord1 woord2 woord3 ...',
+    'set_crypto_vault_code_label': 'Stel Crypto Vault-code in (voor dit apparaat)',
+    'crypto_vault_code_label': 'Crypto Vault-code',
+    'restore_wallet_button': 'Wallet herstellen',
+    'create_wallet_button': 'Wallet aanmaken',
+    'unlock_button': 'Ontgrendelen',
+    'recovery_phrase_title': 'Je herstelzin',
+    'recovery_phrase_warning': '⚠️ Schrijf deze 12 woorden in volgorde op papier en bewaar ze ergens veilig en offline. Iedereen met deze woorden kan je geld stelen. Padlock slaat deze zin nergens op en kan hem niet voor je herstellen.',
+    'recovery_phrase_confirm_checkbox': 'Ik heb deze woorden opgeschreven en veilig offline bewaard.',
+    'continue_button': 'Doorgaan',
+    'loading_text': 'Laden...',
+    'could_not_load_balance': 'Saldo kon niet worden geladen',
+    'receive_dialog_title': 'Ontvangen',
+    'receive_address_warning': 'Het scannen of delen van deze code onthult alleen je walletadres - nooit je herstelzin.',
+    'address_copied_toast': 'Adres gekopieerd.',
+    'copy_button': 'Kopiëren',
+    'testnet_warning': '⚠️ Testnet (Polygon Amoy) - dit is geen echt geld.',
+    'balances_label': 'Saldi',
+    'receive_button': 'Ontvangen',
+    'send_button': 'Verzenden',
+    'camera_permission_denied': 'Camerarechten geweigerd. Schakel dit in bij Telefooninstellingen > Apps > Padlock > Rechten.',
+    'scan_wallet_address_title': 'Scan walletadres',
+    'invalid_wallet_address': 'Ongeldig walletadres.',
+    'enter_valid_amount': 'Voer een geldig bedrag in.',
+    'price_not_loaded': 'Prijs nog niet geladen - probeer het over een moment opnieuw.',
+    'transaction_sent_title': 'Transactie verzonden',
+    'done_button': 'Klaar',
+    'send_failed_prefix': 'Verzenden mislukt',
+    'send_title': 'Verzenden',
+    'recipient_address_label': 'Walletadres van ontvanger',
+    'coin_label': 'Munt',
+    'amount_in_label': 'Bedrag in:',
+    'amount_usd_label': 'Bedrag (USD)',
+    'amount_label_prefix': 'Bedrag',
+    'loading_price': 'Prijs laden...',
+    'price_label_prefix': 'Prijs',
+    'confirm_send_button': 'Bevestigen en verzenden',
   },
   'PL': {
     'chats': 'Czaty',
@@ -2722,6 +3457,55 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'ID Prywatności',
     'profile_bio_paragraph': 'Zaprojektowano z szyfrowaniem Zero-Knowledge wojskowej klasy.\nWszystkie komunikacje działają ściśle w trybie Peer-to-Peer (P2P).\nWiadomości automatycznie samoniszczą się po 24 godzinach\nprzy użyciu bezpiecznego czyszczenia pamięci anty-śledzenia.\nZero śladu, zero logów, pełna prywatność.',
     'close_button': 'Zamknij',
+    'crypto_code_too_weak': 'Kod jest za słaby: użyj co najmniej 10 znaków i unikaj powtarzających się lub sekwencyjnych wzorców.',
+    'invalid_recovery_phrase': 'Nieprawidłowa fraza odzyskiwania - sprawdź słowa i spróbuj ponownie.',
+    'crypto_vault_not_initialized': 'Crypto Vault nie został zainicjowany na tym urządzeniu.',
+    'invalid_crypto_vault_code': 'Nieprawidłowy kod Crypto Vault.',
+    'crypto_vault_corrupted': 'Dane Crypto Vault są uszkodzone (kod był poprawny, ale sam plik skarbca jest uszkodzony).',
+    'create_crypto_vault_code_title': 'UTWÓRZ KOD CRYPTO VAULT',
+    'enter_crypto_vault_code_title': 'WPROWADŹ KOD CRYPTO VAULT',
+    'crypto_code_desc_create': 'Ten kod różni się od kodu aplikacji i Vault Files. Chroni zupełnie nowy, niekustodialny portfel, który kontrolujesz tylko Ty.',
+    'crypto_code_desc_enter': 'Wprowadź swój kod Crypto Vault, aby uzyskać dostęp do portfela.',
+    'create_new_wallet_instead': '← Utwórz zamiast tego nowy portfel',
+    'already_have_recovery_phrase': 'Mam już frazę odzyskiwania (zgubiony telefon / ponowna instalacja)',
+    'recovery_phrase_label': 'Twoja 12-wyrazowa fraza odzyskiwania',
+    'recovery_phrase_hint': 'słowo1 słowo2 słowo3 ...',
+    'set_crypto_vault_code_label': 'Ustaw kod Crypto Vault (dla tego urządzenia)',
+    'crypto_vault_code_label': 'Kod Crypto Vault',
+    'restore_wallet_button': 'Przywróć portfel',
+    'create_wallet_button': 'Utwórz portfel',
+    'unlock_button': 'Odblokuj',
+    'recovery_phrase_title': 'Twoja fraza odzyskiwania',
+    'recovery_phrase_warning': '⚠️ Zapisz te 12 słów w kolejności na papierze i przechowuj je w bezpiecznym miejscu offline. Każdy, kto zna te słowa, może ukraść Twoje środki. Padlock nigdzie nie przechowuje tej frazy i nie może jej dla Ciebie odzyskać.',
+    'recovery_phrase_confirm_checkbox': 'Zapisałem te słowa i przechowuję je bezpiecznie offline.',
+    'continue_button': 'Kontynuuj',
+    'loading_text': 'Ładowanie...',
+    'could_not_load_balance': 'Nie udało się załadować salda',
+    'receive_dialog_title': 'Odbierz',
+    'receive_address_warning': 'Skanowanie lub udostępnianie tego kodu ujawnia tylko adres Twojego portfela - nigdy Twoją frazę odzyskiwania.',
+    'address_copied_toast': 'Adres skopiowany.',
+    'copy_button': 'Kopiuj',
+    'testnet_warning': '⚠️ Testnet (Polygon Amoy) - to nie są prawdziwe środki.',
+    'balances_label': 'Salda',
+    'receive_button': 'Odbierz',
+    'send_button': 'Wyślij',
+    'camera_permission_denied': 'Odmówiono dostępu do kamery. Włącz go w Ustawienia telefonu > Aplikacje > Padlock > Uprawnienia.',
+    'scan_wallet_address_title': 'Skanuj adres portfela',
+    'invalid_wallet_address': 'Nieprawidłowy adres portfela.',
+    'enter_valid_amount': 'Wprowadź prawidłową kwotę.',
+    'price_not_loaded': 'Cena nie została jeszcze załadowana - spróbuj ponownie za chwilę.',
+    'transaction_sent_title': 'Transakcja wysłana',
+    'done_button': 'Gotowe',
+    'send_failed_prefix': 'Wysyłanie nie powiodło się',
+    'send_title': 'Wyślij',
+    'recipient_address_label': 'Adres portfela odbiorcy',
+    'coin_label': 'Moneta',
+    'amount_in_label': 'Kwota w:',
+    'amount_usd_label': 'Kwota (USD)',
+    'amount_label_prefix': 'Kwota',
+    'loading_price': 'Ładowanie ceny...',
+    'price_label_prefix': 'Cena',
+    'confirm_send_button': 'Potwierdź i wyślij',
   },
 };
 
@@ -8933,7 +9717,8 @@ class SpeedDialLikeFab extends StatelessWidget {
 // SECURE CRYPTO VAULT - carteira não-custodial (FASE 1: gerar, receber, ver saldo)
 // ----------------------------------------------------
 class CryptoVaultGateScreen extends StatefulWidget {
-  const CryptoVaultGateScreen({super.key});
+  final Map<String, String> local;
+  const CryptoVaultGateScreen({super.key, required this.local});
   @override
   State<CryptoVaultGateScreen> createState() => _CryptoVaultGateScreenState();
 }
@@ -8960,7 +9745,7 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
 
     if (firstTime && _passphraseScore(code) < 1) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Code is too weak: use at least 10 characters and avoid repeated or sequential patterns.')),
+        SnackBar(content: Text(widget.local['crypto_code_too_weak']!)),
       );
       return;
     }
@@ -8975,7 +9760,7 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
         restoredMnemonic = bip39.Mnemonic.fromSentence(sentence, bip39.Language.english);
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid recovery phrase - check the words and try again.')),
+          SnackBar(content: Text(widget.local['invalid_recovery_phrase']!)),
         );
         return;
       }
@@ -8984,7 +9769,7 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
     setState(() => _isProcessing = true);
     try {
       final salt = firstTime ? await CryptoWalletKey.createSalt() : await CryptoWalletKey.getSalt();
-      if (salt == null) throw Exception('Crypto Vault not initialized on this device.');
+      if (salt == null) throw Exception(widget.local['crypto_vault_not_initialized']!);
 
       final derivedKey = await PadlockVaultKey.deriveKey(code, salt);
 
@@ -8995,7 +9780,7 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
       if (!firstTime) {
         final validKey = await PadlockVaultKey.verifyKeyHash('padlock_crypto_vault_keyhash', derivedKey);
         if (!validKey) {
-          throw Exception('Invalid Crypto Vault code.');
+          throw Exception(widget.local['invalid_crypto_vault_code']!);
         }
       }
 
@@ -9007,7 +9792,7 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
       // Segunda camada, dentro do próprio cofre.
       final canary = walletBox.get('_vault_canary');
       if (!firstTime && canary != 'padlock_ok') {
-        throw Exception('Crypto Vault data is corrupted (code was correct, but the vault file itself is damaged).');
+        throw Exception(widget.local['crypto_vault_corrupted']!);
       }
 
       CryptoWalletKey.markUnlocked();
@@ -9023,7 +9808,7 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
           await PadlockWallet.storeMnemonic(walletBox, mnemonic.sentence);
           if (mounted) {
             await Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => MnemonicRevealScreen(sentence: mnemonic.sentence)),
+              MaterialPageRoute(builder: (context) => MnemonicRevealScreen(sentence: mnemonic.sentence, local: widget.local)),
             );
           }
         }
@@ -9031,7 +9816,7 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const CryptoVaultHomeScreen()),
+          MaterialPageRoute(builder: (context) => CryptoVaultHomeScreen(local: widget.local)),
         );
       }
     } catch (e) {
@@ -9064,7 +9849,7 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: const Text('Secure Crypto Vault', style: TextStyle(color: Colors.greenAccent)),
+        title: Text(widget.local['secure_crypto_vault_short'] ?? 'Secure Crypto Vault', style: const TextStyle(color: Colors.greenAccent)),
         iconTheme: const IconThemeData(color: Colors.greenAccent),
         elevation: 8,
         shadowColor: Colors.black,
@@ -9112,15 +9897,15 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  firstTime ? 'CREATE CRYPTO VAULT CODE' : 'ENTER CRYPTO VAULT CODE',
+                  firstTime ? widget.local['create_crypto_vault_code_title']! : widget.local['enter_crypto_vault_code_title']!,
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.2),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   firstTime
-                      ? 'This code is separate from your app and Vault Files codes. It protects a brand-new, non-custodial wallet that only you control.'
-                      : 'Enter your Crypto Vault code to access your wallet.',
+                      ? widget.local['crypto_code_desc_create']!
+                      : widget.local['crypto_code_desc_enter']!,
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey.shade400, fontSize: 12, height: 1.3),
                 ),
@@ -9129,7 +9914,7 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
                   TextButton(
                     onPressed: () => setState(() => _restoreMode = !_restoreMode),
                     child: Text(
-                      _restoreMode ? '← Create a new wallet instead' : 'I already have a recovery phrase (lost phone / reinstall)',
+                      _restoreMode ? widget.local['create_new_wallet_instead']! : widget.local['already_have_recovery_phrase']!,
                       style: const TextStyle(color: Colors.lightBlueAccent, fontSize: 12),
                     ),
                   ),
@@ -9141,9 +9926,9 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
                     maxLines: 3,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      labelText: 'Your 12-word recovery phrase',
+                      labelText: widget.local['recovery_phrase_label']!,
                       labelStyle: const TextStyle(color: Colors.grey),
-                      hintText: 'word1 word2 word3 ...',
+                      hintText: widget.local['recovery_phrase_hint']!,
                       hintStyle: TextStyle(color: Colors.grey.shade700),
                       enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
                       focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.lightBlueAccent), borderRadius: BorderRadius.all(Radius.circular(8))),
@@ -9156,7 +9941,7 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
                   obscureText: _obscureText,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    labelText: firstTime ? 'Set Crypto Vault Code (for THIS device)' : 'Crypto Vault Code',
+                    labelText: firstTime ? widget.local['set_crypto_vault_code_label']! : widget.local['crypto_vault_code_label']!,
                     labelStyle: const TextStyle(color: Colors.grey),
                     enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
                     focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.lightBlueAccent), borderRadius: BorderRadius.all(Radius.circular(8))),
@@ -9183,7 +9968,7 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
                       child: _isProcessing
                           ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.greenAccent))
                           : Text(
-                              firstTime ? (_restoreMode ? 'RESTORE WALLET' : 'CREATE WALLET') : 'UNLOCK',
+                              firstTime ? (_restoreMode ? widget.local['restore_wallet_button']! : widget.local['create_wallet_button']!) : widget.local['unlock_button']!,
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                             ),
                     ),
@@ -9204,7 +9989,8 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
 // para sempre, sem hipótese de recuperação - a Padlock nunca guarda cópia.
 class MnemonicRevealScreen extends StatefulWidget {
   final String sentence;
-  const MnemonicRevealScreen({super.key, required this.sentence});
+  final Map<String, String> local;
+  const MnemonicRevealScreen({super.key, required this.sentence, required this.local});
   @override
   State<MnemonicRevealScreen> createState() => _MnemonicRevealScreenState();
 }
@@ -9222,7 +10008,7 @@ class _MnemonicRevealScreenState extends State<MnemonicRevealScreen> {
         appBar: AppBar(
           backgroundColor: Colors.transparent,
           automaticallyImplyLeading: false,
-          title: const Text('Your Recovery Phrase', style: TextStyle(color: Colors.greenAccent)),
+          title: Text(widget.local['recovery_phrase_title']!, style: const TextStyle(color: Colors.greenAccent)),
           elevation: 8,
           shadowColor: Colors.black,
           flexibleSpace: Container(
@@ -9242,9 +10028,9 @@ class _MnemonicRevealScreenState extends State<MnemonicRevealScreen> {
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
-              const Text(
-                '⚠️ Write these 12 words down on paper, in order, and keep them somewhere safe and offline. Anyone with these words can steal your funds. Padlock does NOT store this phrase anywhere and cannot recover it for you.',
-                style: TextStyle(color: Colors.redAccent, fontSize: 12, height: 1.4),
+              Text(
+                widget.local['recovery_phrase_warning']!,
+                style: const TextStyle(color: Colors.redAccent, fontSize: 12, height: 1.4),
               ),
               const SizedBox(height: 20),
               Expanded(
@@ -9265,7 +10051,7 @@ class _MnemonicRevealScreenState extends State<MnemonicRevealScreen> {
               CheckboxListTile(
                 value: _confirmed,
                 onChanged: (v) => setState(() => _confirmed = v ?? false),
-                title: const Text('I have written down these words and stored them safely offline.', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                title: Text(widget.local['recovery_phrase_confirm_checkbox']!, style: const TextStyle(color: Colors.white70, fontSize: 12)),
                 activeColor: Colors.greenAccent,
                 controlAffinity: ListTileControlAffinity.leading,
               ),
@@ -9284,7 +10070,7 @@ class _MnemonicRevealScreenState extends State<MnemonicRevealScreen> {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, foregroundColor: Colors.white),
                     onPressed: _confirmed ? () => Navigator.pop(context) : null,
-                    child: const Text('CONTINUE', style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: Text(widget.local['continue_button']!, style: const TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ),
               ),
@@ -9300,7 +10086,8 @@ class _MnemonicRevealScreenState extends State<MnemonicRevealScreen> {
 // SECURE CRYPTO VAULT - saldo e receção. Enviar fica para a fase 2, depois
 // de confirmares que isto funciona bem num telemóvel real.
 class CryptoVaultHomeScreen extends StatefulWidget {
-  const CryptoVaultHomeScreen({super.key});
+  final Map<String, String> local;
+  const CryptoVaultHomeScreen({super.key, required this.local});
   @override
   State<CryptoVaultHomeScreen> createState() => _CryptoVaultHomeScreenState();
 }
@@ -9311,13 +10098,16 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
   EthPrivateKey? _credentials;
   // Uma entrada por moeda suportada: texto do saldo já formatado + cotação
   // USD (null enquanto não chegou/falhou), para mostrar "≈ $X.XX" por baixo.
-  final Map<String, String> _balanceText = {for (final t in PadlockWallet.supportedTokens) t.symbol: 'Loading...'};
+  final Map<String, String> _balanceText = {};
   final Map<String, double?> _usdPrice = {for (final t in PadlockWallet.supportedTokens) t.symbol: null};
   bool _isRefreshing = false;
 
   @override
   void initState() {
     super.initState();
+    for (final token in PadlockWallet.supportedTokens) {
+      _balanceText[token.symbol] = widget.local['loading_text']!;
+    }
     _loadWallet();
     _sessionTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (!CryptoWalletKey.isUnlocked) _lockAndExit();
@@ -9370,7 +10160,7 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
         }
       } catch (e) {
         print('Erro ao carregar saldo de ${token.symbol} (ambas as RPCs falharam): $e');
-        if (mounted) setState(() => _balanceText[token.symbol] = 'Could not load balance');
+        if (mounted) setState(() => _balanceText[token.symbol] = widget.local['could_not_load_balance']!);
       }
     }));
     if (mounted) setState(() => _isRefreshing = false);
@@ -9383,7 +10173,7 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF151515),
         shape: RoundedRectangleBorder(side: const BorderSide(color: Colors.greenAccent, width: 1), borderRadius: BorderRadius.circular(12)),
-        title: const Text('Receive', style: TextStyle(color: Colors.greenAccent)),
+        title: Text(widget.local['receive_dialog_title']!, style: const TextStyle(color: Colors.greenAccent)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -9393,7 +10183,7 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
               child: QrImageView(data: _address!.hexEip55, size: 200),
             ),
             const SizedBox(height: 16),
-            const Text('Scanning or sharing this code gives out your wallet ADDRESS only - never your recovery phrase.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 10)),
+            Text(widget.local['receive_address_warning']!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey, fontSize: 10)),
             const SizedBox(height: 10),
             SelectableText(_address!.hexEip55, style: const TextStyle(color: Colors.white, fontSize: 11)),
           ],
@@ -9402,11 +10192,11 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
           TextButton(
             onPressed: () {
               Clipboard.setData(ClipboardData(text: _address!.hexEip55));
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Address copied.')));
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(widget.local['address_copied_toast']!)));
             },
-            child: const Text('COPY', style: TextStyle(color: Colors.lightBlueAccent)),
+            child: Text(widget.local['copy_button']!.toUpperCase(), style: const TextStyle(color: Colors.lightBlueAccent)),
           ),
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CLOSE', style: TextStyle(color: Colors.grey))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(widget.local['close_button']!.toUpperCase(), style: const TextStyle(color: Colors.grey))),
         ],
       ),
     );
@@ -9416,7 +10206,7 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
     if (_address == null || _credentials == null) return;
     final result = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (context) => CryptoSendScreen(credentials: _credentials!, fromAddress: _address!),
+        builder: (context) => CryptoSendScreen(credentials: _credentials!, fromAddress: _address!, local: widget.local),
       ),
     );
     if (result == true) await _refreshBalance();
@@ -9428,7 +10218,7 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: const Text('Secure Crypto Vault', style: TextStyle(color: Colors.greenAccent)),
+        title: Text(widget.local['secure_crypto_vault_short'] ?? 'Secure Crypto Vault', style: const TextStyle(color: Colors.greenAccent)),
         iconTheme: const IconThemeData(color: Colors.greenAccent),
         elevation: 8,
         shadowColor: Colors.black,
@@ -9461,7 +10251,7 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
                   decoration: BoxDecoration(color: Colors.redAccent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
-                  child: const Text('⚠️ TESTNET (Polygon Amoy) - these are NOT real funds.', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                  child: Text(widget.local['testnet_warning']!, style: const TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(height: 30),
                 // "Tubo" espelhado verde, tal como no Perfil - a moldura da
@@ -9489,7 +10279,7 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text('Balances', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    Text(widget.local['balances_label']!, style: const TextStyle(color: Colors.grey, fontSize: 12)),
                     IconButton(
                       icon: _isRefreshing
                           ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.lightBlueAccent))
@@ -9513,7 +10303,7 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
                         Text('${token.symbol}: ', style: const TextStyle(color: Colors.lightBlueAccent, fontSize: 16, fontWeight: FontWeight.bold)),
                         Flexible(
                           child: Text(
-                            _balanceText[token.symbol] ?? 'Loading...',
+                            _balanceText[token.symbol] ?? widget.local['loading_text']!,
                             style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -9543,7 +10333,7 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
                           onPressed: _showQr,
                           icon: const Icon(Icons.qr_code),
-                          label: const Text('RECEIVE'),
+                          label: Text(widget.local['receive_button']!.toUpperCase()),
                         ),
                       ),
                     ),
@@ -9558,7 +10348,7 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
                           style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, foregroundColor: Colors.lightBlueAccent, padding: const EdgeInsets.symmetric(vertical: 14)),
                           onPressed: (_address != null && _credentials != null) ? _openSendScreen : null,
                           icon: const Icon(Icons.send),
-                          label: const Text('SEND'),
+                          label: Text(widget.local['send_button']!.toUpperCase()),
                         ),
                       ),
                     ),
@@ -9580,7 +10370,8 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
 class CryptoSendScreen extends StatefulWidget {
   final EthPrivateKey credentials;
   final EthereumAddress fromAddress;
-  const CryptoSendScreen({super.key, required this.credentials, required this.fromAddress});
+  final Map<String, String> local;
+  const CryptoSendScreen({super.key, required this.credentials, required this.fromAddress, required this.local});
   @override
   State<CryptoSendScreen> createState() => _CryptoSendScreenState();
 }
@@ -9623,7 +10414,7 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
       if (!camStatus.isGranted) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Camera permission denied. Enable it in phone Settings > Apps > Padlock > Permissions.')),
+            SnackBar(content: Text(widget.local['camera_permission_denied']!)),
           );
         }
         return;
@@ -9633,7 +10424,7 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
         context,
         MaterialPageRoute(
           builder: (context) => Scaffold(
-            appBar: AppBar(title: const Text('Scan Wallet Address')),
+            appBar: AppBar(title: Text(widget.local['scan_wallet_address_title']!)),
             body: MobileScanner(
               onDetect: (capture) {
                 if (scanned) return;
@@ -9664,7 +10455,7 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
       toAddress = EthereumAddress.fromHex(addressText);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid wallet address.')),
+        SnackBar(content: Text(widget.local['invalid_wallet_address']!)),
       );
       return;
     }
@@ -9672,7 +10463,7 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
     final typedValue = double.tryParse(amountText);
     if (typedValue == null || typedValue <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid amount.')),
+        SnackBar(content: Text(widget.local['enter_valid_amount']!)),
       );
       return;
     }
@@ -9685,7 +10476,7 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
     if (_amountInUsd) {
       if (_price == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Price not loaded yet - try again in a moment.')),
+          SnackBar(content: Text(widget.local['price_not_loaded']!)),
         );
         return;
       }
@@ -9718,7 +10509,7 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
           builder: (ctx) => AlertDialog(
             backgroundColor: const Color(0xFF151515),
             shape: RoundedRectangleBorder(side: const BorderSide(color: Colors.greenAccent, width: 1), borderRadius: BorderRadius.circular(12)),
-            title: const Text('Transaction Sent', style: TextStyle(color: Colors.greenAccent)),
+            title: Text(widget.local['transaction_sent_title']!, style: const TextStyle(color: Colors.greenAccent)),
             content: SelectableText(txHash, style: const TextStyle(color: Colors.white70, fontSize: 12)),
             actions: [
               TextButton(
@@ -9726,7 +10517,7 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
                   Navigator.pop(ctx);
                   Navigator.pop(context, true);
                 },
-                child: const Text('DONE', style: TextStyle(color: Colors.lightBlueAccent)),
+                child: Text(widget.local['done_button']!.toUpperCase(), style: const TextStyle(color: Colors.lightBlueAccent)),
               ),
             ],
           ),
@@ -9735,7 +10526,7 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Send failed: $e')),
+          SnackBar(content: Text('${widget.local['send_failed_prefix']}: $e')),
         );
       }
     } finally {
@@ -9749,7 +10540,7 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: const Text('Send', style: TextStyle(color: Colors.lightBlueAccent)),
+        title: Text(widget.local['send_title']!, style: const TextStyle(color: Colors.lightBlueAccent)),
         iconTheme: const IconThemeData(color: Colors.lightBlueAccent),
         elevation: 8,
         shadowColor: Colors.black,
@@ -9779,14 +10570,14 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
                   decoration: BoxDecoration(color: Colors.redAccent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
-                  child: const Text('⚠️ TESTNET (Polygon Amoy) - these are NOT real funds.', style: TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold)),
+                  child: Text(widget.local['testnet_warning']!, style: const TextStyle(color: Colors.redAccent, fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(height: 24),
                 TextField(
                   controller: _addressController,
                   style: const TextStyle(color: Colors.white, fontSize: 12),
                   decoration: InputDecoration(
-                    labelText: 'Recipient wallet address',
+                    labelText: widget.local['recipient_address_label']!,
                     labelStyle: const TextStyle(color: Colors.grey),
                     enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
                     focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.lightBlueAccent), borderRadius: BorderRadius.all(Radius.circular(8))),
@@ -9804,7 +10595,7 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
                   dropdownColor: const Color(0xFF151515),
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    labelText: 'Coin',
+                    labelText: widget.local['coin_label']!,
                     labelStyle: const TextStyle(color: Colors.grey),
                     // Sem isto, o rótulo "Coin" às vezes descia e ficava por
                     // cima do nome da moeda escolhida quando o ecrã
@@ -9829,7 +10620,7 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
                 // dólares (a app converte automaticamente para a moeda).
                 Row(
                   children: [
-                    const Text('Amount in:', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    Text(widget.local['amount_in_label']!, style: const TextStyle(color: Colors.grey, fontSize: 12)),
                     const SizedBox(width: 10),
                     ChoiceChip(
                       label: Text(_selectedToken.symbol),
@@ -9856,13 +10647,13 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    labelText: _amountInUsd ? 'Amount (USD)' : 'Amount (${_selectedToken.symbol})',
+                    labelText: _amountInUsd ? widget.local['amount_usd_label']! : '${widget.local['amount_label_prefix']} (${_selectedToken.symbol})',
                     labelStyle: const TextStyle(color: Colors.grey),
                     enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
                     focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.lightBlueAccent), borderRadius: BorderRadius.all(Radius.circular(8))),
                     helperText: _price == null
-                        ? 'Loading price...'
-                        : (_conversionHint ?? 'Price: \$${_price!.toStringAsFixed(_price! < 1 ? 6 : 2)} / ${_selectedToken.symbol}'),
+                        ? widget.local['loading_price']!
+                        : (_conversionHint ?? '${widget.local['price_label_prefix']}: \$${_price!.toStringAsFixed(_price! < 1 ? 6 : 2)} / ${_selectedToken.symbol}'),
                     helperStyle: const TextStyle(color: Colors.grey, fontSize: 11),
                   ),
                 ),
@@ -9881,7 +10672,7 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
                       onPressed: _isSending ? null : _confirmSend,
                       child: _isSending
                           ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.greenAccent))
-                          : const Text('CONFIRM & SEND', style: TextStyle(fontWeight: FontWeight.bold)),
+                          : Text(widget.local['confirm_send_button']!.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold)),
                     ),
                   ),
                 ),
@@ -9928,8 +10719,11 @@ class MatrixBackgroundPainter extends CustomPainter {
 
 void openCryptoVault(BuildContext context) {
   if (PremiumService.isPremium) {
+    final padlock = context.findAncestorStateOfType<_PadlockAppState>();
+    final lang = padlock?._currentLanguage ?? 'EN';
+    final local = t[lang] ?? t['EN']!;
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => const CryptoVaultGateScreen()),
+      MaterialPageRoute(builder: (context) => CryptoVaultGateScreen(local: local)),
     );
   } else {
     showPremiumRequiredDialog(context);
@@ -9974,8 +10768,11 @@ void _showCryptoVaultTesterUnlock(BuildContext dialogContext) {
               if (ctx.mounted) Navigator.pop(ctx);
               if (dialogContext.mounted) {
                 Navigator.pop(dialogContext); // fecha o dialog "PREMIUM REQUIRED"
+                final padlock = dialogContext.findAncestorStateOfType<_PadlockAppState>();
+                final lang = padlock?._currentLanguage ?? 'EN';
+                final local = t[lang] ?? t['EN']!;
                 Navigator.of(dialogContext).push(
-                  MaterialPageRoute(builder: (context) => const CryptoVaultGateScreen()),
+                  MaterialPageRoute(builder: (context) => CryptoVaultGateScreen(local: local)),
                 );
               }
             } else {
