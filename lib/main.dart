@@ -1383,6 +1383,7 @@ Map<String, Map<String, String>> t = {
     'keys_purged': 'All session keys have been shredded safely.',
     'offline_contacts': 'P2P Active Contacts',
     'empty_contacts': 'No peer contacts discovered in local mesh.',
+    'language': 'Language',
   },
   'PT': {
     'chats': 'Conversas',
@@ -1412,6 +1413,7 @@ Map<String, Map<String, String>> t = {
     'keys_purged': 'Todas as chaves de sessão foram destruídas de forma segura.',
     'offline_contacts': 'Contactos Ativos P2P',
     'empty_contacts': 'Nenhum contacto detetado na rede local.',
+    'language': 'Idioma',
   },
   'ES': {
     'chats': 'Chats',
@@ -1441,6 +1443,7 @@ Map<String, Map<String, String>> t = {
     'keys_purged': 'Todas las claves de sesión han sido destruidas con seguridad.',
     'offline_contacts': 'Contactos activos P2P',
     'empty_contacts': 'No se encontraron contactos en la red local.',
+    'language': 'Idioma',
   },
   'FR': {
     'chats': 'Chats',
@@ -1470,6 +1473,7 @@ Map<String, Map<String, String>> t = {
     'keys_purged': 'Toutes les clés de session ont été détruites en toute sécurité.',
     'offline_contacts': 'Contacts actifs P2P',
     'empty_contacts': 'Aucun contact détecté sur le réseau local.',
+    'language': 'Langue',
   },
   'DE': {
     'chats': 'Chats',
@@ -1499,6 +1503,7 @@ Map<String, Map<String, String>> t = {
     'keys_purged': 'Alle Sitzungsschlüssel wurden sicher vernichtet.',
     'offline_contacts': 'Aktive P2P-Kontakte',
     'empty_contacts': 'Keine Kontakte im lokalen Netzwerk gefunden.',
+    'language': 'Sprache',
   },
   'RU': {
     'chats': 'Чаты',
@@ -1528,6 +1533,7 @@ Map<String, Map<String, String>> t = {
     'keys_purged': 'Все сеансовые ключи безопасно уничтожены.',
     'offline_contacts': 'Активные P2P-контакты',
     'empty_contacts': 'Контакты в локальной сети не обнаружены.',
+    'language': 'Язык',
   },
   'UK': {
     'chats': 'Чати',
@@ -1557,6 +1563,7 @@ Map<String, Map<String, String>> t = {
     'keys_purged': 'Усі сеансові ключі безпечно знищено.',
     'offline_contacts': 'Активні P2P-контакти',
     'empty_contacts': 'Контактів у локальній мережі не знайдено.',
+    'language': 'Мова',
   },
   'ZH': {
     'chats': '聊天',
@@ -1586,6 +1593,7 @@ Map<String, Map<String, String>> t = {
     'keys_purged': '所有会话密钥已安全销毁。',
     'offline_contacts': '活跃的 P2P 联系人',
     'empty_contacts': '本地网络中未发现联系人。',
+    'language': '语言',
   },
   'KO': {
     'chats': '채팅',
@@ -1615,6 +1623,7 @@ Map<String, Map<String, String>> t = {
     'keys_purged': '모든 세션 키가 안전하게 삭제되었습니다.',
     'offline_contacts': '활성 P2P 연락처',
     'empty_contacts': '로컬 네트워크에서 연락처를 찾을 수 없습니다.',
+    'language': '언어',
   },
   'AR': {
     'chats': 'الدردشات',
@@ -1644,6 +1653,7 @@ Map<String, Map<String, String>> t = {
     'keys_purged': 'تم إتلاف جميع مفاتيح الجلسة بأمان.',
     'offline_contacts': 'جهات اتصال نظير إلى نظير نشطة',
     'empty_contacts': 'لم يتم العثور على جهات اتصال في الشبكة المحلية.',
+    'language': 'اللغة',
   },
   'TR': {
     'chats': 'Sohbetler',
@@ -1673,8 +1683,181 @@ Map<String, Map<String, String>> t = {
     'keys_purged': 'Tüm oturum anahtarları güvenli şekilde yok edildi.',
     'offline_contacts': 'Aktif P2P Kişileri',
     'empty_contacts': 'Yerel ağda hiçbir kişi bulunamadı.',
+    'language': 'Dil',
+  },
+  'IT': {
+    'chats': 'Chat',
+    'contacts': 'Contatti',
+    'settings': 'Impostazioni',
+    'profile': 'Profilo',
+    'search_hint': 'Cerca nel database sicuro...',
+    'autodestruct': 'Autodistruzione tra',
+    'bio_label': 'Bio',
+    'bio_text': 'Nodo crittografato P2P / Sicurezza di livello militare',
+    'username_label': 'Nome utente',
+    'copy_toast': 'ID copiato negli appunti!',
+    'qr_title': 'Codice QR privacy',
+    'qr_desc': 'Scansiona questo codice per stabilire una connessione P2P sicura.',
+    'call': 'Chiamata sicura',
+    'new_chat': 'Nuovo canale sicuro',
+    'delete_chat': 'Cancella conversazione',
+    'block_peer': 'Blocca ID Hex',
+    'send_hint': 'Scrivi messaggio crittografato...',
+    'custom_sound': 'Suono esclusivo Padlock (Fisso)',
+    'silent_mode': 'Modalità silenziosa',
+    'notifications': 'Notifiche',
+    'sounds_desc': 'Il sistema utilizza toni crittografati esclusivi.',
+    'app_lock': 'Blocco con codice',
+    'screen_security': 'Blocca screenshot',
+    'clear_keys': 'Elimina chiavi di crittografia',
+    'keys_purged': 'Tutte le chiavi di sessione sono state distrutte in sicurezza.',
+    'offline_contacts': 'Contatti P2P attivi',
+    'empty_contacts': 'Nessun contatto rilevato nella rete locale.',
+    'language': 'Lingua',
+  },
+  'JA': {
+    'chats': 'チャット',
+    'contacts': '連絡先',
+    'settings': '設定',
+    'profile': 'プロフィール',
+    'search_hint': 'セキュアデータベースを検索...',
+    'autodestruct': '自動削除まで',
+    'bio_label': '自己紹介',
+    'bio_text': 'P2P暗号化ノード / 軍事レベルのセキュリティ',
+    'username_label': 'ユーザー名',
+    'copy_toast': 'IDをクリップボードにコピーしました！',
+    'qr_title': 'プライバシーQRコード',
+    'qr_desc': 'このコードをスキャンして、安全なP2P接続を確立します。',
+    'call': 'セキュア通話',
+    'new_chat': '新しいセキュアチャンネル',
+    'delete_chat': '会話を削除',
+    'block_peer': 'Hex IDをブロック',
+    'send_hint': '暗号化メッセージを入力...',
+    'custom_sound': 'Padlock専用サウンド（固定）',
+    'silent_mode': 'サイレントモード',
+    'notifications': '通知',
+    'sounds_desc': 'システムは専用の暗号化トーンを使用します。',
+    'app_lock': 'パスコードロック',
+    'screen_security': 'スクリーンショットをブロック',
+    'clear_keys': '暗号化キーを削除',
+    'keys_purged': 'すべてのセッションキーが安全に破棄されました。',
+    'offline_contacts': 'アクティブなP2P連絡先',
+    'empty_contacts': 'ローカルネットワークで連絡先が見つかりません。',
+    'language': '言語',
+  },
+  'HI': {
+    'chats': 'चैट',
+    'contacts': 'संपर्क',
+    'settings': 'सेटिंग्स',
+    'profile': 'प्रोफ़ाइल',
+    'search_hint': 'सुरक्षित डेटाबेस खोजें...',
+    'autodestruct': 'स्वतः नष्ट होने का समय',
+    'bio_label': 'बायो',
+    'bio_text': 'P2P एन्क्रिप्टेड नोड / सैन्य-स्तर की सुरक्षा',
+    'username_label': 'उपयोगकर्ता नाम',
+    'copy_toast': 'आईडी क्लिपबोर्ड पर कॉपी हो गई!',
+    'qr_title': 'गोपनीयता QR कोड',
+    'qr_desc': 'सुरक्षित P2P कनेक्शन स्थापित करने के लिए इस कोड को स्कैन करें।',
+    'call': 'सुरक्षित कॉल',
+    'new_chat': 'नया सुरक्षित चैनल',
+    'delete_chat': 'बातचीत मिटाएं',
+    'block_peer': 'Hex ID ब्लॉक करें',
+    'send_hint': 'एन्क्रिप्टेड संदेश लिखें...',
+    'custom_sound': 'Padlock विशेष ध्वनि (निश्चित)',
+    'silent_mode': 'साइलेंट मोड',
+    'notifications': 'सूचनाएं',
+    'sounds_desc': 'सिस्टम विशेष एन्क्रिप्टेड टोन का उपयोग करता है।',
+    'app_lock': 'पासकोड लॉक',
+    'screen_security': 'स्क्रीनशॉट ब्लॉक करें',
+    'clear_keys': 'एन्क्रिप्शन कुंजियाँ हटाएं',
+    'keys_purged': 'सभी सत्र कुंजियाँ सुरक्षित रूप से नष्ट कर दी गई हैं।',
+    'offline_contacts': 'सक्रिय P2P संपर्क',
+    'empty_contacts': 'स्थानीय नेटवर्क में कोई संपर्क नहीं मिला।',
+    'language': 'भाषा',
+  },
+  'NL': {
+    'chats': 'Chats',
+    'contacts': 'Contacten',
+    'settings': 'Instellingen',
+    'profile': 'Profiel',
+    'search_hint': 'Zoeken in beveiligde database...',
+    'autodestruct': 'Zelfvernietiging over',
+    'bio_label': 'Bio',
+    'bio_text': 'P2P-versleuteld knooppunt / Militaire beveiliging',
+    'username_label': 'Gebruikersnaam',
+    'copy_toast': 'ID gekopieerd naar klembord!',
+    'qr_title': 'Privacy QR-code',
+    'qr_desc': 'Scan deze code om een beveiligde P2P-verbinding tot stand te brengen.',
+    'call': 'Beveiligde oproep',
+    'new_chat': 'Nieuw beveiligd kanaal',
+    'delete_chat': 'Gesprek wissen',
+    'block_peer': 'Hex-ID blokkeren',
+    'send_hint': 'Versleuteld bericht typen...',
+    'custom_sound': 'Exclusief Padlock-geluid (Vast)',
+    'silent_mode': 'Stille modus',
+    'notifications': 'Meldingen',
+    'sounds_desc': 'Het systeem gebruikt exclusieve versleutelde tonen.',
+    'app_lock': 'Toegangscode vergrendeling',
+    'screen_security': 'Schermafbeeldingen blokkeren',
+    'clear_keys': 'Versleutelingssleutels wissen',
+    'keys_purged': 'Alle sessiesleutels zijn veilig vernietigd.',
+    'offline_contacts': 'Actieve P2P-contacten',
+    'empty_contacts': 'Geen contacten gevonden in lokaal netwerk.',
+    'language': 'Taal',
+  },
+  'PL': {
+    'chats': 'Czaty',
+    'contacts': 'Kontakty',
+    'settings': 'Ustawienia',
+    'profile': 'Profil',
+    'search_hint': 'Przeszukaj bezpieczną bazę danych...',
+    'autodestruct': 'Samozniszczenie za',
+    'bio_label': 'Bio',
+    'bio_text': 'Węzeł szyfrowany P2P / Bezpieczeństwo wojskowe',
+    'username_label': 'Nazwa użytkownika',
+    'copy_toast': 'ID skopiowane do schowka!',
+    'qr_title': 'Kod QR prywatności',
+    'qr_desc': 'Zeskanuj ten kod, aby nawiązać bezpieczne połączenie P2P.',
+    'call': 'Bezpieczne połączenie',
+    'new_chat': 'Nowy bezpieczny kanał',
+    'delete_chat': 'Usuń rozmowę',
+    'block_peer': 'Zablokuj Hex ID',
+    'send_hint': 'Napisz zaszyfrowaną wiadomość...',
+    'custom_sound': 'Ekskluzywny dźwięk Padlock (Stały)',
+    'silent_mode': 'Tryb cichy',
+    'notifications': 'Powiadomienia',
+    'sounds_desc': 'System używa ekskluzywnych zaszyfrowanych dźwięków.',
+    'app_lock': 'Blokada kodem',
+    'screen_security': 'Blokuj zrzuty ekranu',
+    'clear_keys': 'Wyczyść klucze szyfrowania',
+    'keys_purged': 'Wszystkie klucze sesji zostały bezpiecznie zniszczone.',
+    'offline_contacts': 'Aktywne kontakty P2P',
+    'empty_contacts': 'Nie znaleziono kontaktów w sieci lokalnej.',
+    'language': 'Język',
   },
 };
+
+// Lista única de idiomas suportados - usada em todos os sítios que mostram
+// um seletor de idioma (menu "..." e Settings > App Language), para nunca
+// mais ficarem dessincronizados um do outro.
+const List<Map<String, String>> kSupportedLanguages = [
+  {'code': 'EN', 'name': 'English', 'flag': '🇺🇸'},
+  {'code': 'PT', 'name': 'Português', 'flag': '🇵🇹'},
+  {'code': 'ES', 'name': 'Español', 'flag': '🇪🇸'},
+  {'code': 'FR', 'name': 'Français', 'flag': '🇫🇷'},
+  {'code': 'DE', 'name': 'Deutsch', 'flag': '🇩🇪'},
+  {'code': 'IT', 'name': 'Italiano', 'flag': '🇮🇹'},
+  {'code': 'RU', 'name': 'Русский', 'flag': '🇷🇺'},
+  {'code': 'UK', 'name': 'Українська', 'flag': '🇺🇦'},
+  {'code': 'ZH', 'name': '中文', 'flag': '🇨🇳'},
+  {'code': 'JA', 'name': '日本語', 'flag': '🇯🇵'},
+  {'code': 'KO', 'name': '한국어', 'flag': '🇰🇷'},
+  {'code': 'AR', 'name': 'العربية', 'flag': '🇸🇦'},
+  {'code': 'HI', 'name': 'हिन्दी', 'flag': '🇮🇳'},
+  {'code': 'NL', 'name': 'Nederlands', 'flag': '🇳🇱'},
+  {'code': 'PL', 'name': 'Polski', 'flag': '🇵🇱'},
+  {'code': 'TR', 'name': 'Türkçe', 'flag': '🇹🇷'},
+];
 
 class MainNavigationScreen extends StatefulWidget {
   final String currentLanguage;
@@ -2820,36 +3003,63 @@ title: const Text(
                if (value == 'idioma') {
            showDialog(
             context: context,
-            builder: (context) => AlertDialog(
-              title: Text(t[widget.currentLanguage]?['language'] ?? 'Idioma / Language'),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: ListView(
-                  shrinkWrap: true,
+            // Mesma lista única usada em Settings (kSupportedLanguages) -
+            // antes esta lista tinha idiomas diferentes e nomes escritos em
+            // português em vez da escrita própria de cada língua. O título
+            // agora só mostra a palavra "Language" no idioma atual, nunca
+            // as duas ao mesmo tempo (faltava a chave 'language' na tabela
+            // de traduções, por isso caía sempre no texto fixo "Idioma /
+            // Language").
+            builder: (context) => Dialog(
+              backgroundColor: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                constraints: const BoxConstraints(maxHeight: 480),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)],
+                  ),
+                  border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    {'code': 'en', 'name': 'English'},
-                    {'code': 'pt', 'name': 'Português'},
-                    {'code': 'es', 'name': 'Español'},
-                    {'code': 'fr', 'name': 'Français'},
-                    {'code': 'de', 'name': 'Deutsch'},
-                    {'code': 'it', 'name': 'Italiano'},
-                    {'code': 'ru', 'name': 'Russo'},
-                    {'code': 'zh', 'name': 'Chinês'},
-                    {'code': 'ja', 'name': 'Japonês'},
-                    {'code': 'ko', 'name': 'Coreano'},
-                    {'code': 'ar', 'name': 'Árabe'},
-                    {'code': 'hi', 'name': 'Hindi'},
-                    {'code': 'nl', 'name': 'Holandês'},
-                    {'code': 'pl', 'name': 'Polaco'},
-                    {'code': 'tr', 'name': 'Turco'},
-                    {'code': 'uk', 'name': 'Ucraniano'},
-                  ].map((lang) => ListTile(
-                    title: Text(lang['name']!),
-                    onTap: () {
-                      context.findAncestorStateOfType<_PadlockAppState>()?._changeLanguage(lang['code']!.toUpperCase());
-                      Navigator.pop(context);
-                    },
-                  )).toList(),
+                    Text(
+                      t[widget.currentLanguage]?['language'] ?? 'Language',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: SizedBox(
+                        width: double.maxFinite,
+                        child: ListView(
+                          shrinkWrap: true,
+                          children: kSupportedLanguages.map((lang) {
+                            final isSelected = lang['code'] == widget.currentLanguage;
+                            return ListTile(
+                              leading: Text(lang['flag']!, style: const TextStyle(fontSize: 20)),
+                              title: Text(
+                                lang['name']!,
+                                style: TextStyle(
+                                  color: isSelected ? Colors.greenAccent : const Color(0xFFe4efe6),
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                              trailing: isSelected ? const Icon(Icons.check, color: Colors.greenAccent) : null,
+                              onTap: () {
+                                context.findAncestorStateOfType<_PadlockAppState>()?._changeLanguage(lang['code']!);
+                                Navigator.pop(context);
+                              },
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -5053,39 +5263,69 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _showLanguageDialog(BuildContext context) {
-    final langs = [
-      {'code': 'en', 'name': 'English'}, {'code': 'pt', 'name': 'Português'},
-      {'code': 'es', 'name': 'Español'}, {'code': 'fr', 'name': 'Français'},
-      {'code': 'de', 'name': 'Deutsch'}, {'code': 'ru', 'name': 'Русский'},
-      {'code': 'uk', 'name': 'Українська'}, {'code': 'zh', 'name': '中文'},
-      {'code': 'ko', 'name': '한국어'}, {'code': 'ar', 'name': 'العربية'},
-      {'code': 'tr', 'name': 'Türkçe'},
-    ];
+    // Mesma lista única usada no menu "..." (kSupportedLanguages) - antes
+    // esta tinha só 11 idiomas enquanto a do menu "..." tinha 16, e nenhuma
+    // marcava qual estava escolhido.
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF151515),
-        title: const Text('Select Language', style: TextStyle(color: Colors.white)),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: langs.length,
-            itemBuilder: (context, index) {
-              return ListTile(
-                title: Text(langs[index]['name']!, style: const TextStyle(color: Colors.white70)),
-                onTap: () {
-                  final code = langs[index]['code']!.toUpperCase();
-                  // onLangChange fica ligado a um callback vazio quando se chega
-                  // aqui a partir do Login/Setup - por isso a app não estava
-                  // mesmo a mudar de língua. Atualiza diretamente o estado da
-                  // app (o mesmo mecanismo que já funcionava no ecrã de Perfil).
-                  context.findAncestorStateOfType<_PadlockAppState>()?._changeLanguage(code);
-                  onLangChange(code);
-                  Navigator.pop(ctx);
-                },
-              );
-            },
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          constraints: const BoxConstraints(maxHeight: 480),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)],
+            ),
+            border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                t[currentLang]?['language'] ?? 'Language',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: SizedBox(
+                  width: double.maxFinite,
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: kSupportedLanguages.length,
+                    itemBuilder: (context, index) {
+                      final lang = kSupportedLanguages[index];
+                      final isSelected = lang['code'] == currentLang;
+                      return ListTile(
+                        leading: Text(lang['flag']!, style: const TextStyle(fontSize: 20)),
+                        title: Text(
+                          lang['name']!,
+                          style: TextStyle(
+                            color: isSelected ? Colors.greenAccent : const Color(0xFFe4efe6),
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        trailing: isSelected ? const Icon(Icons.check, color: Colors.greenAccent) : null,
+                        onTap: () {
+                          final code = lang['code']!;
+                          // onLangChange fica ligado a um callback vazio quando se chega
+                          // aqui a partir do Login/Setup - por isso a app não estava
+                          // mesmo a mudar de língua. Atualiza diretamente o estado da
+                          // app (o mesmo mecanismo que já funcionava no ecrã de Perfil).
+                          context.findAncestorStateOfType<_PadlockAppState>()?._changeLanguage(code);
+                          onLangChange(code);
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
