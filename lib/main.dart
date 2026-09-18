@@ -8103,11 +8103,10 @@ flexibleSpace: Container(
                       controller: _msgController,
                       enabled: widget.chatData['status'] != 'Blocked',
                       style: const TextStyle(color: Colors.black87),
-                      // O roxo era o cursor por omissão do tema escuro, e a
-                      // linha por baixo era o sublinhado das sugestões do
-                      // teclado (cortava o "g", "p", "y"...). Sem sugestões
-                      // a linha desaparece; cursor passa a verde escuro.
-                      cursorColor: const Color(0xFF1e4d2b),
+                      // A linha por baixo do texto era o sublinhado das
+                      // sugestões do teclado (cortava o "g", "j", "y"...).
+                      // Sem sugestões a linha desaparece; o cursor vertical
+                      // fica como estava.
                       enableSuggestions: false,
                       autocorrect: false,
                       minLines: 1, // Começa com 1 linha
