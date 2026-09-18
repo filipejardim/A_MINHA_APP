@@ -7265,6 +7265,17 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
         backgroundColor: Colors.transparent,
         title: const Text('Secure Vault Files', style: TextStyle(color: Colors.lightBlueAccent)),
         iconTheme: const IconThemeData(color: Colors.lightBlueAccent),
+        elevation: 8,
+        shadowColor: Colors.black,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)],
+            ),
+          ),
+        ),
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -7528,20 +7539,52 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
     }
     final selected = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF151515),
-        title: const Text('Send to...', style: TextStyle(color: Colors.white)),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView(
-            shrinkWrap: true,
-            children: contacts.map<Widget>((c) {
-              final id = c['id'] ?? c['name'];
-              return ListTile(
-                title: Text(id, style: const TextStyle(color: Colors.white, fontSize: 12)),
-                onTap: () => Navigator.pop(ctx, id as String),
-              );
-            }).toList(),
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)],
+            ),
+            border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Send to...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.maxFinite,
+                child: ListView(
+                  shrinkWrap: true,
+                  children: contacts.map<Widget>((c) {
+                    // O ID serve só para encaminhar a mensagem (ver
+                    // sendEncryptedFile) - quem usa a app só vê o nome que
+                    // deu ao contacto (renomear não muda o ID por baixo).
+                    final routingId = (c['id'] ?? c['name']).toString();
+                    final displayName = (c['name'] ?? c['id']).toString();
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: ListTile(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        title: Text(displayName, style: const TextStyle(color: Color(0xFFe4efe6), fontSize: 13, fontWeight: FontWeight.w600)),
+                        trailing: const Icon(Icons.arrow_forward, color: Colors.greenAccent, size: 18),
+                        onTap: () => Navigator.pop(ctx, routingId),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -7591,21 +7634,45 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
             : direction == 'sent'
                 ? 'Sent to $peer'
                 : 'Stored locally — not sent to anyone yet';
+        // Botões redondos com o mesmo verde transacional usado no resto da
+        // app (em vez do cinzento quase preto de antes), e texto do
+        // subtítulo em branco-pérola em vez de cinzento.
+        Widget roundActionButton({required IconData icon, required Color iconColor, required VoidCallback onPressed}) {
+          return Container(
+            width: 36,
+            height: 36,
+            margin: const EdgeInsets.symmetric(horizontal: 2),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)],
+              ),
+              border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.35)),
+            ),
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              icon: Icon(icon, color: iconColor, size: 18),
+              onPressed: onPressed,
+            ),
+          );
+        }
         return Card(
           color: const Color(0xFF151515),
           margin: const EdgeInsets.only(bottom: 8),
           child: ListTile(
             leading: Icon(isPhoto ? Icons.image : Icons.description, color: Colors.lightBlueAccent),
             title: Text(entry['fileName'] ?? '', style: const TextStyle(color: Colors.white), overflow: TextOverflow.ellipsis),
-            subtitle: Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 11)),
+            subtitle: Text(subtitle, style: const TextStyle(color: Color(0xFFe4efe6), fontSize: 11)),
             onTap: () => _viewEntry(entry),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 _sendingIds.contains(entry['id'].toString())
                     ? const SizedBox(width: 20, height: 20, child: Padding(padding: EdgeInsets.all(2), child: CircularProgressIndicator(strokeWidth: 2, color: Colors.greenAccent)))
-                    : IconButton(icon: const Icon(Icons.send, color: Colors.greenAccent, size: 20), onPressed: () => _sendEntry(entry)),
-                IconButton(icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20), onPressed: () => _deleteEntry(entry)),
+                    : roundActionButton(icon: Icons.send, iconColor: Colors.greenAccent, onPressed: () => _sendEntry(entry)),
+                roundActionButton(icon: Icons.delete, iconColor: Colors.redAccent, onPressed: () => _deleteEntry(entry)),
               ],
             ),
           ),
@@ -7622,6 +7689,17 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
         backgroundColor: Colors.transparent,
         title: const Text('Secure Vault Files', style: TextStyle(color: Colors.lightBlueAccent)),
         iconTheme: const IconThemeData(color: Colors.lightBlueAccent),
+        elevation: 8,
+        shadowColor: Colors.black,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)],
+            ),
+          ),
+        ),
         actions: [
           IconButton(icon: const Icon(Icons.lock, color: Colors.lightBlueAccent), onPressed: _lockAndExit),
         ],
@@ -7826,6 +7904,17 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
         backgroundColor: Colors.transparent,
         title: const Text('Secure Crypto Vault', style: TextStyle(color: Colors.greenAccent)),
         iconTheme: const IconThemeData(color: Colors.greenAccent),
+        elevation: 8,
+        shadowColor: Colors.black,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)],
+            ),
+          ),
+        ),
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -7841,7 +7930,24 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('💎', style: TextStyle(fontSize: 60)),
+                // Mesmo "tubo" com o diamante usado depois de entrar (ver
+                // CryptoVaultHomeScreen) - antes disto era só o emoji solto,
+                // sem o círculo/moldura a condizer com o resto da app.
+                Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)],
+                    ),
+                    border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.7), width: 1.5),
+                    boxShadow: [BoxShadow(color: Colors.greenAccent.withValues(alpha: 0.3), blurRadius: 16, spreadRadius: 1)],
+                  ),
+                  child: const Center(child: Text('💎', style: TextStyle(fontSize: 40))),
+                ),
                 const SizedBox(height: 20),
                 Text(
                   firstTime ? 'CREATE CRYPTO VAULT CODE' : 'ENTER CRYPTO VAULT CODE',
@@ -7955,6 +8061,17 @@ class _MnemonicRevealScreenState extends State<MnemonicRevealScreen> {
           backgroundColor: Colors.transparent,
           automaticallyImplyLeading: false,
           title: const Text('Your Recovery Phrase', style: TextStyle(color: Colors.greenAccent)),
+          elevation: 8,
+          shadowColor: Colors.black,
+          flexibleSpace: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)],
+              ),
+            ),
+          ),
         ),
         // Sem SafeArea, o botão CONTINUE e a checkbox ficavam por baixo da
         // barra de gestos/botões do Android em telemóveis sem botões físicos.
@@ -8151,6 +8268,17 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
         backgroundColor: Colors.transparent,
         title: const Text('Secure Crypto Vault', style: TextStyle(color: Colors.greenAccent)),
         iconTheme: const IconThemeData(color: Colors.greenAccent),
+        elevation: 8,
+        shadowColor: Colors.black,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)],
+            ),
+          ),
+        ),
         actions: [
           IconButton(icon: const Icon(Icons.lock, color: Colors.greenAccent), onPressed: _lockAndExit),
         ],
@@ -8190,7 +8318,10 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
                     border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.7), width: 1.5),
                     boxShadow: [BoxShadow(color: Colors.greenAccent.withValues(alpha: 0.3), blurRadius: 16, spreadRadius: 1)],
                   ),
-                  child: const Icon(Icons.diamond, color: Colors.lightBlueAccent, size: 34),
+                  // Mesmo diamante emoji usado no botão do Perfil e no resto
+                  // da app - o ícone Icons.diamond do Material não tinha
+                  // nada a ver com o resto do visual.
+                  child: const Center(child: Text('💎', style: TextStyle(fontSize: 40))),
                 ),
                 const SizedBox(height: 20),
                 Row(
@@ -8458,6 +8589,17 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
         backgroundColor: Colors.transparent,
         title: const Text('Send', style: TextStyle(color: Colors.lightBlueAccent)),
         iconTheme: const IconThemeData(color: Colors.lightBlueAccent),
+        elevation: 8,
+        shadowColor: Colors.black,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)],
+            ),
+          ),
+        ),
       ),
       body: Container(
         decoration: const BoxDecoration(
