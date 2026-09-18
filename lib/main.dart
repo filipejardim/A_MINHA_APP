@@ -1549,6 +1549,36 @@ Map<String, Map<String, String>> t = {
     'destruct_1h': '1 Hour',
     'destruct_24h': '24 Hours',
     'message_not_decrypted': '[Message not decrypted]',
+    'call_status_connecting': 'Connecting...',
+    'call_status_exchanging_keys': 'Exchanging Encryption Keys...',
+    'call_status_ringing': 'Ringing...',
+    'call_status_connecting_encrypted': 'Connecting Encrypted Call...',
+    'call_status_incoming_encrypted': 'Incoming Encrypted Call...',
+    'call_status_connected_prefix': 'Connected',
+    'call_status_connected_encrypted': 'Connected and Encrypted',
+    'call_status_reconnecting': 'Reconnecting...',
+    'call_contact_unavailable': 'Contact Unavailable or Offline.',
+    'missed_secure_call': 'Missed Secure Call',
+    'missed_call_notification_title': 'Missed Call',
+    'setup_code_too_weak': 'Decryption Key is too weak: use at least 10 characters and avoid repeated or sequential patterns.',
+    'vault_init_failed_prefix': 'Vault initialization failed',
+    'create_vault_title': 'CREATE YOUR ENCRYPTED VAULT',
+    'create_vault_subtitle': 'Set your master key to generate\nP2P cryptographic identity',
+    'set_decryption_key_label': 'Set Decryption Key',
+    'strength_too_weak': 'Too weak',
+    'strength_weak': 'Weak',
+    'strength_medium': 'Medium',
+    'strength_strong': 'Strong',
+    'strength_very_strong': 'Very strong',
+    'initialize_vault_button': 'INITIALIZE VAULT',
+    'footer_privacy_text': 'Engineered with military-grade Zero-Knowledge encryption.\nAll communications operate strictly Peer-to-Peer (P2P).\nMessages automatically self-destruct after 24 hours\nusing secure anti-trace memory sanitization.\nZero trace, zero logs, total privacy.',
+    'vault_not_initialized_device': 'Vault not initialized on this device.',
+    'invalid_decryption_key': 'Invalid Decryption Key.',
+    'vault_data_corrupted': 'Vault data is corrupted (key was correct, but the vault file itself is damaged).',
+    'decrypt_padlock_title': 'DECRYPT YOUR PADLOCK',
+    'login_subtitle': 'ENGINEERED WITH MILITARY-GRADE\nZERO-KNOWLEDGE ENCRYPTION',
+    'enter_decryption_key_label': 'Enter Decryption Key',
+    'access_vault_button': 'ACCESS VAULT',
   },
   'PT': {
     'chats': 'Conversas',
@@ -1736,6 +1766,36 @@ Map<String, Map<String, String>> t = {
     'destruct_1h': '1 Hora',
     'destruct_24h': '24 Horas',
     'message_not_decrypted': '[Mensagem não decifrada]',
+    'call_status_connecting': 'A ligar...',
+    'call_status_exchanging_keys': 'A trocar chaves de encriptação...',
+    'call_status_ringing': 'A tocar...',
+    'call_status_connecting_encrypted': 'A ligar chamada encriptada...',
+    'call_status_incoming_encrypted': 'Chamada encriptada a receber...',
+    'call_status_connected_prefix': 'Ligado',
+    'call_status_connected_encrypted': 'Ligado e encriptado',
+    'call_status_reconnecting': 'A religar...',
+    'call_contact_unavailable': 'Contacto indisponível ou offline.',
+    'missed_secure_call': 'Chamada Segura Perdida',
+    'missed_call_notification_title': 'Chamada Perdida',
+    'setup_code_too_weak': 'A chave de encriptação é demasiado fraca: usa pelo menos 10 caracteres e evita padrões repetidos ou sequenciais.',
+    'vault_init_failed_prefix': 'Falha ao inicializar o cofre',
+    'create_vault_title': 'CRIA O TEU COFRE ENCRIPTADO',
+    'create_vault_subtitle': 'Define a tua chave-mestra para gerar\na identidade criptográfica P2P',
+    'set_decryption_key_label': 'Definir Chave de Encriptação',
+    'strength_too_weak': 'Demasiado fraca',
+    'strength_weak': 'Fraca',
+    'strength_medium': 'Média',
+    'strength_strong': 'Forte',
+    'strength_very_strong': 'Muito forte',
+    'initialize_vault_button': 'INICIALIZAR COFRE',
+    'footer_privacy_text': 'Desenvolvido com encriptação Zero-Knowledge de nível militar.\nTodas as comunicações operam estritamente Peer-to-Peer (P2P).\nAs mensagens autodestroem-se automaticamente após 24 horas\nusando sanitização segura de memória anti-vestígios.\nZero vestígios, zero registos, privacidade total.',
+    'vault_not_initialized_device': 'Cofre não inicializado neste dispositivo.',
+    'invalid_decryption_key': 'Chave de Encriptação inválida.',
+    'vault_data_corrupted': 'Os dados do cofre estão corrompidos (a chave estava correta, mas o próprio ficheiro do cofre está danificado).',
+    'decrypt_padlock_title': 'DECIFRA O TEU PADLOCK',
+    'login_subtitle': 'DESENVOLVIDO COM ENCRIPTAÇÃO\nZERO-KNOWLEDGE DE NÍVEL MILITAR',
+    'enter_decryption_key_label': 'Introduzir Chave de Encriptação',
+    'access_vault_button': 'ACEDER AO COFRE',
   },
   'ES': {
     'chats': 'Chats',
@@ -1923,6 +1983,36 @@ Map<String, Map<String, String>> t = {
     'destruct_1h': '1 Hora',
     'destruct_24h': '24 Horas',
     'message_not_decrypted': '[Mensaje no descifrado]',
+    'call_status_connecting': 'Conectando...',
+    'call_status_exchanging_keys': 'Intercambiando claves de cifrado...',
+    'call_status_ringing': 'Sonando...',
+    'call_status_connecting_encrypted': 'Conectando llamada cifrada...',
+    'call_status_incoming_encrypted': 'Llamada cifrada entrante...',
+    'call_status_connected_prefix': 'Conectado',
+    'call_status_connected_encrypted': 'Conectado y cifrado',
+    'call_status_reconnecting': 'Reconectando...',
+    'call_contact_unavailable': 'Contacto no disponible o desconectado.',
+    'missed_secure_call': 'Llamada Segura Perdida',
+    'missed_call_notification_title': 'Llamada Perdida',
+    'setup_code_too_weak': 'La clave de descifrado es demasiado débil: usa al menos 10 caracteres y evita patrones repetidos o secuenciales.',
+    'vault_init_failed_prefix': 'Error al inicializar la bóveda',
+    'create_vault_title': 'CREA TU BÓVEDA CIFRADA',
+    'create_vault_subtitle': 'Establece tu clave maestra para generar\ntu identidad criptográfica P2P',
+    'set_decryption_key_label': 'Establecer Clave de Descifrado',
+    'strength_too_weak': 'Demasiado débil',
+    'strength_weak': 'Débil',
+    'strength_medium': 'Media',
+    'strength_strong': 'Fuerte',
+    'strength_very_strong': 'Muy fuerte',
+    'initialize_vault_button': 'INICIALIZAR BÓVEDA',
+    'footer_privacy_text': 'Diseñado con cifrado Zero-Knowledge de nivel militar.\nTodas las comunicaciones operan estrictamente Peer-to-Peer (P2P).\nLos mensajes se autodestruyen automáticamente después de 24 horas\nusando saneamiento de memoria anti-rastro seguro.\nCero rastro, cero registros, privacidad total.',
+    'vault_not_initialized_device': 'Bóveda no inicializada en este dispositivo.',
+    'invalid_decryption_key': 'Clave de Descifrado inválida.',
+    'vault_data_corrupted': 'Los datos de la bóveda están dañados (la clave era correcta, pero el propio archivo de la bóveda está dañado).',
+    'decrypt_padlock_title': 'DESCIFRA TU PADLOCK',
+    'login_subtitle': 'DISEÑADO CON CIFRADO ZERO-KNOWLEDGE\nDE NIVEL MILITAR',
+    'enter_decryption_key_label': 'Introducir Clave de Descifrado',
+    'access_vault_button': 'ACCEDER A LA BÓVEDA',
   },
   'FR': {
     'chats': 'Chats',
@@ -2110,6 +2200,36 @@ Map<String, Map<String, String>> t = {
     'destruct_1h': '1 Heure',
     'destruct_24h': '24 Heures',
     'message_not_decrypted': '[Message non déchiffré]',
+    'call_status_connecting': 'Connexion...',
+    'call_status_exchanging_keys': 'Échange des clés de chiffrement...',
+    'call_status_ringing': 'Sonnerie...',
+    'call_status_connecting_encrypted': 'Connexion d\'un appel chiffré...',
+    'call_status_incoming_encrypted': 'Appel chiffré entrant...',
+    'call_status_connected_prefix': 'Connecté',
+    'call_status_connected_encrypted': 'Connecté et chiffré',
+    'call_status_reconnecting': 'Reconnexion...',
+    'call_contact_unavailable': 'Contact indisponible ou hors ligne.',
+    'missed_secure_call': 'Appel Sécurisé Manqué',
+    'missed_call_notification_title': 'Appel Manqué',
+    'setup_code_too_weak': 'La clé de déchiffrement est trop faible : utilisez au moins 10 caractères et évitez les motifs répétés ou séquentiels.',
+    'vault_init_failed_prefix': 'Échec de l\'initialisation du coffre',
+    'create_vault_title': 'CRÉEZ VOTRE COFFRE CHIFFRÉ',
+    'create_vault_subtitle': 'Définissez votre clé maîtresse pour générer\nvotre identité cryptographique P2P',
+    'set_decryption_key_label': 'Définir la Clé de Déchiffrement',
+    'strength_too_weak': 'Trop faible',
+    'strength_weak': 'Faible',
+    'strength_medium': 'Moyenne',
+    'strength_strong': 'Forte',
+    'strength_very_strong': 'Très forte',
+    'initialize_vault_button': 'INITIALISER LE COFFRE',
+    'footer_privacy_text': 'Conçu avec un chiffrement Zero-Knowledge de niveau militaire.\nToutes les communications fonctionnent strictement en Pair-à-Pair (P2P).\nLes messages s\'autodétruisent automatiquement après 24 heures\nà l\'aide d\'une désinfection sécurisée de la mémoire anti-trace.\nZéro trace, zéro journal, confidentialité totale.',
+    'vault_not_initialized_device': 'Coffre non initialisé sur cet appareil.',
+    'invalid_decryption_key': 'Clé de Déchiffrement invalide.',
+    'vault_data_corrupted': 'Les données du coffre sont corrompues (la clé était correcte, mais le fichier du coffre lui-même est endommagé).',
+    'decrypt_padlock_title': 'DÉCHIFFREZ VOTRE PADLOCK',
+    'login_subtitle': 'CONÇU AVEC UN CHIFFREMENT ZERO-KNOWLEDGE\nDE NIVEAU MILITAIRE',
+    'enter_decryption_key_label': 'Saisir la Clé de Déchiffrement',
+    'access_vault_button': 'ACCÉDER AU COFFRE',
   },
   'DE': {
     'chats': 'Chats',
@@ -2297,6 +2417,36 @@ Map<String, Map<String, String>> t = {
     'destruct_1h': '1 Stunde',
     'destruct_24h': '24 Stunden',
     'message_not_decrypted': '[Nachricht nicht entschlüsselt]',
+    'call_status_connecting': 'Verbindung wird hergestellt...',
+    'call_status_exchanging_keys': 'Verschlüsselungsschlüssel werden ausgetauscht...',
+    'call_status_ringing': 'Klingelt...',
+    'call_status_connecting_encrypted': 'Verschlüsselter Anruf wird verbunden...',
+    'call_status_incoming_encrypted': 'Eingehender verschlüsselter Anruf...',
+    'call_status_connected_prefix': 'Verbunden',
+    'call_status_connected_encrypted': 'Verbunden und verschlüsselt',
+    'call_status_reconnecting': 'Erneut verbinden...',
+    'call_contact_unavailable': 'Kontakt nicht verfügbar oder offline.',
+    'missed_secure_call': 'Verpasster sicherer Anruf',
+    'missed_call_notification_title': 'Verpasster Anruf',
+    'setup_code_too_weak': 'Der Entschlüsselungsschlüssel ist zu schwach: verwende mindestens 10 Zeichen und vermeide wiederholte oder fortlaufende Muster.',
+    'vault_init_failed_prefix': 'Tresor-Initialisierung fehlgeschlagen',
+    'create_vault_title': 'ERSTELLE DEINEN VERSCHLÜSSELTEN TRESOR',
+    'create_vault_subtitle': 'Lege deinen Hauptschlüssel fest, um deine\nP2P-kryptografische Identität zu erzeugen',
+    'set_decryption_key_label': 'Entschlüsselungsschlüssel festlegen',
+    'strength_too_weak': 'Zu schwach',
+    'strength_weak': 'Schwach',
+    'strength_medium': 'Mittel',
+    'strength_strong': 'Stark',
+    'strength_very_strong': 'Sehr stark',
+    'initialize_vault_button': 'TRESOR INITIALISIEREN',
+    'footer_privacy_text': 'Entwickelt mit militärtauglicher Zero-Knowledge-Verschlüsselung.\nAlle Kommunikationen laufen ausschließlich Peer-to-Peer (P2P).\nNachrichten zerstören sich automatisch nach 24 Stunden\ndurch sichere spurenfreie Speicherbereinigung.\nKeine Spuren, keine Protokolle, vollständige Privatsphäre.',
+    'vault_not_initialized_device': 'Tresor auf diesem Gerät nicht initialisiert.',
+    'invalid_decryption_key': 'Ungültiger Entschlüsselungsschlüssel.',
+    'vault_data_corrupted': 'Tresordaten sind beschädigt (Schlüssel war korrekt, aber die Tresordatei selbst ist beschädigt).',
+    'decrypt_padlock_title': 'ENTSCHLÜSSLE DEIN PADLOCK',
+    'login_subtitle': 'ENTWICKELT MIT MILITÄRTAUGLICHER\nZERO-KNOWLEDGE-VERSCHLÜSSELUNG',
+    'enter_decryption_key_label': 'Entschlüsselungsschlüssel eingeben',
+    'access_vault_button': 'TRESOR ÖFFNEN',
   },
   'RU': {
     'chats': 'Чаты',
@@ -2484,6 +2634,36 @@ Map<String, Map<String, String>> t = {
     'destruct_1h': '1 час',
     'destruct_24h': '24 часа',
     'message_not_decrypted': '[Сообщение не расшифровано]',
+    'call_status_connecting': 'Соединение...',
+    'call_status_exchanging_keys': 'Обмен ключами шифрования...',
+    'call_status_ringing': 'Звонок...',
+    'call_status_connecting_encrypted': 'Установка защищённого вызова...',
+    'call_status_incoming_encrypted': 'Входящий защищённый вызов...',
+    'call_status_connected_prefix': 'Соединено',
+    'call_status_connected_encrypted': 'Соединено и зашифровано',
+    'call_status_reconnecting': 'Переподключение...',
+    'call_contact_unavailable': 'Контакт недоступен или не в сети.',
+    'missed_secure_call': 'Пропущенный защищённый звонок',
+    'missed_call_notification_title': 'Пропущенный звонок',
+    'setup_code_too_weak': 'Ключ расшифровки слишком слабый: используйте минимум 10 символов и избегайте повторяющихся или последовательных шаблонов.',
+    'vault_init_failed_prefix': 'Не удалось инициализировать хранилище',
+    'create_vault_title': 'СОЗДАЙТЕ СВОЁ ЗАШИФРОВАННОЕ ХРАНИЛИЩЕ',
+    'create_vault_subtitle': 'Задайте главный ключ для создания\nвашей криптографической P2P-личности',
+    'set_decryption_key_label': 'Задать ключ расшифровки',
+    'strength_too_weak': 'Слишком слабый',
+    'strength_weak': 'Слабый',
+    'strength_medium': 'Средний',
+    'strength_strong': 'Сильный',
+    'strength_very_strong': 'Очень сильный',
+    'initialize_vault_button': 'ИНИЦИАЛИЗИРОВАТЬ ХРАНИЛИЩЕ',
+    'footer_privacy_text': 'Разработано с шифрованием Zero-Knowledge военного уровня.\nВся связь осуществляется строго напрямую (P2P).\nСообщения автоматически самоуничтожаются через 24 часа\nс безопасной очисткой памяти от следов.\nНоль следов, ноль журналов, полная приватность.',
+    'vault_not_initialized_device': 'Хранилище не инициализировано на этом устройстве.',
+    'invalid_decryption_key': 'Неверный ключ расшифровки.',
+    'vault_data_corrupted': 'Данные хранилища повреждены (ключ был верным, но сам файл хранилища повреждён).',
+    'decrypt_padlock_title': 'РАСШИФРУЙТЕ СВОЙ PADLOCK',
+    'login_subtitle': 'РАЗРАБОТАНО С ШИФРОВАНИЕМ ZERO-KNOWLEDGE\nВОЕННОГО УРОВНЯ',
+    'enter_decryption_key_label': 'Введите ключ расшифровки',
+    'access_vault_button': 'ОТКРЫТЬ ХРАНИЛИЩЕ',
   },
   'UK': {
     'chats': 'Чати',
@@ -2671,6 +2851,36 @@ Map<String, Map<String, String>> t = {
     'destruct_1h': '1 година',
     'destruct_24h': '24 години',
     'message_not_decrypted': '[Повідомлення не розшифровано]',
+    'call_status_connecting': 'З\'єднання...',
+    'call_status_exchanging_keys': 'Обмін ключами шифрування...',
+    'call_status_ringing': 'Дзвінок...',
+    'call_status_connecting_encrypted': 'Встановлення захищеного виклику...',
+    'call_status_incoming_encrypted': 'Вхідний захищений виклик...',
+    'call_status_connected_prefix': 'З\'єднано',
+    'call_status_connected_encrypted': 'З\'єднано й зашифровано',
+    'call_status_reconnecting': 'Повторне з\'єднання...',
+    'call_contact_unavailable': 'Контакт недоступний або офлайн.',
+    'missed_secure_call': 'Пропущений захищений виклик',
+    'missed_call_notification_title': 'Пропущений виклик',
+    'setup_code_too_weak': 'Ключ розшифрування занадто слабкий: використовуйте щонайменше 10 символів і уникайте повторюваних або послідовних шаблонів.',
+    'vault_init_failed_prefix': 'Не вдалося ініціалізувати сховище',
+    'create_vault_title': 'СТВОРІТЬ СВОЄ ЗАШИФРОВАНЕ СХОВИЩЕ',
+    'create_vault_subtitle': 'Встановіть головний ключ для створення\nвашої криптографічної P2P-ідентичності',
+    'set_decryption_key_label': 'Встановити ключ розшифрування',
+    'strength_too_weak': 'Занадто слабкий',
+    'strength_weak': 'Слабкий',
+    'strength_medium': 'Середній',
+    'strength_strong': 'Сильний',
+    'strength_very_strong': 'Дуже сильний',
+    'initialize_vault_button': 'ІНІЦІАЛІЗУВАТИ СХОВИЩЕ',
+    'footer_privacy_text': 'Розроблено з шифруванням Zero-Knowledge військового рівня.\nВесь зв\'язок здійснюється виключно напряму (P2P).\nПовідомлення автоматично самознищуються через 24 години\nіз безпечним очищенням пам\'яті від слідів.\nНуль слідів, нуль журналів, повна приватність.',
+    'vault_not_initialized_device': 'Сховище не ініціалізовано на цьому пристрої.',
+    'invalid_decryption_key': 'Невірний ключ розшифрування.',
+    'vault_data_corrupted': 'Дані сховища пошкоджені (ключ був правильним, але сам файл сховища пошкоджено).',
+    'decrypt_padlock_title': 'РОЗШИФРУЙТЕ СВІЙ PADLOCK',
+    'login_subtitle': 'РОЗРОБЛЕНО З ШИФРУВАННЯМ ZERO-KNOWLEDGE\nВІЙСЬКОВОГО РІВНЯ',
+    'enter_decryption_key_label': 'Введіть ключ розшифрування',
+    'access_vault_button': 'ВІДКРИТИ СХОВИЩЕ',
   },
   'ZH': {
     'chats': '聊天',
@@ -2858,6 +3068,36 @@ Map<String, Map<String, String>> t = {
     'destruct_1h': '1 小时',
     'destruct_24h': '24 小时',
     'message_not_decrypted': '[消息未解密]',
+    'call_status_connecting': '连接中...',
+    'call_status_exchanging_keys': '正在交换加密密钥...',
+    'call_status_ringing': '响铃中...',
+    'call_status_connecting_encrypted': '正在建立加密通话...',
+    'call_status_incoming_encrypted': '来电加密通话...',
+    'call_status_connected_prefix': '已连接',
+    'call_status_connected_encrypted': '已连接并加密',
+    'call_status_reconnecting': '重新连接中...',
+    'call_contact_unavailable': '联系人不可用或离线。',
+    'missed_secure_call': '未接安全通话',
+    'missed_call_notification_title': '未接来电',
+    'setup_code_too_weak': '解密密钥太弱:请使用至少 10 个字符,并避免重复或连续的模式。',
+    'vault_init_failed_prefix': '保险库初始化失败',
+    'create_vault_title': '创建您的加密保险库',
+    'create_vault_subtitle': '设置您的主密钥以生成\nP2P 加密身份',
+    'set_decryption_key_label': '设置解密密钥',
+    'strength_too_weak': '太弱',
+    'strength_weak': '弱',
+    'strength_medium': '中等',
+    'strength_strong': '强',
+    'strength_very_strong': '非常强',
+    'initialize_vault_button': '初始化保险库',
+    'footer_privacy_text': '采用军用级零知识加密技术打造。\n所有通信均严格采用点对点(P2P)方式运行。\n消息将在 24 小时后使用安全的反追踪内存清理技术自动销毁。\n零痕迹,零日志,完全隐私。',
+    'vault_not_initialized_device': '此设备上的保险库尚未初始化。',
+    'invalid_decryption_key': '解密密钥无效。',
+    'vault_data_corrupted': '保险库数据已损坏(密钥正确,但保险库文件本身已损坏)。',
+    'decrypt_padlock_title': '解密您的 PADLOCK',
+    'login_subtitle': '采用军用级零知识加密技术打造',
+    'enter_decryption_key_label': '输入解密密钥',
+    'access_vault_button': '进入保险库',
   },
   'KO': {
     'chats': '채팅',
@@ -3045,6 +3285,36 @@ Map<String, Map<String, String>> t = {
     'destruct_1h': '1시간',
     'destruct_24h': '24시간',
     'message_not_decrypted': '[메시지가 복호화되지 않았습니다]',
+    'call_status_connecting': '연결 중...',
+    'call_status_exchanging_keys': '암호화 키 교환 중...',
+    'call_status_ringing': '전화가 울리는 중...',
+    'call_status_connecting_encrypted': '암호화된 통화 연결 중...',
+    'call_status_incoming_encrypted': '수신 중인 암호화된 통화...',
+    'call_status_connected_prefix': '연결됨',
+    'call_status_connected_encrypted': '연결되고 암호화됨',
+    'call_status_reconnecting': '재연결 중...',
+    'call_contact_unavailable': '연락처를 사용할 수 없거나 오프라인입니다.',
+    'missed_secure_call': '부재중 보안 통화',
+    'missed_call_notification_title': '부재중 전화',
+    'setup_code_too_weak': '암호 해독 키가 너무 약합니다: 최소 10자를 사용하고 반복되거나 연속된 패턴을 피하세요.',
+    'vault_init_failed_prefix': '보관함 초기화 실패',
+    'create_vault_title': '암호화된 보관함 만들기',
+    'create_vault_subtitle': '마스터 키를 설정하여\nP2P 암호화 신원을 생성하세요',
+    'set_decryption_key_label': '암호 해독 키 설정',
+    'strength_too_weak': '너무 약함',
+    'strength_weak': '약함',
+    'strength_medium': '보통',
+    'strength_strong': '강함',
+    'strength_very_strong': '매우 강함',
+    'initialize_vault_button': '보관함 초기화',
+    'footer_privacy_text': '군사급 제로 지식 암호화로 설계되었습니다.\n모든 통신은 엄격하게 P2P(피어 투 피어) 방식으로 작동합니다.\n메시지는 안전한 흔적 방지 메모리 정화를 통해\n24시간 후 자동으로 파기됩니다.\n흔적 없음, 로그 없음, 완전한 프라이버시.',
+    'vault_not_initialized_device': '이 기기에서 보관함이 초기화되지 않았습니다.',
+    'invalid_decryption_key': '잘못된 암호 해독 키입니다.',
+    'vault_data_corrupted': '보관함 데이터가 손상되었습니다(키는 올바르지만 보관함 파일 자체가 손상됨).',
+    'decrypt_padlock_title': 'PADLOCK 잠금 해제',
+    'login_subtitle': '군사급 제로 지식 암호화로 설계되었습니다',
+    'enter_decryption_key_label': '암호 해독 키 입력',
+    'access_vault_button': '보관함 접속',
   },
   'AR': {
     'chats': 'الدردشات',
@@ -3232,6 +3502,36 @@ Map<String, Map<String, String>> t = {
     'destruct_1h': 'ساعة واحدة',
     'destruct_24h': '24 ساعة',
     'message_not_decrypted': '[لم يتم فك تشفير الرسالة]',
+    'call_status_connecting': 'جارٍ الاتصال...',
+    'call_status_exchanging_keys': 'جارٍ تبادل مفاتيح التشفير...',
+    'call_status_ringing': 'جارٍ الرنين...',
+    'call_status_connecting_encrypted': 'جارٍ إجراء مكالمة مشفرة...',
+    'call_status_incoming_encrypted': 'مكالمة واردة مشفرة...',
+    'call_status_connected_prefix': 'متصل',
+    'call_status_connected_encrypted': 'متصل ومشفر',
+    'call_status_reconnecting': 'جارٍ إعادة الاتصال...',
+    'call_contact_unavailable': 'جهة الاتصال غير متاحة أو غير متصلة.',
+    'missed_secure_call': 'مكالمة آمنة فائتة',
+    'missed_call_notification_title': 'مكالمة فائتة',
+    'setup_code_too_weak': 'مفتاح فك التشفير ضعيف جدًا: استخدم 10 أحرف على الأقل وتجنب الأنماط المتكررة أو المتسلسلة.',
+    'vault_init_failed_prefix': 'فشل تهيئة الخزنة',
+    'create_vault_title': 'أنشئ خزنتك المشفرة',
+    'create_vault_subtitle': 'عيّن مفتاحك الرئيسي لإنشاء\nهويتك التشفيرية من نظير إلى نظير',
+    'set_decryption_key_label': 'تعيين مفتاح فك التشفير',
+    'strength_too_weak': 'ضعيف جدًا',
+    'strength_weak': 'ضعيف',
+    'strength_medium': 'متوسط',
+    'strength_strong': 'قوي',
+    'strength_very_strong': 'قوي جدًا',
+    'initialize_vault_button': 'تهيئة الخزنة',
+    'footer_privacy_text': 'مصمم بتشفير Zero-Knowledge بمستوى عسكري.\nتعمل جميع الاتصالات بشكل صارم من نظير إلى نظير (P2P).\nتُدمَّر الرسائل تلقائيًا بعد 24 ساعة\nباستخدام تنظيف ذاكرة آمن مضاد للتتبع.\nصفر أثر، صفر سجلات، خصوصية تامة.',
+    'vault_not_initialized_device': 'الخزنة غير مهيأة على هذا الجهاز.',
+    'invalid_decryption_key': 'مفتاح فك التشفير غير صالح.',
+    'vault_data_corrupted': 'بيانات الخزنة تالفة (كان المفتاح صحيحًا، لكن ملف الخزنة نفسه تالف).',
+    'decrypt_padlock_title': 'فك تشفير Padlock الخاص بك',
+    'login_subtitle': 'مصمم بتشفير Zero-Knowledge بمستوى عسكري',
+    'enter_decryption_key_label': 'أدخل مفتاح فك التشفير',
+    'access_vault_button': 'الدخول إلى الخزنة',
   },
   'TR': {
     'chats': 'Sohbetler',
@@ -3419,6 +3719,36 @@ Map<String, Map<String, String>> t = {
     'destruct_1h': '1 Saat',
     'destruct_24h': '24 Saat',
     'message_not_decrypted': '[Mesaj çözülemedi]',
+    'call_status_connecting': 'Bağlanıyor...',
+    'call_status_exchanging_keys': 'Şifreleme anahtarları değiştiriliyor...',
+    'call_status_ringing': 'Çalıyor...',
+    'call_status_connecting_encrypted': 'Şifreli arama bağlanıyor...',
+    'call_status_incoming_encrypted': 'Gelen şifreli arama...',
+    'call_status_connected_prefix': 'Bağlandı',
+    'call_status_connected_encrypted': 'Bağlandı ve şifrelendi',
+    'call_status_reconnecting': 'Yeniden bağlanıyor...',
+    'call_contact_unavailable': 'Kişi kullanılamıyor veya çevrimdışı.',
+    'missed_secure_call': 'Cevapsız Güvenli Arama',
+    'missed_call_notification_title': 'Cevapsız Arama',
+    'setup_code_too_weak': 'Şifre çözme anahtarı çok zayıf: en az 10 karakter kullanın ve tekrarlayan veya ardışık desenlerden kaçının.',
+    'vault_init_failed_prefix': 'Kasa başlatma başarısız oldu',
+    'create_vault_title': 'ŞİFRELİ KASANIZI OLUŞTURUN',
+    'create_vault_subtitle': 'P2P kriptografik kimliğinizi oluşturmak için\nana anahtarınızı belirleyin',
+    'set_decryption_key_label': 'Şifre Çözme Anahtarını Belirle',
+    'strength_too_weak': 'Çok zayıf',
+    'strength_weak': 'Zayıf',
+    'strength_medium': 'Orta',
+    'strength_strong': 'Güçlü',
+    'strength_very_strong': 'Çok güçlü',
+    'initialize_vault_button': 'KASAYI BAŞLAT',
+    'footer_privacy_text': 'Askeri düzeyde Zero-Knowledge şifreleme ile tasarlanmıştır.\nTüm iletişimler yalnızca Eşler Arası (P2P) çalışır.\nMesajlar, güvenli iz bırakmaz bellek temizliği kullanılarak\n24 saat sonra otomatik olarak kendini yok eder.\nSıfır iz, sıfır kayıt, tam gizlilik.',
+    'vault_not_initialized_device': 'Kasa bu cihazda başlatılmadı.',
+    'invalid_decryption_key': 'Geçersiz Şifre Çözme Anahtarı.',
+    'vault_data_corrupted': 'Kasa verileri bozuk (anahtar doğruydu, ancak kasa dosyasının kendisi hasarlı).',
+    'decrypt_padlock_title': 'PADLOCK\'UNUZUN ŞİFRESİNİ ÇÖZÜN',
+    'login_subtitle': 'ASKERİ DÜZEYDE ZERO-KNOWLEDGE\nŞİFRELEME İLE TASARLANMIŞTIR',
+    'enter_decryption_key_label': 'Şifre Çözme Anahtarını Girin',
+    'access_vault_button': 'KASAYA ERİŞ',
   },
   'IT': {
     'chats': 'Chat',
@@ -3606,6 +3936,36 @@ Map<String, Map<String, String>> t = {
     'destruct_1h': '1 Ora',
     'destruct_24h': '24 Ore',
     'message_not_decrypted': '[Messaggio non decifrato]',
+    'call_status_connecting': 'Connessione...',
+    'call_status_exchanging_keys': 'Scambio delle chiavi di crittografia...',
+    'call_status_ringing': 'Squillo...',
+    'call_status_connecting_encrypted': 'Connessione chiamata crittografata...',
+    'call_status_incoming_encrypted': 'Chiamata crittografata in arrivo...',
+    'call_status_connected_prefix': 'Connesso',
+    'call_status_connected_encrypted': 'Connesso e crittografato',
+    'call_status_reconnecting': 'Riconnessione...',
+    'call_contact_unavailable': 'Contatto non disponibile o offline.',
+    'missed_secure_call': 'Chiamata Sicura Persa',
+    'missed_call_notification_title': 'Chiamata Persa',
+    'setup_code_too_weak': 'La chiave di decrittazione è troppo debole: usa almeno 10 caratteri ed evita schemi ripetuti o sequenziali.',
+    'vault_init_failed_prefix': 'Inizializzazione del caveau non riuscita',
+    'create_vault_title': 'CREA IL TUO CAVEAU CRITTOGRAFATO',
+    'create_vault_subtitle': 'Imposta la tua chiave principale per generare\nla tua identità crittografica P2P',
+    'set_decryption_key_label': 'Imposta Chiave di Decrittazione',
+    'strength_too_weak': 'Troppo debole',
+    'strength_weak': 'Debole',
+    'strength_medium': 'Media',
+    'strength_strong': 'Forte',
+    'strength_very_strong': 'Molto forte',
+    'initialize_vault_button': 'INIZIALIZZA CAVEAU',
+    'footer_privacy_text': 'Progettato con crittografia Zero-Knowledge di livello militare.\nTutte le comunicazioni operano strettamente Peer-to-Peer (P2P).\nI messaggi si autodistruggono automaticamente dopo 24 ore\nutilizzando una sanificazione sicura della memoria anti-traccia.\nZero tracce, zero log, privacy totale.',
+    'vault_not_initialized_device': 'Caveau non inizializzato su questo dispositivo.',
+    'invalid_decryption_key': 'Chiave di Decrittazione non valida.',
+    'vault_data_corrupted': 'I dati del caveau sono danneggiati (la chiave era corretta, ma il file del caveau stesso è danneggiato).',
+    'decrypt_padlock_title': 'DECIFRA IL TUO PADLOCK',
+    'login_subtitle': 'PROGETTATO CON CRITTOGRAFIA ZERO-KNOWLEDGE\nDI LIVELLO MILITARE',
+    'enter_decryption_key_label': 'Inserisci Chiave di Decrittazione',
+    'access_vault_button': 'ACCEDI AL CAVEAU',
   },
   'JA': {
     'chats': 'チャット',
@@ -3793,6 +4153,36 @@ Map<String, Map<String, String>> t = {
     'destruct_1h': '1時間',
     'destruct_24h': '24時間',
     'message_not_decrypted': '[メッセージを復号できませんでした]',
+    'call_status_connecting': '接続中...',
+    'call_status_exchanging_keys': '暗号鍵を交換中...',
+    'call_status_ringing': '呼び出し中...',
+    'call_status_connecting_encrypted': '暗号化通話を接続中...',
+    'call_status_incoming_encrypted': '暗号化された着信通話...',
+    'call_status_connected_prefix': '接続済み',
+    'call_status_connected_encrypted': '接続され暗号化されています',
+    'call_status_reconnecting': '再接続中...',
+    'call_contact_unavailable': '連絡先が利用できないかオフラインです。',
+    'missed_secure_call': '不在着信(セキュア通話)',
+    'missed_call_notification_title': '不在着信',
+    'setup_code_too_weak': '復号鍵が弱すぎます。10文字以上を使用し、繰り返しや連続したパターンは避けてください。',
+    'vault_init_failed_prefix': 'ボールトの初期化に失敗しました',
+    'create_vault_title': '暗号化ボールトを作成',
+    'create_vault_subtitle': 'マスターキーを設定して\nP2P暗号アイデンティティを生成します',
+    'set_decryption_key_label': '復号鍵を設定',
+    'strength_too_weak': '弱すぎる',
+    'strength_weak': '弱い',
+    'strength_medium': '普通',
+    'strength_strong': '強い',
+    'strength_very_strong': '非常に強い',
+    'initialize_vault_button': 'ボールトを初期化',
+    'footer_privacy_text': '軍事レベルのゼロ知識暗号化で設計されています。\nすべての通信は厳密にピアツーピア(P2P)で動作します。\nメッセージは安全な痕跡防止メモリ消去により\n24時間後に自動的に自壊します。\n痕跡ゼロ、ログゼロ、完全なプライバシー。',
+    'vault_not_initialized_device': 'この端末ではボールトが初期化されていません。',
+    'invalid_decryption_key': '復号鍵が無効です。',
+    'vault_data_corrupted': 'ボールトのデータが破損しています(鍵は正しいですが、ボールトファイル自体が破損しています)。',
+    'decrypt_padlock_title': 'PADLOCKを復号',
+    'login_subtitle': '軍事レベルのゼロ知識暗号化で設計されています',
+    'enter_decryption_key_label': '復号鍵を入力',
+    'access_vault_button': 'ボールトにアクセス',
   },
   'HI': {
     'chats': 'चैट',
@@ -3980,6 +4370,36 @@ Map<String, Map<String, String>> t = {
     'destruct_1h': '1 घंटा',
     'destruct_24h': '24 घंटे',
     'message_not_decrypted': '[संदेश डिक्रिप्ट नहीं हुआ]',
+    'call_status_connecting': 'कनेक्ट हो रहा है...',
+    'call_status_exchanging_keys': 'एन्क्रिप्शन कुंजियों का आदान-प्रदान हो रहा है...',
+    'call_status_ringing': 'घंटी बज रही है...',
+    'call_status_connecting_encrypted': 'एन्क्रिप्टेड कॉल कनेक्ट हो रही है...',
+    'call_status_incoming_encrypted': 'आने वाली एन्क्रिप्टेड कॉल...',
+    'call_status_connected_prefix': 'कनेक्ट हो गया',
+    'call_status_connected_encrypted': 'कनेक्ट और एन्क्रिप्टेड',
+    'call_status_reconnecting': 'पुनः कनेक्ट हो रहा है...',
+    'call_contact_unavailable': 'संपर्क अनुपलब्ध है या ऑफ़लाइन है।',
+    'missed_secure_call': 'छूटी हुई सुरक्षित कॉल',
+    'missed_call_notification_title': 'छूटी हुई कॉल',
+    'setup_code_too_weak': 'डिक्रिप्शन कुंजी बहुत कमज़ोर है: कम से कम 10 अक्षरों का उपयोग करें और दोहराए जाने वाले या क्रमिक पैटर्न से बचें।',
+    'vault_init_failed_prefix': 'वॉल्ट प्रारंभ करने में विफल',
+    'create_vault_title': 'अपना एन्क्रिप्टेड वॉल्ट बनाएं',
+    'create_vault_subtitle': 'अपनी P2P क्रिप्टोग्राफिक पहचान बनाने के लिए\nअपनी मास्टर कुंजी सेट करें',
+    'set_decryption_key_label': 'डिक्रिप्शन कुंजी सेट करें',
+    'strength_too_weak': 'बहुत कमज़ोर',
+    'strength_weak': 'कमज़ोर',
+    'strength_medium': 'मध्यम',
+    'strength_strong': 'मजबूत',
+    'strength_very_strong': 'बहुत मजबूत',
+    'initialize_vault_button': 'वॉल्ट प्रारंभ करें',
+    'footer_privacy_text': 'सैन्य-ग्रेड ज़ीरो-नॉलेज एन्क्रिप्शन के साथ इंजीनियर किया गया।\nसभी संचार सख्ती से पीयर-टू-पीयर (P2P) पर काम करते हैं।\nसुरक्षित एंटी-ट्रेस मेमोरी सैनिटाइज़ेशन का उपयोग करके\nसंदेश 24 घंटे बाद स्वचालित रूप से नष्ट हो जाते हैं।\nशून्य निशान, शून्य लॉग, पूर्ण गोपनीयता।',
+    'vault_not_initialized_device': 'इस डिवाइस पर वॉल्ट प्रारंभ नहीं किया गया है।',
+    'invalid_decryption_key': 'अमान्य डिक्रिप्शन कुंजी।',
+    'vault_data_corrupted': 'वॉल्ट डेटा दूषित है (कुंजी सही थी, लेकिन वॉल्ट फ़ाइल स्वयं क्षतिग्रस्त है)।',
+    'decrypt_padlock_title': 'अपना PADLOCK डिक्रिप्ट करें',
+    'login_subtitle': 'सैन्य-ग्रेड ज़ीरो-नॉलेज एन्क्रिप्शन के साथ इंजीनियर किया गया',
+    'enter_decryption_key_label': 'डिक्रिप्शन कुंजी दर्ज करें',
+    'access_vault_button': 'वॉल्ट तक पहुंचें',
   },
   'NL': {
     'chats': 'Chats',
@@ -4167,6 +4587,36 @@ Map<String, Map<String, String>> t = {
     'destruct_1h': '1 Uur',
     'destruct_24h': '24 Uur',
     'message_not_decrypted': '[Bericht niet ontsleuteld]',
+    'call_status_connecting': 'Verbinden...',
+    'call_status_exchanging_keys': 'Versleutelingssleutels uitwisselen...',
+    'call_status_ringing': 'Bellen...',
+    'call_status_connecting_encrypted': 'Versleutelde oproep verbinden...',
+    'call_status_incoming_encrypted': 'Inkomende versleutelde oproep...',
+    'call_status_connected_prefix': 'Verbonden',
+    'call_status_connected_encrypted': 'Verbonden en versleuteld',
+    'call_status_reconnecting': 'Opnieuw verbinden...',
+    'call_contact_unavailable': 'Contact niet beschikbaar of offline.',
+    'missed_secure_call': 'Gemiste Beveiligde Oproep',
+    'missed_call_notification_title': 'Gemiste Oproep',
+    'setup_code_too_weak': 'Decoderingssleutel is te zwak: gebruik minstens 10 tekens en vermijd herhalende of opeenvolgende patronen.',
+    'vault_init_failed_prefix': 'Initialisatie van kluis mislukt',
+    'create_vault_title': 'MAAK JE VERSLEUTELDE KLUIS',
+    'create_vault_subtitle': 'Stel je hoofdsleutel in om je\nP2P-cryptografische identiteit te genereren',
+    'set_decryption_key_label': 'Decoderingssleutel Instellen',
+    'strength_too_weak': 'Te zwak',
+    'strength_weak': 'Zwak',
+    'strength_medium': 'Gemiddeld',
+    'strength_strong': 'Sterk',
+    'strength_very_strong': 'Zeer sterk',
+    'initialize_vault_button': 'KLUIS INITIALISEREN',
+    'footer_privacy_text': 'Ontworpen met Zero-Knowledge-versleuteling van militaire kwaliteit.\nAlle communicatie werkt strikt Peer-to-Peer (P2P).\nBerichten vernietigen zichzelf automatisch na 24 uur\nmet behulp van veilige anti-spoor geheugensanering.\nGeen sporen, geen logs, volledige privacy.',
+    'vault_not_initialized_device': 'Kluis niet geïnitialiseerd op dit apparaat.',
+    'invalid_decryption_key': 'Ongeldige decoderingssleutel.',
+    'vault_data_corrupted': 'Kluisgegevens zijn beschadigd (sleutel was correct, maar het kluisbestand zelf is beschadigd).',
+    'decrypt_padlock_title': 'ONTGRENDEL JE PADLOCK',
+    'login_subtitle': 'ONTWORPEN MET ZERO-KNOWLEDGE-VERSLEUTELING\nVAN MILITAIRE KWALITEIT',
+    'enter_decryption_key_label': 'Decoderingssleutel Invoeren',
+    'access_vault_button': 'KLUIS OPENEN',
   },
   'PL': {
     'chats': 'Czaty',
@@ -4354,6 +4804,36 @@ Map<String, Map<String, String>> t = {
     'destruct_1h': '1 Godzina',
     'destruct_24h': '24 Godziny',
     'message_not_decrypted': '[Wiadomość nieodszyfrowana]',
+    'call_status_connecting': 'Łączenie...',
+    'call_status_exchanging_keys': 'Wymiana kluczy szyfrowania...',
+    'call_status_ringing': 'Dzwonienie...',
+    'call_status_connecting_encrypted': 'Łączenie szyfrowanego połączenia...',
+    'call_status_incoming_encrypted': 'Nadchodzące szyfrowane połączenie...',
+    'call_status_connected_prefix': 'Połączono',
+    'call_status_connected_encrypted': 'Połączono i zaszyfrowano',
+    'call_status_reconnecting': 'Ponowne łączenie...',
+    'call_contact_unavailable': 'Kontakt niedostępny lub offline.',
+    'missed_secure_call': 'Nieodebrane Bezpieczne Połączenie',
+    'missed_call_notification_title': 'Nieodebrane Połączenie',
+    'setup_code_too_weak': 'Klucz deszyfrowania jest za słaby: użyj co najmniej 10 znaków i unikaj powtarzających się lub sekwencyjnych wzorców.',
+    'vault_init_failed_prefix': 'Inicjalizacja skarbca nie powiodła się',
+    'create_vault_title': 'UTWÓRZ SWÓJ ZASZYFROWANY SKARBIEC',
+    'create_vault_subtitle': 'Ustaw swój klucz główny, aby wygenerować\nswoją kryptograficzną tożsamość P2P',
+    'set_decryption_key_label': 'Ustaw Klucz Deszyfrowania',
+    'strength_too_weak': 'Za słabe',
+    'strength_weak': 'Słabe',
+    'strength_medium': 'Średnie',
+    'strength_strong': 'Silne',
+    'strength_very_strong': 'Bardzo silne',
+    'initialize_vault_button': 'ZAINICJUJ SKARBIEC',
+    'footer_privacy_text': 'Zaprojektowano z szyfrowaniem Zero-Knowledge klasy wojskowej.\nCała komunikacja działa wyłącznie w trybie Peer-to-Peer (P2P).\nWiadomości automatycznie samozniszczają się po 24 godzinach\nprzy użyciu bezpiecznego czyszczenia pamięci bez śladów.\nZero śladów, zero dzienników, pełna prywatność.',
+    'vault_not_initialized_device': 'Skarbiec nie został zainicjowany na tym urządzeniu.',
+    'invalid_decryption_key': 'Nieprawidłowy klucz deszyfrowania.',
+    'vault_data_corrupted': 'Dane skarbca są uszkodzone (klucz był poprawny, ale sam plik skarbca jest uszkodzony).',
+    'decrypt_padlock_title': 'ODSZYFRUJ SWÓJ PADLOCK',
+    'login_subtitle': 'ZAPROJEKTOWANO Z SZYFROWANIEM ZERO-KNOWLEDGE\nKLASY WOJSKOWEJ',
+    'enter_decryption_key_label': 'Wprowadź Klucz Deszyfrowania',
+    'access_vault_button': 'OTWÓRZ SKARBIEC',
   },
 };
 
@@ -4399,6 +4879,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
   int _currentIndex = 0;
   String _myPrivacyId = '';
   String _destructTime = '7 Days';
+  // MainNavigationScreen só é construído UMA VEZ (empurrado pelo Navigator a
+  // partir do Login/Setup) - widget.currentLanguage nunca muda depois disso,
+  // por isso este ecrã precisa do seu próprio estado para refletir a troca
+  // de idioma feita nos diálogos abaixo sem teres de sair e voltar a entrar.
+  late String _currentLang;
 
   bool _silentMode = false;
   bool _passcodeLock = false;
@@ -4410,7 +4895,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
 @override
   void initState() {
     super.initState();
-    
+    _currentLang = widget.currentLanguage;
+
     PadlockNetwork.connect();
     WidgetsBinding.instance.addObserver(this);
     _generateNewId();
@@ -5242,7 +5728,7 @@ await PadlockRatchet.establishChains(
 
   @override
   Widget build(BuildContext context) {
-    final local = t[widget.currentLanguage] ?? t['EN']!;
+    final local = t[_currentLang] ?? t['EN']!;
     int totalUnread = _chats.fold(0, (sum, chat) => sum + ((chat['unread'] ?? 0) as int));
 
     final List<Widget> screens = [
@@ -5441,12 +5927,12 @@ if (context.mounted) {
       ),
       SettingsScreen(
         local: local,
-        currentLang: widget.currentLanguage,
+        currentLang: _currentLang,
         destructTime: _destructTime,
         silentMode: _silentMode,
         passcodeLock: _passcodeLock,
         blockScreenshots: _blockScreenshots,
-        onLangChange: widget.onLanguageChange,
+        onLangChange: (lang) => setState(() => _currentLang = lang),
         onDestructChange: (time) => setState(() => _destructTime = time),
         // Só existe o Silent Mode agora - ter dois botões (Notifications e
         // Silent Mode) a controlar exatamente a mesma coisa por baixo não
@@ -5549,7 +6035,7 @@ title: const Text(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      t[widget.currentLanguage]?['language'] ?? 'Language',
+                      t[_currentLang]?['language'] ?? 'Language',
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     const SizedBox(height: 12),
@@ -5559,7 +6045,7 @@ title: const Text(
                         child: ListView(
                           shrinkWrap: true,
                           children: kSupportedLanguages.map((lang) {
-                            final isSelected = lang['code'] == widget.currentLanguage;
+                            final isSelected = lang['code'] == _currentLang;
                             return ListTile(
                               leading: Text(lang['flag']!, style: const TextStyle(fontSize: 20)),
                               title: Text(
@@ -5572,6 +6058,7 @@ title: const Text(
                               trailing: isSelected ? const Icon(Icons.check, color: Colors.greenAccent) : null,
                               onTap: () {
                                 context.findAncestorStateOfType<_PadlockAppState>()?._changeLanguage(lang['code']!);
+                                setState(() => _currentLang = lang['code']!);
                                 Navigator.pop(context);
                               },
                             );
@@ -8344,6 +8831,7 @@ class ActiveCallScreen extends StatefulWidget {
   State<ActiveCallScreen> createState() => _ActiveCallScreenState();
 }
 class _ActiveCallScreenState extends State<ActiveCallScreen> {
+  Map<String, String> get _local => widget.local ?? t['EN']!;
   Timer? _callTimeoutTimer;
   Timer? _activeCallTimer;
   Timer? _ringingTimer; // Temporizador para o som do tuuu... tuuu
@@ -8354,7 +8842,7 @@ class _ActiveCallScreenState extends State<ActiveCallScreen> {
   bool _isSpeakerOn = false;
   final AudioPlayer _audioPlayer = AudioPlayer();
 
-  String _callStatusText = 'Connecting...';
+  String _callStatusText = '';
   Color _callStatusColor = Colors.orangeAccent;
 
   RTCPeerConnection? _peerConnection;
@@ -8371,6 +8859,7 @@ bool _isRemoteSet = false;
   @override
   void initState() {
     super.initState();
+    _callStatusText = _local['call_status_connecting']!;
     PadlockNetwork.emChamada = true;
     WakelockPlus.enable();
     // O altifalante liga sempre ao início em vídeo (ver o resto da lógica
@@ -8400,7 +8889,7 @@ bool _isRemoteSet = false;
         final decoded = jsonDecode(data);
         if (decoded['action'] == 'call_answer' && !widget.isIncoming) {
           setState(() {
-            _callStatusText = 'Exchanging Encryption Keys...';
+            _callStatusText = _local['call_status_exchanging_keys']!;
             _callStatusColor = Colors.lightBlueAccent;
           });
           _audioPlayer.play(AssetSource('sounds/morse.mp3')).catchError((e) => print('Erro audio: $e'));
@@ -8440,7 +8929,7 @@ bool _isRemoteSet = false;
         else if (decoded['action'] == 'call_ringing') {
           if (mounted) {
             setState(() {
-              _callStatusText = 'Ringing...';
+              _callStatusText = _local['call_status_ringing']!;
               _callStatusColor = Colors.greenAccent;
             });
             }
@@ -8478,7 +8967,7 @@ bool _isRemoteSet = false;
     // 2. MODO DE ARRANQUE: Quem liga vs Quem recebe
    if (!widget.isIncoming) {
       setState(() {
-        _callStatusText = 'Connecting Encrypted Call...';
+        _callStatusText = _local['call_status_connecting_encrypted']!;
         _callStatusColor = Colors.orangeAccent;
       });
       startSecureCall(widget.targetId);
@@ -8490,14 +8979,14 @@ bool _isRemoteSet = false;
           _callHandled = true;
           endCall(widget.targetId);
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Contact Unavailable or Offline.', style: TextStyle(color: Colors.red))),
+            SnackBar(content: Text(_local['call_contact_unavailable']!, style: const TextStyle(color: Colors.red))),
           );
         }
       });
       
     } else {
       setState(() {
-        _callStatusText = 'Incoming Encrypted Call...';
+        _callStatusText = _local['call_status_incoming_encrypted']!;
         _callStatusColor = const Color(0xFF00FF66);
       });
       _startMissedCallTimer();
@@ -8565,7 +9054,7 @@ if (!widget.acceptedViaCallKit && !silentModeAtivo) {
           _secondsElapsed++;
           final minutes = (_secondsElapsed ~/ 60).toString().padLeft(2, '0');
           final seconds = (_secondsElapsed % 60).toString().padLeft(2, '0');
-          _callStatusText = 'Connected ($minutes:$seconds)';
+          _callStatusText = '${_local['call_status_connected_prefix']} ($minutes:$seconds)';
         });
       }
     });
@@ -8580,17 +9069,18 @@ if (!widget.acceptedViaCallKit && !silentModeAtivo) {
       int chatIdx = allChats.indexWhere((c) => c['id'].toString() == widget.targetId.toString());
       final now = DateTime.now().millisecondsSinceEpoch;
       final timeStr = "${DateTime.now().hour.toString().padLeft(2, '0')}:${DateTime.now().minute.toString().padLeft(2, '0')}";
-      final missedMsg = '📞 Missed Secure Call ($timeStr)';
+      final missedLabel = _local['missed_secure_call']!;
+      final missedMsg = '📞 $missedLabel ($timeStr)';
 
       if (chatIdx != -1) {
         if (allChats[chatIdx]['messages'] == null) allChats[chatIdx]['messages'] = [];
         allChats[chatIdx]['messages'].add({'text': missedMsg, 'isMe': false, 'status': 'missed', 'timestamp': now});
-        allChats[chatIdx]['msg'] = '📞 Missed Secure Call';
+        allChats[chatIdx]['msg'] = '📞 $missedLabel';
         allChats[chatIdx]['time'] = timeStr;
         allChats[chatIdx]['unread'] = (allChats[chatIdx]['unread'] ?? 0) + 1;
       }
       vault.put('chats', jsonEncode(allChats));
-      flutterLocalNotificationsPlugin.show(DateTime.now().millisecond, 'Padlock - Missed Call', missedMsg, const NotificationDetails(android: AndroidNotificationDetails('padlock_msg_channel', 'Secure Messages', importance: Importance.max, priority: Priority.high, playSound: true)));
+      flutterLocalNotificationsPlugin.show(DateTime.now().millisecond, 'Padlock - ${_local['missed_call_notification_title']}', missedMsg, const NotificationDetails(android: AndroidNotificationDetails('padlock_msg_channel', 'Secure Messages', importance: Importance.max, priority: Priority.high, playSound: true)));
     } catch (e) {
       print('Erro ao registar chamada perdida: $e');
     }
@@ -8600,9 +9090,9 @@ if (!widget.acceptedViaCallKit && !silentModeAtivo) {
     _peerConnection?.onIceConnectionState = (state) {
       if (!mounted) return;
       setState(() {
-        if (state == RTCIceConnectionState.RTCIceConnectionStateConnected || 
+        if (state == RTCIceConnectionState.RTCIceConnectionStateConnected ||
             state == RTCIceConnectionState.RTCIceConnectionStateCompleted) {
-          _callStatusText = 'Connected and Encrypted';
+          _callStatusText = _local['call_status_connected_encrypted']!;
           _callStatusColor = const Color(0xFF00FF66);
           _startActiveTimer();
           _audioPlayer.stop(); // Corta o Morse/Ringing imediatamente assim que atende!
@@ -8617,7 +9107,7 @@ if (!widget.acceptedViaCallKit && !silentModeAtivo) {
 }
         } else if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
           // EFEITO TÚNEL: Net caiu. Não desliga a chamada, espera que recupere.
-          _callStatusText = 'Reconnecting...';
+          _callStatusText = _local['call_status_reconnecting']!;
           _callStatusColor = Colors.orangeAccent;
           _audioPlayer.play(AssetSource('sounds/morse.mp3')); // Toca Morse no túnel
           _peerConnection?.restartIce(); // Força a religação à nova rede (Wi-Fi -> 5G)
@@ -8722,7 +9212,7 @@ if (!widget.acceptedViaCallKit && !silentModeAtivo) {
     if (status != PermissionStatus.granted) return;
     if (!mounted) return;
     setState(() {
-      _callStatusText = 'Connecting Encrypted Call...';
+      _callStatusText = _local['call_status_connecting_encrypted']!;
       _callStatusColor = Colors.orangeAccent;
     });
 
@@ -8784,7 +9274,7 @@ _audioPlayer.play(AssetSource('sounds/morse.mp3'));
     if (status != PermissionStatus.granted) return;
 
     setState(() {
-      _callStatusText = 'Exchanging Encryption Keys...';
+      _callStatusText = _local['call_status_exchanging_keys']!;
       _callStatusColor = Colors.lightBlueAccent;
     });
 
@@ -8797,7 +9287,7 @@ _audioPlayer.play(AssetSource('sounds/morse.mp3'));
 
       _peerConnection = await createPeerConnection(configuration);
       _setupPeerConnectionListeners();
-     
+
 
       _localStream = await navigator.mediaDevices.getUserMedia({'audio': true, 'video': widget.isVideo});
       if (widget.isVideo) {
@@ -9459,6 +9949,7 @@ class _SetupScreenState extends State<SetupScreen> {
   bool _obscureText = true;
   bool _isProcessing = false;
   int _strengthScore = 0;
+  Map<String, String> get _local => t[context.findAncestorStateOfType<_PadlockAppState>()?._currentLanguage ?? 'EN'] ?? t['EN']!;
 
   @override
   void initState() {
@@ -9472,7 +9963,7 @@ class _SetupScreenState extends State<SetupScreen> {
     final key = _keyController.text.trim();
     if (_passphraseScore(key) < 1) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Decryption Key is too weak: use at least 10 characters and avoid repeated or sequential patterns.')),
+        SnackBar(content: Text(_local['setup_code_too_weak']!)),
       );
       return;
     }
@@ -9514,7 +10005,7 @@ class _SetupScreenState extends State<SetupScreen> {
       if (mounted) {
         setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Vault initialization failed: $e')),
+          SnackBar(content: Text('${_local['vault_init_failed_prefix']}: $e')),
         );
       }
     }
@@ -9571,10 +10062,10 @@ body: Container(
   ),
 ),
               const SizedBox(height: 20),
-              const Text(
-                'CREATE YOUR ENCRYPTED VAULT',
+              Text(
+                _local['create_vault_title']!,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -9582,10 +10073,10 @@ body: Container(
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
-                'Set your master key to generate\nP2P cryptographic identity',
+              Text(
+                _local['create_vault_subtitle']!,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 11, height: 1.3),
+                style: const TextStyle(color: Colors.grey, fontSize: 11, height: 1.3),
               ),
               const SizedBox(height: 32),
               TextField(
@@ -9593,7 +10084,7 @@ body: Container(
                 obscureText: _obscureText,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  labelText: 'Set Decryption Key',
+                  labelText: _local['set_decryption_key_label'],
                   labelStyle: const TextStyle(color: Colors.grey),
                   enabledBorder: OutlineInputBorder(
                     borderSide: const BorderSide(color: Colors.grey),
@@ -9620,7 +10111,7 @@ body: Container(
               if (_keyController.text.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Builder(builder: (context) {
-                  const labels = ['Too weak', 'Weak', 'Medium', 'Strong', 'Very strong'];
+                  final labels = [_local['strength_too_weak']!, _local['strength_weak']!, _local['strength_medium']!, _local['strength_strong']!, _local['strength_very_strong']!];
                   const colors = [Colors.redAccent, Colors.orangeAccent, Colors.amber, Colors.lightGreen, Colors.greenAccent];
                   final score = _strengthScore;
                   return Column(
@@ -9660,9 +10151,9 @@ body: Container(
                           height: 22,
                           child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black),
                         )
-                      : const Text(
-                          'INITIALIZE VAULT',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      : Text(
+                          _local['initialize_vault_button']!,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                 ),
               ),
@@ -9670,11 +10161,7 @@ body: Container(
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10.0),
                 child: Text(
-                  'Engineered with military-grade Zero-Knowledge encryption.\n'
-                  'All communications operate strictly Peer-to-Peer (P2P).\n'
-                  'Messages automatically self-destruct after 24 hours\n'
-                  'using secure anti-trace memory sanitization.\n'
-                  'Zero trace, zero logs, total privacy.',
+                  _local['footer_privacy_text']!,
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 10, height: 1.4),
                 ),
@@ -9698,6 +10185,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _keyController = TextEditingController();
   bool _obscureText = true;
   bool _isProcessing = false;
+  Map<String, String> get _local => t[context.findAncestorStateOfType<_PadlockAppState>()?._currentLanguage ?? 'EN'] ?? t['EN']!;
 
   Future<void> _login() async {
     final inputKey = _keyController.text.trim();
@@ -9712,7 +10200,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         setState(() => _isProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Vault not initialized on this device.')),
+          SnackBar(content: Text(_local['vault_not_initialized_device']!)),
         );
       }
       return;
@@ -9735,7 +10223,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // certeza, que a chave está certa.
       final validKey = await PadlockVaultKey.verifyKeyHash('padlock_vault_keyhash', derivedKey);
       if (!validKey) {
-        throw Exception('Invalid Decryption Key.');
+        throw Exception(_local['invalid_decryption_key']!);
       }
 
       if (Hive.isBoxOpen('padlock_vault')) {
@@ -9749,7 +10237,7 @@ class _LoginScreenState extends State<LoginScreen> {
       // de a frase estar errada.
       final canary = opened.get('_vault_canary');
       if (canary != 'padlock_ok') {
-        throw Exception('Vault data is corrupted (key was correct, but the vault file itself is damaged).');
+        throw Exception(_local['vault_data_corrupted']!);
       }
 
       PadlockNetwork.isUnlocked = true;
@@ -9759,6 +10247,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (mounted) {
         final pendingCall = PadlockNetwork.pendingCallData;
+        // O idioma escolhido vive em _PadlockAppState (lido do SharedPreferences
+        // no arranque) - sem isto, todo o login normal (não só o primeiro
+        // arranque) reconstruía o ecrã principal sempre fixo em inglês,
+        // ignorando por completo o idioma que a pessoa tinha escolhido.
+        final padlockLang = context.findAncestorStateOfType<_PadlockAppState>()?._currentLanguage ?? 'EN';
         // Vai sempre para o ecrã principal primeiro - mesmo havendo uma
         // chamada à espera. Antes, a chamada substituía o ecrã de login
         // como única rota, sem nada por baixo para onde voltar; agora ela
@@ -9766,12 +10259,12 @@ class _LoginScreenState extends State<LoginScreen> {
         // principal já pronto por baixo para quando ela for minimizada ou
         // terminar.
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => MainNavigationScreen(currentLanguage: 'EN', onLanguageChange: (lang) {})),
+          MaterialPageRoute(builder: (context) => MainNavigationScreen(currentLanguage: padlockLang, onLanguageChange: (lang) {})),
         );
         if (pendingCall != null) {
           // Havia uma chamada à espera (aceite via CallKit com a app morta).
           PadlockCallOverlay.show(ActiveCallScreen(
-            local: t['EN']!,
+            local: t[padlockLang] ?? t['EN']!,
             recipientName: pendingCall['targetId'],
             targetId: pendingCall['targetId'],
             isIncoming: true,
@@ -9850,10 +10343,10 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: 20),
               
               // Título Principal
-              const Text(
-                'DECRYPT YOUR PADLOCK',
+              Text(
+                _local['decrypt_padlock_title']!,
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -9863,10 +10356,10 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 12),
 
               // Subtítulo (Opção 2 com quebra de linha para telemóvel)
-              const Text(
-                'ENGINEERED WITH MILITARY-GRADE\nZERO-KNOWLEDGE ENCRYPTION',
+              Text(
+                _local['login_subtitle']!,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 11, height: 1.3, letterSpacing: 1.0),
+                style: const TextStyle(color: Colors.grey, fontSize: 11, height: 1.3, letterSpacing: 1.0),
               ),
               const SizedBox(height: 32),
 
@@ -9876,7 +10369,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 obscureText: _obscureText,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
-                  labelText: 'Enter Decryption Key',
+                  labelText: _local['enter_decryption_key_label'],
                   labelStyle: const TextStyle(color: Colors.grey),
                   enabledBorder: OutlineInputBorder(
                     borderSide: const BorderSide(color: Colors.grey),
@@ -9921,9 +10414,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           height: 22,
                           child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black),
                         )
-                      : const Text(
-                          'ACCESS VAULT',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      : Text(
+                          _local['access_vault_button']!,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                 ),
               ),
@@ -9933,11 +10426,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10.0),
                 child: Text(
-                  'Engineered with military-grade Zero-Knowledge encryption.\n'
-                  'All communications operate strictly Peer-to-Peer (P2P).\n'
-                  'Messages automatically self-destruct after 24 hours\n'
-                  'using secure anti-trace memory sanitization.\n'
-                  'Zero trace, zero logs, total privacy.',
+                  _local['footer_privacy_text']!,
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 10, height: 1.4),
                 ),
