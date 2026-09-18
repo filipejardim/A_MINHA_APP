@@ -5714,7 +5714,10 @@ bool _isRemoteSet = false;
   'action': 'call_ringing',
   'targetId': widget.targetId,
 };
-widget.channel?.sink.add(jsonEncode(ringingSignal));
+// Usa PadlockNetwork.channel ao vivo, nunca o "widget.channel" capturado
+      // na criação do ecrã - ver explicação completa mais abaixo, junto de
+      // _fetchIceServers.
+      PadlockNetwork.channel?.sink.add(jsonEncode(ringingSignal));
 });
 // Aciona o toque para quem recebe a chamada (com o nome exato do teu ficheiro)
 if (!widget.acceptedViaCallKit) {
@@ -5847,7 +5850,7 @@ if (!widget.acceptedViaCallKit) {
         'targetId': widget.targetId,
         'candidate': candidate.toMap(),
       };
-      widget.channel?.sink.add(jsonEncode(candidateSignal));
+      PadlockNetwork.channel?.sink.add(jsonEncode(candidateSignal));
     };
   }
 
@@ -5862,10 +5865,24 @@ if (!widget.acceptedViaCallKit) {
   // lados porque routers de casa costumam ter NAT mais simples). É a
   // explicação mais provável para "dados móveis com dados móveis" ficar
   // sempre preso em "Exchanging Encryption Keys" sem nunca ligar.
+  //
+  // Segundo bug encontrado (mais grave): o envio de sinalização inteiro
+  // nesta classe (oferta, resposta, candidatos, pedido de ICE, fim de
+  // chamada)
+  // usava "widget.channel" - uma "fotografia" do PadlockNetwork.channel
+  // tirada no preciso instante em que o ecrã de chamada foi criado. Numa
+  // rede móvel, é muito comum o WebSocket cair e voltar a ligar sozinho a
+  // meio de uma chamada (mudança de torre, o telefone poupar bateria,
+  // etc.) - quando isso acontece, PadlockNetwork.channel passa a apontar
+  // para a ligação NOVA, mas o ecrã de chamada continuava agarrado à
+  // ligação VELHA e já morta, perdendo a capacidade de mandar candidatos
+  // novos (ou até a própria resposta) para sempre, mesmo com a rede já
+  // recuperada. Agora todos os pontos usam PadlockNetwork.channel
+  // diretamente, sempre a versão viva.
   Future<List<Map<String, dynamic>>> _fetchIceServers() async {
     final fallback = PadlockNetwork.cachedIceServers ??
         <Map<String, dynamic>>[{'urls': 'stun:stun.l.google.com:19302'}];
-    if (widget.channel == null) return fallback;
+    if (PadlockNetwork.channel == null) return fallback;
 
     Future<List<Map<String, dynamic>>?> attempt() async {
       try {
@@ -5882,7 +5899,7 @@ if (!widget.acceptedViaCallKit) {
             }
           } catch (_) {}
         });
-        widget.channel?.sink.add(jsonEncode({'type': 'get_ice_servers'}));
+        PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'get_ice_servers'}));
         final result = await completer.future.timeout(
           const Duration(seconds: 8),
           onTimeout: () => null,
@@ -5949,7 +5966,7 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
           'isVideo': widget.isVideo,
           'timestamp': DateTime.now().millisecondsSinceEpoch,
         };
-      widget.channel?.sink.add(jsonEncode(callSignal));
+      PadlockNetwork.channel?.sink.add(jsonEncode(callSignal));
       _audioPlayer.setReleaseMode(ReleaseMode.loop);
       await _audioPlayer.setAudioContext(AudioContext(
   android: AudioContextAndroid(
@@ -6024,7 +6041,7 @@ _isRemoteSet = true;
   'sdp': answer.toMap(),
   'timestamp': DateTime.now().millisecondsSinceEpoch,
 };
-      widget.channel?.sink.add(jsonEncode(answerSignal));
+      PadlockNetwork.channel?.sink.add(jsonEncode(answerSignal));
       _audioPlayer.stop();
 flutterLocalNotificationsPlugin.cancel(99);
     } catch (e) {
@@ -6040,7 +6057,7 @@ flutterLocalNotificationsPlugin.cancel(99);
       'action': 'call_end',
       'targetId': targetPrivacyId,
     };
-    widget.channel?.sink.add(jsonEncode(endSignal));
+    PadlockNetwork.channel?.sink.add(jsonEncode(endSignal));
     try {
       _peerConnection?.close();
       _peerConnection?.dispose();
