@@ -41,6 +41,13 @@ class PadlockNetwork {
   static String? chatAbertoAtualmente;
   static bool _emChamada = false;
   static DateTime? _emChamadaSetAt;
+  // Última lista de servidores ICE (STUN+TURN) que o servidor confirmou -
+  // serve de rede de segurança se um pedido futuro demorar demasiado numa
+  // ligação de dados móveis mais lenta: melhor reutilizar TURN recente do
+  // que cair para STUN sozinho, que não atravessa duas redes móveis com
+  // NAT restritivo (a causa mais provável de "dados móveis com dados
+  // móveis" nunca sair de "Exchanging Encryption Keys").
+  static List<Map<String, dynamic>>? cachedIceServers;
 
   // "Em chamada" nunca pode ficar preso a 'true' para sempre - se a app
   // morrer a meio de uma chamada sem correr o código que a desliga
@@ -659,6 +666,26 @@ class VaultFilesStore {
 // cadeia num certo momento, assim que houver uma resposta a conversa
 // "cura-se" sozinha e volta a ficar ilegível para quem só tinha essa chave.
 class PadlockRatchet {
+  // Tranca por contacto - garante que nextSendKey/receiveMessageKey nunca
+  // correm ao mesmo tempo para o MESMO peerId. Sem isto, duas mensagens a
+  // chegar perto uma da outra (muito provável logo após reconectar, quando
+  // o servidor entrega várias mensagens em fila de uma vez) podiam ler o
+  // mesmo estado da cadeia em simultâneo e escrever de volta em cima uma da
+  // outra - um Double Ratchet corrompido desta forma NUNCA se cura sozinho
+  // (é precisamente "sigilo perante o futuro": não há como recuar), o que
+  // bate certo com "todas as mensagens ficam para sempre por decifrar depois
+  // de um problema de rede, nunca recupera".
+  static final Map<String, Future<dynamic>> _locks = {};
+
+  static Future<T> _withLock<T>(String peerId, Future<T> Function() action) {
+    final previous = _locks[peerId] ?? Future<void>.value();
+    final result = previous.then((_) => action());
+    // Guarda a nova promessa já "protegida" contra erros, para uma
+    // mensagem que falhe a decifrar não travar as seguintes na fila.
+    _locks[peerId] = result.then((_) {}, onError: (_) {});
+    return result;
+  }
+
   static const List<int> _msgKeyConstant = [0x01];
   static const List<int> _chainKeyConstant = [0x02];
 
@@ -797,7 +824,11 @@ class PadlockRatchet {
     return Uint8List.fromList(mac.bytes);
   }
 
-  static Future<Map<String, dynamic>> nextSendKey(String peerId) async {
+  static Future<Map<String, dynamic>> nextSendKey(String peerId) {
+    return _withLock(peerId, () => _nextSendKeyLocked(peerId));
+  }
+
+  static Future<Map<String, dynamic>> _nextSendKeyLocked(String peerId) async {
     final vault = Hive.box('padlock_vault');
     final chainBase64 = vault.get('chain_send_$peerId');
     if (chainBase64 == null) {
@@ -818,7 +849,11 @@ class PadlockRatchet {
   // theirDhPub: chave de ratchet atual de quem enviou (vem no cabeçalho da
   // mensagem). Se for diferente da que tínhamos guardada, dispara um passo
   // do ratchet DH antes de sequer tentar decifrar.
-  static Future<Uint8List?> receiveMessageKey(String peerId, int targetIndex, {String? theirDhPub}) async {
+  static Future<Uint8List?> receiveMessageKey(String peerId, int targetIndex, {String? theirDhPub}) {
+    return _withLock(peerId, () => _receiveMessageKeyLocked(peerId, targetIndex, theirDhPub: theirDhPub));
+  }
+
+  static Future<Uint8List?> _receiveMessageKeyLocked(String peerId, int targetIndex, {String? theirDhPub}) async {
     final vault = Hive.box('padlock_vault');
 
     if (theirDhPub != null && theirDhPub.isNotEmpty) {
@@ -5546,6 +5581,10 @@ bool _isRemoteSet = false;
     super.initState();
     PadlockNetwork.emChamada = true;
     WakelockPlus.enable();
+    // O altifalante liga sempre ao início em vídeo (ver o resto da lógica
+    // em _setupPeerConnectionListeners) - o botão tem de nascer já a
+    // refletir isso, senão mostrava "desligado" com o altifalante já ligado.
+    _isSpeakerOn = widget.isVideo;
     if (widget.isVideo) {
       Future.wait([_localRenderer.initialize(), _remoteRenderer.initialize()]).then((_) {
         if (mounted) setState(() => _videoRenderersReady = true);
@@ -5769,9 +5808,14 @@ if (!widget.acceptedViaCallKit) {
           _callStatusColor = const Color(0xFF00FF66);
           _startActiveTimer();
           _audioPlayer.stop(); // Corta o Morse/Ringing imediatamente assim que atende!
-          // A chamada atendeu! Agora sim, passa o som da voz para o ouvido
+          // A chamada atendeu! Em voz, passa o som para o ouvido (auscultador).
+          // Em vídeo mantém-se sempre no altifalante - faltava este "isVideo"
+          // aqui, por isso o altifalante ligado no início da chamada de
+          // vídeo era sempre desligado outra vez assim que a ligação
+          // completava, obrigando a ligá-lo à mão.
         if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
-  _localStream!.getAudioTracks()[0].enableSpeakerphone(false);
+  _localStream!.getAudioTracks()[0].enableSpeakerphone(widget.isVideo);
+  _isSpeakerOn = widget.isVideo;
 }
         } else if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
           // EFEITO TÚNEL: Net caiu. Não desliga a chamada, espera que recupere.
@@ -5809,35 +5853,56 @@ if (!widget.acceptedViaCallKit) {
 
   // Pede a configuração TURN ao servidor em vez de a ter fixa no APK
   // (credenciais fixas no cliente eram extraíveis por descompilação).
+  //
+  // Bug encontrado: com um limite de só 4 segundos e SEM TURN nenhum na
+  // lista de reserva (só STUN), uma ligação de dados móveis mais lenta a
+  // pedir isto logo no início da chamada facilmente estourava o tempo -
+  // caindo para STUN sozinho, que não consegue atravessar duas redes
+  // móveis com NAT restritivo ao mesmo tempo (funciona com Wi-Fi de um dos
+  // lados porque routers de casa costumam ter NAT mais simples). É a
+  // explicação mais provável para "dados móveis com dados móveis" ficar
+  // sempre preso em "Exchanging Encryption Keys" sem nunca ligar.
   Future<List<Map<String, dynamic>>> _fetchIceServers() async {
-    final fallback = <Map<String, dynamic>>[
-      {'urls': 'stun:stun.l.google.com:19302'},
-    ];
+    final fallback = PadlockNetwork.cachedIceServers ??
+        <Map<String, dynamic>>[{'urls': 'stun:stun.l.google.com:19302'}];
     if (widget.channel == null) return fallback;
-    try {
-      final completer = Completer<List<Map<String, dynamic>>>();
-      late StreamSubscription sub;
-      sub = PadlockNetwork.messageHub.stream.listen((raw) {
-        try {
-          final decoded = jsonDecode(raw);
-          if (decoded['type'] == 'ice_servers' && !completer.isCompleted) {
-            final servers = (decoded['iceServers'] as List)
-                .map((e) => Map<String, dynamic>.from(e))
-                .toList();
-            completer.complete(servers);
-          }
-        } catch (_) {}
-      });
-      widget.channel?.sink.add(jsonEncode({'type': 'get_ice_servers'}));
-      final result = await completer.future.timeout(
-        const Duration(seconds: 4),
-        onTimeout: () => fallback,
-      );
-      await sub.cancel();
-      return result;
-    } catch (e) {
-      return fallback;
+
+    Future<List<Map<String, dynamic>>?> attempt() async {
+      try {
+        final completer = Completer<List<Map<String, dynamic>>?>();
+        late StreamSubscription sub;
+        sub = PadlockNetwork.messageHub.stream.listen((raw) {
+          try {
+            final decoded = jsonDecode(raw);
+            if (decoded['type'] == 'ice_servers' && !completer.isCompleted) {
+              final servers = (decoded['iceServers'] as List)
+                  .map((e) => Map<String, dynamic>.from(e))
+                  .toList();
+              completer.complete(servers);
+            }
+          } catch (_) {}
+        });
+        widget.channel?.sink.add(jsonEncode({'type': 'get_ice_servers'}));
+        final result = await completer.future.timeout(
+          const Duration(seconds: 8),
+          onTimeout: () => null,
+        );
+        await sub.cancel();
+        return result;
+      } catch (e) {
+        return null;
+      }
     }
+
+    // Uma tentativa extra antes de desistir - uma rede móvel mais lenta ou
+    // um WebSocket ainda a acabar de ligar pode perfeitamente falhar a
+    // primeira vez e responder bem na segunda.
+    final result = await attempt() ?? await attempt();
+    if (result != null) {
+      PadlockNetwork.cachedIceServers = result;
+      return result;
+    }
+    return fallback;
   }
 
   Future<void> startSecureCall(String targetPrivacyId) async {
