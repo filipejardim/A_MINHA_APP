@@ -1579,6 +1579,24 @@ Map<String, Map<String, String>> t = {
     'login_subtitle': 'ENGINEERED WITH MILITARY-GRADE\nZERO-KNOWLEDGE ENCRYPTION',
     'enter_decryption_key_label': 'Enter Decryption Key',
     'access_vault_button': 'ACCESS VAULT',
+    'connection_request_title': 'Connection Request',
+    'connection_request_body': 'The Privacy ID "{id}" wants to establish an end-to-end encrypted P2P channel with you.\n\nAccept?',
+    'reject_button': 'Reject',
+    'accept_button': 'Accept',
+    'security_alert_blocked': 'SECURITY ALERT: Request blocked. Corrupted key.',
+    'delete_contact_title': 'Delete Contact',
+    'delete_contact_confirm_body': 'Are you sure you want to remove this contact?',
+    'edit_contact_title': 'Edit Contact',
+    'name_label': 'Name',
+    'secure_channel_established': 'Secure channel established.',
+    'logout_button': 'Log Out',
+    'new_chat_title': 'New Chat',
+    'new_chat_body': 'Start a new secure conversation?',
+    'create_button': 'Create',
+    'add_contact_title': 'Add Contact',
+    'scan_privacy_id_title': 'Scan Privacy ID',
+    'contact_already_in_list': 'This contact is already in your list!',
+    'add_button': 'Add',
   },
   'PT': {
     'chats': 'Conversas',
@@ -1796,6 +1814,24 @@ Map<String, Map<String, String>> t = {
     'login_subtitle': 'DESENVOLVIDO COM ENCRIPTAÇÃO\nZERO-KNOWLEDGE DE NÍVEL MILITAR',
     'enter_decryption_key_label': 'Introduzir Chave de Encriptação',
     'access_vault_button': 'ACEDER AO COFRE',
+    'connection_request_title': 'Pedido de Conexão',
+    'connection_request_body': 'O ID de Privacidade "{id}" quer estabelecer um canal P2P encriptado de ponta-a-ponta consigo.\n\nAceitar?',
+    'reject_button': 'Rejeitar',
+    'accept_button': 'Aceitar',
+    'security_alert_blocked': 'ALERTA DE SEGURANÇA: Pedido bloqueado. Chave corrompida.',
+    'delete_contact_title': 'Apagar Contacto',
+    'delete_contact_confirm_body': 'Tens a certeza de que pretendes remover este contacto?',
+    'edit_contact_title': 'Editar Contacto',
+    'name_label': 'Nome',
+    'secure_channel_established': 'Canal seguro estabelecido.',
+    'logout_button': 'Terminar Sessão',
+    'new_chat_title': 'Nova Conversa',
+    'new_chat_body': 'Iniciar uma nova conversa segura?',
+    'create_button': 'Criar',
+    'add_contact_title': 'Adicionar Contacto',
+    'scan_privacy_id_title': 'Digitalizar ID de Privacidade',
+    'contact_already_in_list': 'Este contacto já está na tua lista!',
+    'add_button': 'Adicionar',
   },
   'ES': {
     'chats': 'Chats',
@@ -2013,6 +2049,24 @@ Map<String, Map<String, String>> t = {
     'login_subtitle': 'DISEÑADO CON CIFRADO ZERO-KNOWLEDGE\nDE NIVEL MILITAR',
     'enter_decryption_key_label': 'Introducir Clave de Descifrado',
     'access_vault_button': 'ACCEDER A LA BÓVEDA',
+    'connection_request_title': 'Solicitud de Conexión',
+    'connection_request_body': 'El ID de Privacidad "{id}" quiere establecer un canal P2P cifrado de extremo a extremo contigo.\n\n¿Aceptar?',
+    'reject_button': 'Rechazar',
+    'accept_button': 'Aceptar',
+    'security_alert_blocked': 'ALERTA DE SEGURIDAD: Solicitud bloqueada. Clave corrupta.',
+    'delete_contact_title': 'Eliminar Contacto',
+    'delete_contact_confirm_body': '¿Estás seguro de que quieres eliminar este contacto?',
+    'edit_contact_title': 'Editar Contacto',
+    'name_label': 'Nombre',
+    'secure_channel_established': 'Canal seguro establecido.',
+    'logout_button': 'Cerrar Sesión',
+    'new_chat_title': 'Nuevo Chat',
+    'new_chat_body': '¿Iniciar una nueva conversación segura?',
+    'create_button': 'Crear',
+    'add_contact_title': 'Añadir Contacto',
+    'scan_privacy_id_title': 'Escanear ID de Privacidad',
+    'contact_already_in_list': '¡Este contacto ya está en tu lista!',
+    'add_button': 'Añadir',
   },
   'FR': {
     'chats': 'Chats',
@@ -2230,6 +2284,24 @@ Map<String, Map<String, String>> t = {
     'login_subtitle': 'CONÇU AVEC UN CHIFFREMENT ZERO-KNOWLEDGE\nDE NIVEAU MILITAIRE',
     'enter_decryption_key_label': 'Saisir la Clé de Déchiffrement',
     'access_vault_button': 'ACCÉDER AU COFFRE',
+    'connection_request_title': 'Demande de Connexion',
+    'connection_request_body': 'L\'ID de Confidentialité "{id}" souhaite établir un canal P2P chiffré de bout en bout avec vous.\n\nAccepter ?',
+    'reject_button': 'Refuser',
+    'accept_button': 'Accepter',
+    'security_alert_blocked': 'ALERTE DE SÉCURITÉ : Demande bloquée. Clé corrompue.',
+    'delete_contact_title': 'Supprimer le Contact',
+    'delete_contact_confirm_body': 'Voulez-vous vraiment supprimer ce contact ?',
+    'edit_contact_title': 'Modifier le Contact',
+    'name_label': 'Nom',
+    'secure_channel_established': 'Canal sécurisé établi.',
+    'logout_button': 'Déconnexion',
+    'new_chat_title': 'Nouvelle Discussion',
+    'new_chat_body': 'Démarrer une nouvelle conversation sécurisée ?',
+    'create_button': 'Créer',
+    'add_contact_title': 'Ajouter un Contact',
+    'scan_privacy_id_title': 'Scanner l\'ID de Confidentialité',
+    'contact_already_in_list': 'Ce contact est déjà dans votre liste !',
+    'add_button': 'Ajouter',
   },
   'DE': {
     'chats': 'Chats',
@@ -2447,6 +2519,24 @@ Map<String, Map<String, String>> t = {
     'login_subtitle': 'ENTWICKELT MIT MILITÄRTAUGLICHER\nZERO-KNOWLEDGE-VERSCHLÜSSELUNG',
     'enter_decryption_key_label': 'Entschlüsselungsschlüssel eingeben',
     'access_vault_button': 'TRESOR ÖFFNEN',
+    'connection_request_title': 'Verbindungsanfrage',
+    'connection_request_body': 'Die Datenschutz-ID "{id}" möchte einen Ende-zu-Ende-verschlüsselten P2P-Kanal mit dir aufbauen.\n\nAkzeptieren?',
+    'reject_button': 'Ablehnen',
+    'accept_button': 'Akzeptieren',
+    'security_alert_blocked': 'SICHERHEITSWARNUNG: Anfrage blockiert. Beschädigter Schlüssel.',
+    'delete_contact_title': 'Kontakt löschen',
+    'delete_contact_confirm_body': 'Möchtest du diesen Kontakt wirklich entfernen?',
+    'edit_contact_title': 'Kontakt bearbeiten',
+    'name_label': 'Name',
+    'secure_channel_established': 'Sicherer Kanal hergestellt.',
+    'logout_button': 'Abmelden',
+    'new_chat_title': 'Neuer Chat',
+    'new_chat_body': 'Neue sichere Unterhaltung starten?',
+    'create_button': 'Erstellen',
+    'add_contact_title': 'Kontakt hinzufügen',
+    'scan_privacy_id_title': 'Datenschutz-ID scannen',
+    'contact_already_in_list': 'Dieser Kontakt ist bereits in deiner Liste!',
+    'add_button': 'Hinzufügen',
   },
   'RU': {
     'chats': 'Чаты',
@@ -2664,6 +2754,24 @@ Map<String, Map<String, String>> t = {
     'login_subtitle': 'РАЗРАБОТАНО С ШИФРОВАНИЕМ ZERO-KNOWLEDGE\nВОЕННОГО УРОВНЯ',
     'enter_decryption_key_label': 'Введите ключ расшифровки',
     'access_vault_button': 'ОТКРЫТЬ ХРАНИЛИЩЕ',
+    'connection_request_title': 'Запрос на соединение',
+    'connection_request_body': 'ID конфиденциальности «{id}» хочет установить с вами зашифрованный сквозной P2P-канал.\n\nПринять?',
+    'reject_button': 'Отклонить',
+    'accept_button': 'Принять',
+    'security_alert_blocked': 'ПРЕДУПРЕЖДЕНИЕ БЕЗОПАСНОСТИ: запрос заблокирован. Повреждённый ключ.',
+    'delete_contact_title': 'Удалить контакт',
+    'delete_contact_confirm_body': 'Вы уверены, что хотите удалить этот контакт?',
+    'edit_contact_title': 'Изменить контакт',
+    'name_label': 'Имя',
+    'secure_channel_established': 'Защищённый канал установлен.',
+    'logout_button': 'Выйти',
+    'new_chat_title': 'Новый чат',
+    'new_chat_body': 'Начать новый защищённый разговор?',
+    'create_button': 'Создать',
+    'add_contact_title': 'Добавить контакт',
+    'scan_privacy_id_title': 'Сканировать ID конфиденциальности',
+    'contact_already_in_list': 'Этот контакт уже есть в вашем списке!',
+    'add_button': 'Добавить',
   },
   'UK': {
     'chats': 'Чати',
@@ -2881,6 +2989,24 @@ Map<String, Map<String, String>> t = {
     'login_subtitle': 'РОЗРОБЛЕНО З ШИФРУВАННЯМ ZERO-KNOWLEDGE\nВІЙСЬКОВОГО РІВНЯ',
     'enter_decryption_key_label': 'Введіть ключ розшифрування',
     'access_vault_button': 'ВІДКРИТИ СХОВИЩЕ',
+    'connection_request_title': 'Запит на з\'єднання',
+    'connection_request_body': 'ID конфіденційності «{id}» хоче встановити з вами наскрізно зашифрований P2P-канал.\n\nПрийняти?',
+    'reject_button': 'Відхилити',
+    'accept_button': 'Прийняти',
+    'security_alert_blocked': 'ПОПЕРЕДЖЕННЯ БЕЗПЕКИ: запит заблоковано. Пошкоджений ключ.',
+    'delete_contact_title': 'Видалити контакт',
+    'delete_contact_confirm_body': 'Ви впевнені, що хочете видалити цей контакт?',
+    'edit_contact_title': 'Редагувати контакт',
+    'name_label': 'Ім\'я',
+    'secure_channel_established': 'Захищений канал встановлено.',
+    'logout_button': 'Вийти',
+    'new_chat_title': 'Новий чат',
+    'new_chat_body': 'Почати нову захищену розмову?',
+    'create_button': 'Створити',
+    'add_contact_title': 'Додати контакт',
+    'scan_privacy_id_title': 'Сканувати ID конфіденційності',
+    'contact_already_in_list': 'Цей контакт вже є у вашому списку!',
+    'add_button': 'Додати',
   },
   'ZH': {
     'chats': '聊天',
@@ -3098,6 +3224,24 @@ Map<String, Map<String, String>> t = {
     'login_subtitle': '采用军用级零知识加密技术打造',
     'enter_decryption_key_label': '输入解密密钥',
     'access_vault_button': '进入保险库',
+    'connection_request_title': '连接请求',
+    'connection_request_body': '隐私 ID "{id}" 想要与您建立端到端加密的 P2P 通道。\n\n接受吗?',
+    'reject_button': '拒绝',
+    'accept_button': '接受',
+    'security_alert_blocked': '安全警报:请求已被阻止。密钥已损坏。',
+    'delete_contact_title': '删除联系人',
+    'delete_contact_confirm_body': '您确定要删除此联系人吗?',
+    'edit_contact_title': '编辑联系人',
+    'name_label': '姓名',
+    'secure_channel_established': '安全通道已建立。',
+    'logout_button': '登出',
+    'new_chat_title': '新对话',
+    'new_chat_body': '要开始新的安全对话吗?',
+    'create_button': '创建',
+    'add_contact_title': '添加联系人',
+    'scan_privacy_id_title': '扫描隐私 ID',
+    'contact_already_in_list': '此联系人已在您的列表中!',
+    'add_button': '添加',
   },
   'KO': {
     'chats': '채팅',
@@ -3315,6 +3459,24 @@ Map<String, Map<String, String>> t = {
     'login_subtitle': '군사급 제로 지식 암호화로 설계되었습니다',
     'enter_decryption_key_label': '암호 해독 키 입력',
     'access_vault_button': '보관함 접속',
+    'connection_request_title': '연결 요청',
+    'connection_request_body': '개인정보 ID "{id}"님이 종단 간 암호화된 P2P 채널을 연결하려고 합니다.\n\n수락하시겠습니까?',
+    'reject_button': '거절',
+    'accept_button': '수락',
+    'security_alert_blocked': '보안 경고: 요청이 차단되었습니다. 키가 손상되었습니다.',
+    'delete_contact_title': '연락처 삭제',
+    'delete_contact_confirm_body': '이 연락처를 삭제하시겠습니까?',
+    'edit_contact_title': '연락처 편집',
+    'name_label': '이름',
+    'secure_channel_established': '보안 채널이 설정되었습니다.',
+    'logout_button': '로그아웃',
+    'new_chat_title': '새 채팅',
+    'new_chat_body': '새로운 보안 대화를 시작하시겠습니까?',
+    'create_button': '만들기',
+    'add_contact_title': '연락처 추가',
+    'scan_privacy_id_title': '개인정보 ID 스캔',
+    'contact_already_in_list': '이 연락처는 이미 목록에 있습니다!',
+    'add_button': '추가',
   },
   'AR': {
     'chats': 'الدردشات',
@@ -3532,6 +3694,24 @@ Map<String, Map<String, String>> t = {
     'login_subtitle': 'مصمم بتشفير Zero-Knowledge بمستوى عسكري',
     'enter_decryption_key_label': 'أدخل مفتاح فك التشفير',
     'access_vault_button': 'الدخول إلى الخزنة',
+    'connection_request_title': 'طلب اتصال',
+    'connection_request_body': 'يريد معرّف الخصوصية "{id}" إنشاء قناة P2P مشفرة من طرف إلى طرف معك.\n\nهل تقبل؟',
+    'reject_button': 'رفض',
+    'accept_button': 'قبول',
+    'security_alert_blocked': 'تنبيه أمني: تم حظر الطلب. مفتاح تالف.',
+    'delete_contact_title': 'حذف جهة الاتصال',
+    'delete_contact_confirm_body': 'هل أنت متأكد أنك تريد إزالة جهة الاتصال هذه؟',
+    'edit_contact_title': 'تعديل جهة الاتصال',
+    'name_label': 'الاسم',
+    'secure_channel_established': 'تم إنشاء قناة آمنة.',
+    'logout_button': 'تسجيل الخروج',
+    'new_chat_title': 'محادثة جديدة',
+    'new_chat_body': 'هل تريد بدء محادثة آمنة جديدة؟',
+    'create_button': 'إنشاء',
+    'add_contact_title': 'إضافة جهة اتصال',
+    'scan_privacy_id_title': 'مسح معرّف الخصوصية',
+    'contact_already_in_list': 'جهة الاتصال هذه موجودة بالفعل في قائمتك!',
+    'add_button': 'إضافة',
   },
   'TR': {
     'chats': 'Sohbetler',
@@ -3749,6 +3929,24 @@ Map<String, Map<String, String>> t = {
     'login_subtitle': 'ASKERİ DÜZEYDE ZERO-KNOWLEDGE\nŞİFRELEME İLE TASARLANMIŞTIR',
     'enter_decryption_key_label': 'Şifre Çözme Anahtarını Girin',
     'access_vault_button': 'KASAYA ERİŞ',
+    'connection_request_title': 'Bağlantı İsteği',
+    'connection_request_body': '"{id}" Gizlilik Kimliği sizinle uçtan uca şifreli bir P2P kanalı kurmak istiyor.\n\nKabul edilsin mi?',
+    'reject_button': 'Reddet',
+    'accept_button': 'Kabul Et',
+    'security_alert_blocked': 'GÜVENLİK UYARISI: İstek engellendi. Anahtar bozuk.',
+    'delete_contact_title': 'Kişiyi Sil',
+    'delete_contact_confirm_body': 'Bu kişiyi kaldırmak istediğinizden emin misiniz?',
+    'edit_contact_title': 'Kişiyi Düzenle',
+    'name_label': 'İsim',
+    'secure_channel_established': 'Güvenli kanal kuruldu.',
+    'logout_button': 'Çıkış Yap',
+    'new_chat_title': 'Yeni Sohbet',
+    'new_chat_body': 'Yeni güvenli bir sohbet başlatılsın mı?',
+    'create_button': 'Oluştur',
+    'add_contact_title': 'Kişi Ekle',
+    'scan_privacy_id_title': 'Gizlilik Kimliğini Tara',
+    'contact_already_in_list': 'Bu kişi zaten listenizde!',
+    'add_button': 'Ekle',
   },
   'IT': {
     'chats': 'Chat',
@@ -3966,6 +4164,24 @@ Map<String, Map<String, String>> t = {
     'login_subtitle': 'PROGETTATO CON CRITTOGRAFIA ZERO-KNOWLEDGE\nDI LIVELLO MILITARE',
     'enter_decryption_key_label': 'Inserisci Chiave di Decrittazione',
     'access_vault_button': 'ACCEDI AL CAVEAU',
+    'connection_request_title': 'Richiesta di Connessione',
+    'connection_request_body': 'L\'ID Privacy "{id}" vuole stabilire un canale P2P crittografato end-to-end con te.\n\nAccettare?',
+    'reject_button': 'Rifiuta',
+    'accept_button': 'Accetta',
+    'security_alert_blocked': 'AVVISO DI SICUREZZA: Richiesta bloccata. Chiave corrotta.',
+    'delete_contact_title': 'Elimina Contatto',
+    'delete_contact_confirm_body': 'Sei sicuro di voler rimuovere questo contatto?',
+    'edit_contact_title': 'Modifica Contatto',
+    'name_label': 'Nome',
+    'secure_channel_established': 'Canale sicuro stabilito.',
+    'logout_button': 'Disconnetti',
+    'new_chat_title': 'Nuova Chat',
+    'new_chat_body': 'Avviare una nuova conversazione sicura?',
+    'create_button': 'Crea',
+    'add_contact_title': 'Aggiungi Contatto',
+    'scan_privacy_id_title': 'Scansiona ID Privacy',
+    'contact_already_in_list': 'Questo contatto è già nella tua lista!',
+    'add_button': 'Aggiungi',
   },
   'JA': {
     'chats': 'チャット',
@@ -4183,6 +4399,24 @@ Map<String, Map<String, String>> t = {
     'login_subtitle': '軍事レベルのゼロ知識暗号化で設計されています',
     'enter_decryption_key_label': '復号鍵を入力',
     'access_vault_button': 'ボールトにアクセス',
+    'connection_request_title': '接続リクエスト',
+    'connection_request_body': 'プライバシーID「{id}」があなたとエンドツーエンド暗号化されたP2Pチャネルを確立したいと考えています。\n\n承諾しますか?',
+    'reject_button': '拒否',
+    'accept_button': '承諾',
+    'security_alert_blocked': 'セキュリティ警告:リクエストがブロックされました。鍵が破損しています。',
+    'delete_contact_title': '連絡先を削除',
+    'delete_contact_confirm_body': 'この連絡先を削除してもよろしいですか?',
+    'edit_contact_title': '連絡先を編集',
+    'name_label': '名前',
+    'secure_channel_established': 'セキュアチャネルが確立されました。',
+    'logout_button': 'ログアウト',
+    'new_chat_title': '新しいチャット',
+    'new_chat_body': '新しい安全な会話を開始しますか?',
+    'create_button': '作成',
+    'add_contact_title': '連絡先を追加',
+    'scan_privacy_id_title': 'プライバシーIDをスキャン',
+    'contact_already_in_list': 'この連絡先はすでにリストにあります!',
+    'add_button': '追加',
   },
   'HI': {
     'chats': 'चैट',
@@ -4400,6 +4634,24 @@ Map<String, Map<String, String>> t = {
     'login_subtitle': 'सैन्य-ग्रेड ज़ीरो-नॉलेज एन्क्रिप्शन के साथ इंजीनियर किया गया',
     'enter_decryption_key_label': 'डिक्रिप्शन कुंजी दर्ज करें',
     'access_vault_button': 'वॉल्ट तक पहुंचें',
+    'connection_request_title': 'कनेक्शन अनुरोध',
+    'connection_request_body': 'गोपनीयता ID "{id}" आपके साथ एंड-टू-एंड एन्क्रिप्टेड P2P चैनल स्थापित करना चाहता है।\n\nस्वीकार करें?',
+    'reject_button': 'अस्वीकार करें',
+    'accept_button': 'स्वीकार करें',
+    'security_alert_blocked': 'सुरक्षा चेतावनी: अनुरोध अवरुद्ध कर दिया गया। कुंजी दूषित है।',
+    'delete_contact_title': 'संपर्क हटाएं',
+    'delete_contact_confirm_body': 'क्या आप वाकई इस संपर्क को हटाना चाहते हैं?',
+    'edit_contact_title': 'संपर्क संपादित करें',
+    'name_label': 'नाम',
+    'secure_channel_established': 'सुरक्षित चैनल स्थापित हो गया।',
+    'logout_button': 'लॉग आउट',
+    'new_chat_title': 'नई चैट',
+    'new_chat_body': 'एक नई सुरक्षित बातचीत शुरू करें?',
+    'create_button': 'बनाएं',
+    'add_contact_title': 'संपर्क जोड़ें',
+    'scan_privacy_id_title': 'गोपनीयता ID स्कैन करें',
+    'contact_already_in_list': 'यह संपर्क पहले से ही आपकी सूची में है!',
+    'add_button': 'जोड़ें',
   },
   'NL': {
     'chats': 'Chats',
@@ -4617,6 +4869,24 @@ Map<String, Map<String, String>> t = {
     'login_subtitle': 'ONTWORPEN MET ZERO-KNOWLEDGE-VERSLEUTELING\nVAN MILITAIRE KWALITEIT',
     'enter_decryption_key_label': 'Decoderingssleutel Invoeren',
     'access_vault_button': 'KLUIS OPENEN',
+    'connection_request_title': 'Verbindingsverzoek',
+    'connection_request_body': 'Privacy-ID "{id}" wil een end-to-end versleuteld P2P-kanaal met je tot stand brengen.\n\nAccepteren?',
+    'reject_button': 'Weigeren',
+    'accept_button': 'Accepteren',
+    'security_alert_blocked': 'BEVEILIGINGSWAARSCHUWING: Verzoek geblokkeerd. Beschadigde sleutel.',
+    'delete_contact_title': 'Contact Verwijderen',
+    'delete_contact_confirm_body': 'Weet je zeker dat je dit contact wilt verwijderen?',
+    'edit_contact_title': 'Contact Bewerken',
+    'name_label': 'Naam',
+    'secure_channel_established': 'Beveiligd kanaal tot stand gebracht.',
+    'logout_button': 'Uitloggen',
+    'new_chat_title': 'Nieuwe Chat',
+    'new_chat_body': 'Een nieuw beveiligd gesprek starten?',
+    'create_button': 'Aanmaken',
+    'add_contact_title': 'Contact Toevoegen',
+    'scan_privacy_id_title': 'Privacy-ID Scannen',
+    'contact_already_in_list': 'Dit contact staat al in je lijst!',
+    'add_button': 'Toevoegen',
   },
   'PL': {
     'chats': 'Czaty',
@@ -4834,6 +5104,24 @@ Map<String, Map<String, String>> t = {
     'login_subtitle': 'ZAPROJEKTOWANO Z SZYFROWANIEM ZERO-KNOWLEDGE\nKLASY WOJSKOWEJ',
     'enter_decryption_key_label': 'Wprowadź Klucz Deszyfrowania',
     'access_vault_button': 'OTWÓRZ SKARBIEC',
+    'connection_request_title': 'Prośba o Połączenie',
+    'connection_request_body': 'ID Prywatności "{id}" chce nawiązać z Tobą zaszyfrowany kanał P2P typu end-to-end.\n\nZaakceptować?',
+    'reject_button': 'Odrzuć',
+    'accept_button': 'Zaakceptuj',
+    'security_alert_blocked': 'ALERT BEZPIECZEŃSTWA: Żądanie zablokowane. Uszkodzony klucz.',
+    'delete_contact_title': 'Usuń Kontakt',
+    'delete_contact_confirm_body': 'Czy na pewno chcesz usunąć ten kontakt?',
+    'edit_contact_title': 'Edytuj Kontakt',
+    'name_label': 'Nazwa',
+    'secure_channel_established': 'Bezpieczny kanał został ustanowiony.',
+    'logout_button': 'Wyloguj się',
+    'new_chat_title': 'Nowy Czat',
+    'new_chat_body': 'Rozpocząć nową bezpieczną rozmowę?',
+    'create_button': 'Utwórz',
+    'add_contact_title': 'Dodaj Kontakt',
+    'scan_privacy_id_title': 'Skanuj ID Prywatności',
+    'contact_already_in_list': 'Ten kontakt już znajduje się na Twojej liście!',
+    'add_button': 'Dodaj',
   },
 };
 
@@ -4936,7 +5224,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
     });
     // Escuta as mensagens do WebSocket para detetar pedidos de contacto
     try {
-      PadlockNetwork.messageHub.stream.listen((message) async {
+      _hubSubscription = PadlockNetwork.messageHub.stream.listen((message) async {
               final data = jsonDecode(message);
 
               if (data['type'] == 'contact_request') {
@@ -5081,7 +5369,7 @@ if (chaveTrancada == null) {
         
                if (mounted) {
   PadlockCallOverlay.show(ActiveCallScreen(
-    local: t[Hive.box('padlock_vault').get('language') ?? 'EN'] ?? t['EN']!,
+    local: t[_currentLang] ?? t['EN']!,
     recipientName: data['senderId'],
     targetId: data['senderId'],
     isIncoming: true,
@@ -5117,6 +5405,14 @@ final int msgTimestamp = data['timestamp'] ?? 0;
         chatIdx = 0;
       });
     }
+
+        // Mensagem repetida (mesmo timestamp já guardado): ignora em vez de
+        // tentar decifrar outra vez - a chave dessa mensagem já foi gasta e
+        // apareceria uma bolha falsa "Message not decrypted".
+        if (chatIdx != -1 &&
+            (_chats[chatIdx]['messages'] as List? ?? const []).any((m) => m['isMe'] == false && m['timestamp'] == data['timestamp'])) {
+          return;
+        }
 
         if (chatIdx != -1) {
              String decryptedText = '[Message not decrypted]';
@@ -5409,11 +5705,18 @@ final int msgTimestamp = data['timestamp'] ?? 0;
 @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    // Sem cancelar a escuta, cada logout+login deixava um "ouvinte fantasma"
+    // vivo: a mesma mensagem era processada duas vezes (a 2ª já não
+    // decifrava -> "Message not decrypted") e o fantasma ainda gravava
+    // listas antigas por cima do cofre.
+    _hubSubscription?.cancel();
     _statusTimer?.cancel();
     _destructTimer?.cancel();
+    _inactivityTimer?.cancel();
     super.dispose();
   }
 
+  StreamSubscription? _hubSubscription;
   Timer? _statusTimer; // O nosso Radar de Estado Online
   Timer? _inactivityTimer;
   Timer? _destructTimer;
@@ -5451,8 +5754,14 @@ final int msgTimestamp = data['timestamp'] ?? 0;
   void _resetInactivityTimer() {
     _inactivityTimer?.cancel();
    _inactivityTimer = Timer(const Duration(minutes: 15), () {
+      // Chamada ativa (ecrã inteiro OU minimizada em bolha) nunca é cortada
+      // por inatividade. emChamada sozinho não chega: expira aos 90s por
+      // desenho, por isso aos 15 min já dizia "sem chamada".
+      if (PadlockCallOverlay.isActive || PadlockNetwork.emChamada == true) {
+        _resetInactivityTimer();
+        return;
+      }
       print('Sessão de 15 Minutos expirada. A forçar Logout.');
-      if (PadlockNetwork.emChamada == true) return;
       _logout();
     });
   }
@@ -5598,10 +5907,10 @@ Future<void> _logout() async {
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (context) => const LoginScreen()),
     );
-    // Não repõe a flag para false aqui de propósito: esta rota vai ser
-    // completamente substituída pelo LoginScreen, o que já cria uma
-    // _MainNavigationScreenState nova (e outro temporizador de 15 min) da
-    // próxima vez que se entrar - não há bloqueio nenhum para desbloquear.
+    // A flag é estática (sobrevive ao ecrã): se ficasse a true, o PRÓXIMO
+    // logout na mesma sessão da app voltava logo a cima ("já estou a
+    // bloquear") e não fazia nada - o botão ficava a carregar para sempre.
+    Future.delayed(const Duration(seconds: 2), () => PadlockNetwork.isPerformingAutoLock = false);
   }
  // Função acionada pela rede P2P quando chega um pedido de nova conexão
   void mostrarPedidoDeConexao(String incomingId, String? senderPubKey) {
@@ -5614,15 +5923,15 @@ Future<void> _logout() async {
           side: const BorderSide(color: Color(0xFF8B0000), width: 1.5),
           borderRadius: BorderRadius.circular(12),
         ),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.security, color: Colors.white),
-            SizedBox(width: 10),
-            Text('Pedido de Conexão', style: TextStyle(color: Colors.white, fontSize: 18)),
+            const Icon(Icons.security, color: Colors.white),
+            const SizedBox(width: 10),
+            Text((t[_currentLang] ?? t['EN']!)['connection_request_title']!, style: const TextStyle(color: Colors.white, fontSize: 18)),
           ],
         ),
         content: Text(
-          'O ID de Privacidade "$incomingId" quer estabelecer um canal P2P encriptado de ponta-a-ponta consigo.\n\nAceitar?',
+          ((t[_currentLang] ?? t['EN']!)['connection_request_body'] ?? 'The Privacy ID "{id}" wants to establish an end-to-end encrypted P2P channel with you.\n\nAccept?').replaceAll('{id}', incomingId),
           style: const TextStyle(color: Colors.grey),
         ),
         actions: [
@@ -5630,7 +5939,7 @@ Future<void> _logout() async {
             onPressed: () {
               Navigator.pop(context);
             },
-            child: const Text('Rejeitar', style: TextStyle(color: Colors.grey)),
+            child: Text((t[_currentLang] ?? t['EN']!)['reject_button']!, style: const TextStyle(color: Colors.grey)),
           ),
           TextButton(
             onPressed: () async {
@@ -5659,8 +5968,8 @@ if (chaveTrancada == null) {
   // ATAQUE DETETADO!
   print('ALERTA CRÍTICO: Chave de quem pede foi alterada.');
   ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(
-      content: Text('ALERTA DE SEGURANÇA: Pedido bloqueado. Chave corrompida.'),
+    SnackBar(
+      content: Text((t[_currentLang] ?? t['EN']!)['security_alert_blocked']!),
       backgroundColor: Colors.red,
     ),
   );
@@ -5719,7 +6028,7 @@ await PadlockRatchet.establishChains(
                 Navigator.pop(context);
               }
             },
-            child: const Text('Aceitar', style: TextStyle(color: Colors.green)),
+            child: Text((t[_currentLang] ?? t['EN']!)['accept_button']!, style: const TextStyle(color: Colors.green)),
           ),
         ],
       ),
@@ -5746,12 +6055,12 @@ await PadlockRatchet.establishChains(
             context: context,
             builder: (BuildContext context) {
               return AlertDialog(
-                title: const Text('Apagar Contacto'),
-                content: const Text('Tens a certeza de que pretendes remover este contacto?'),
+                title: Text(local['delete_contact_title']!),
+                content: Text(local['delete_contact_confirm_body']!),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancelar'),
+                    child: Text(local['cancel_button']!),
                   ),
                   TextButton(
                    onPressed: () async {
@@ -5785,7 +6094,7 @@ if (context.mounted) {
   Navigator.pop(context);
 }
 },
-                    child: const Text('Apagar', style: TextStyle(color: Colors.red)),
+                    child: Text(local['delete_button']!, style: const TextStyle(color: Colors.red)),
                   ),
                 ],
               );
@@ -5817,13 +6126,13 @@ if (context.mounted) {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Edit Contact', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text(local['edit_contact_title']!, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                   const SizedBox(height: 16),
                   TextField(
                     controller: controller,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      labelText: 'Name',
+                      labelText: local['name_label'],
                       labelStyle: const TextStyle(color: Colors.grey),
                       enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
                       focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.greenAccent), borderRadius: BorderRadius.all(Radius.circular(8))),
@@ -5835,7 +6144,7 @@ if (context.mounted) {
                 children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                  child: Text(local['cancel_button']!, style: const TextStyle(color: Colors.grey)),
                 ),
                  TextButton(
             onPressed: () async {
@@ -5877,7 +6186,7 @@ if (context.mounted) {
                 Navigator.pop(context);
               }
             },
-            child: const Text('Save', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+            child: Text(local['save_button']!, style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
           ),
                 ],
               ),
@@ -5894,8 +6203,8 @@ if (context.mounted) {
             _chats.insert(0, {
               'name': contactName,
               'id': contactName,
-              'msg': 'Secure channel established.',
-              'time': 'Just Now',
+              'msg': local['secure_channel_established']!,
+              'time': local['just_now']!,
               'unread': 0,
               'messages': [] // Deixa vazio para evitar erros de leitura fantasma
             });
@@ -6074,13 +6383,13 @@ title: const Text(
         }
             },
             itemBuilder: (BuildContext context) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'idioma',
-                child: Text('Language', style: TextStyle(color: Colors.white)),
+                child: Text((t[_currentLang] ?? t['EN']!)['language'] ?? 'Language', style: const TextStyle(color: Colors.white)),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'logout',
-                child: Text('Log Out', style: TextStyle(color: Color(0xFF00FF66), fontWeight: FontWeight.bold)),
+                child: Text((t[_currentLang] ?? t['EN']!)['logout_button']!, style: const TextStyle(color: Color(0xFF00FF66), fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -6103,12 +6412,12 @@ title: const Text(
             side: const BorderSide(color: Color(0xFF1e4d2b), width: 1.0),
             borderRadius: BorderRadius.circular(12),
           ),
-          title: const Text("New Chat", style: TextStyle(color: Colors.white)),
-          content: const Text("Start a new secure conversation?", style: TextStyle(color: Colors.grey)),
+          title: Text(local['new_chat_title']!, style: const TextStyle(color: Colors.white)),
+          content: Text(local['new_chat_body']!, style: const TextStyle(color: Colors.grey)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+              child: Text(local['cancel_button']!, style: const TextStyle(color: Colors.grey)),
             ),
             TextButton(
               onPressed: () {
@@ -6117,7 +6426,7 @@ title: const Text(
                   _currentIndex = 1;
                 });
               },
-              child: const Text("Create", style: TextStyle(color: Color(0xFF00FF66))),
+              child: Text(local['create_button']!, style: const TextStyle(color: Color(0xFF00FF66))),
             ),
           ],
         ),
@@ -6139,12 +6448,12 @@ title: const Text(
             side: const BorderSide(color: Color(0xFF1e4d2b), width: 1.0),
             borderRadius: BorderRadius.circular(12),
           ),
-          title: const Text('Add Contact', style: TextStyle(color: Colors.white)),
+          title: Text(local['add_contact_title']!, style: const TextStyle(color: Colors.white)),
           content: TextField(
             controller: controller,
             style: const TextStyle(color: Colors.black87), // Texto escuro para ler bem no fundo claro
             decoration: InputDecoration(
-              hintText: 'Privacy ID',
+              hintText: local['privacy_id_label'],
               hintStyle: const TextStyle(color: Colors.black54),
               filled: true,
               fillColor: const Color(0xFFe4efe6), // O teu famoso "branco pérola / verde claro" do chat!
@@ -6164,7 +6473,7 @@ title: const Text(
                    if (!camStatus.isGranted) {
                      if (context.mounted) {
                        ScaffoldMessenger.of(context).showSnackBar(
-                         const SnackBar(content: Text('Camera permission denied. Enable it in phone Settings > Apps > Padlock > Permissions.')),
+                         SnackBar(content: Text(local['camera_permission_denied']!)),
                        );
                      }
                      return;
@@ -6176,7 +6485,7 @@ title: const Text(
     context,
     MaterialPageRoute(
       builder: (context) => Scaffold(
-        appBar: AppBar(title: const Text('Scan Privacy ID')),
+        appBar: AppBar(title: Text(local['scan_privacy_id_title']!)),
         body: MobileScanner(
           onDetect: (capture) {
             if (scanned) return;
@@ -6244,7 +6553,7 @@ bool jaExiste = _contacts.any((c) => c['id'] == targetId);
 if (jaExiste) {
   Navigator.pop(context); // Fecha o pop-up
   ScaffoldMessenger.of(context).showSnackBar(
-    const SnackBar(content: Text('Este contacto já está na tua lista!')),
+    SnackBar(content: Text(local['contact_already_in_list']!)),
   );
   return; // Para a execução aqui e não faz mais nada
 } 
@@ -6259,7 +6568,7 @@ setState(() {
                   Navigator.pop(context);
                 }
               },
-                            child: const Text('Adicionar'),
+                            child: Text(local['add_button']!),
                           ),
                         ],
                       ),
@@ -6839,7 +7148,9 @@ Future<void> _processoMensagem = Future.value();
         if (widget.chatData['status'] != 'Blocked' && decoded['type'] == 'secure_message') {
           if (decoded['senderId'] == Hive.box('padlock_vault').get('user_privacy_id')) return;
           _processoMensagem = _processoMensagem.then((_) async {
-            
+
+          // Repetida (mesmo timestamp): ignora, a chave já foi gasta.
+          if ((widget.chatData['messages'] as List).any((m) => m['isMe'] == false && m['timestamp'] == decoded['timestamp'])) return;
           if (mounted) {
             HapticFeedback.lightImpact();
 SystemSound.play(SystemSoundType.click);
@@ -7792,6 +8103,13 @@ flexibleSpace: Container(
                       controller: _msgController,
                       enabled: widget.chatData['status'] != 'Blocked',
                       style: const TextStyle(color: Colors.black87),
+                      // O roxo era o cursor por omissão do tema escuro, e a
+                      // linha por baixo era o sublinhado das sugestões do
+                      // teclado (cortava o "g", "p", "y"...). Sem sugestões
+                      // a linha desaparece; cursor passa a verde escuro.
+                      cursorColor: const Color(0xFF1e4d2b),
+                      enableSuggestions: false,
+                      autocorrect: false,
                       minLines: 1, // Começa com 1 linha
                       maxLines: 5, // Cresce até 5 linhas para baixo
                       keyboardType: TextInputType.multiline, // Permite quebras de linha
@@ -10241,6 +10559,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
 
       PadlockNetwork.isUnlocked = true;
+      PadlockNetwork.isPerformingAutoLock = false;
       if (PadlockNetwork.pendingFcmToken != null) {
         await Hive.box('padlock_vault').put('my_fcm_token', PadlockNetwork.pendingFcmToken);
       }
