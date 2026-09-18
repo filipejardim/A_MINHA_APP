@@ -2607,16 +2607,46 @@ if (context.mounted) {
           TextEditingController controller = TextEditingController(text: _contacts[index]['name']);
           showDialog(
             context: context,
-            builder: (context) => AlertDialog(
-              title: const Text('Editar Contacto'),
-              content: TextField(
-                controller: controller,
-                decoration: const InputDecoration(labelText: 'Nome'),
-              ),
-              actions: [
+            // Inglês por agora (a base da app, antes da tradução completa
+            // ficar pronta) - o resto do texto do ecrã já segue esta
+            // mesma regra. Estilo igual ao resto da app: gradiente verde
+            // (claro para escuro) com borda mais clara por cima.
+            builder: (context) => Dialog(
+              backgroundColor: Colors.transparent,
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)],
+                  ),
+                  border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
+                ),
+                child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Edit Contact', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: controller,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'Name',
+                      labelStyle: const TextStyle(color: Colors.grey),
+                      enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
+                      focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.greenAccent), borderRadius: BorderRadius.all(Radius.circular(8))),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancelar'),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
                 ),
                  TextButton(
             onPressed: () async {
@@ -2658,10 +2688,13 @@ if (context.mounted) {
                 Navigator.pop(context);
               }
             },
-            child: const Text('Guardar'),
+            child: const Text('Save', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
           ),
-
-              ],
+                ],
+              ),
+                ],
+              ),
+              ),
             ),
           );
         },
@@ -8629,6 +8662,12 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
                   decoration: InputDecoration(
                     labelText: 'Coin',
                     labelStyle: const TextStyle(color: Colors.grey),
+                    // Sem isto, o rótulo "Coin" às vezes descia e ficava por
+                    // cima do nome da moeda escolhida quando o ecrã
+                    // redesenhava por outro motivo (ex: escrever no campo do
+                    // montante) - agora fica sempre fixo em cima, nunca a
+                    // sobrepor o texto.
+                    floatingLabelBehavior: FloatingLabelBehavior.always,
                     enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
                     focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.lightBlueAccent), borderRadius: BorderRadius.all(Radius.circular(8))),
                   ),
