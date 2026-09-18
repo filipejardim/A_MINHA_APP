@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "firebase-admin": "^14.3.0",
+    "ws": "^8.21.1"
+  }
+}

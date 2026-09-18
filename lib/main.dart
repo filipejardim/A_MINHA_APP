@@ -1,4 +1,7 @@
 import 'dart:async';
+import 'dart:isolate';
+import 'package:pointycastle/export.dart' as pc;
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'dart:typed_data';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -91,6 +94,52 @@ static final List<dynamic> earlyCandidates = [];
   static void disconnect() {
     channel?.sink.close();
     channel = null;
+    _nonce = null;
+    _nonceWaiter = null;
+    registered = false;
+  }
+
+  // ---- Autenticação no servidor (desafio-resposta com a chave Ed25519) ----
+  // O servidor manda um "challenge" (nonce novo) logo que a ligação abre. Só
+  // quem assinar esse nonce com a chave privada do ID consegue registar-se.
+  static String? _nonce;
+  static Completer<String>? _nonceWaiter;
+  static bool registered = false;
+
+  static Future<String?> _waitForNonce() async {
+    if (_nonce != null) return _nonce;
+    _nonceWaiter ??= Completer<String>();
+    try {
+      return await _nonceWaiter!.future.timeout(const Duration(seconds: 8));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Regista (autentica) a ligação principal. Só deve ser chamado depois de o
+  // ecrã principal já estar a ouvir o messageHub - o servidor entrega logo a
+  // seguir as mensagens que ficaram em fila.
+  static Future<void> registerMain({String? fcmToken}) async {
+    final ch = channel;
+    if (ch == null) return;
+    try {
+      if (registered) {
+        if (fcmToken != null && fcmToken.isNotEmpty) {
+          ch.sink.add(jsonEncode({'type': 'register', 'fcmToken': fcmToken}));
+        }
+        return;
+      }
+      final nonce = await _waitForNonce();
+      if (nonce == null || channel != ch) return;
+      final auth = await PadlockIdentity.authFields(nonce, aux: false);
+      ch.sink.add(jsonEncode({
+        'type': 'register',
+        ...auth,
+        'fcmToken': fcmToken ?? pendingFcmToken,
+      }));
+    } catch (e) {
+      dlog('Erro a autenticar no servidor: $e');
+    }
   }
 
   static void connect() {
@@ -99,15 +148,218 @@ static final List<dynamic> earlyCandidates = [];
     if (channel != null) return;
 
     try {
-      channel = WebSocketChannel.connect(Uri.parse('wss://servidor-padlock.onrender.com'));
-      channel?.stream.listen(
-        (data) => messageHub.add(data),
-        onDone: () => channel = null,
-        onError: (e) => channel = null,
+      final ch = WebSocketChannel.connect(Uri.parse(kServerUrl));
+      channel = ch;
+      _nonce = null;
+      _nonceWaiter = null;
+      registered = false;
+      ch.stream.listen(
+        (data) {
+          if (data is String) {
+            if (data.startsWith('{"type":"challenge"')) {
+              try {
+                _nonce = jsonDecode(data)['nonce'] as String?;
+                if (_nonce != null && _nonceWaiter != null && !_nonceWaiter!.isCompleted) {
+                  _nonceWaiter!.complete(_nonce!);
+                }
+              } catch (_) {}
+              return;
+            }
+            if (data.startsWith('{"type":"registered"')) {
+              if (channel == ch) registered = true;
+              return;
+            }
+            if (data.startsWith('{"type":"error"')) return;
+          }
+          messageHub.add(data);
+        },
+        // Só limpa se este for AINDA o canal atual - um canal antigo a fechar
+        // tarde (ex: substituído pelo servidor) nunca deve apagar o novo.
+        onDone: () {
+          if (channel == ch) {
+            channel = null;
+            registered = false;
+            _nonce = null;
+          }
+        },
+        onError: (e) {
+          if (channel == ch) {
+            channel = null;
+            registered = false;
+            _nonce = null;
+          }
+        },
       );
     } catch (e) {
       channel = null;
     }
+  }
+
+  // Ligação "auxiliar" curta, para o isolate em segundo plano do CallKit
+  // (avisar "a tocar" / "recusada" com a app fechada): autentica-se com a
+  // mesma identidade, mas o servidor só a deixa mandar call_ringing/call_end
+  // e ela nunca tira a ligação principal.
+  static Future<void> sendAux(Map<String, dynamic> packet) async {
+    WebSocketChannel? ch;
+    StreamSubscription? sub;
+    try {
+      ch = WebSocketChannel.connect(Uri.parse(kServerUrl));
+      final nonceC = Completer<String>();
+      final regC = Completer<void>();
+      sub = ch.stream.listen((data) {
+        if (data is! String) return;
+        if (data.startsWith('{"type":"challenge"') && !nonceC.isCompleted) {
+          nonceC.complete(jsonDecode(data)['nonce'] as String);
+        } else if (data.startsWith('{"type":"registered"') && !regC.isCompleted) {
+          regC.complete();
+        }
+      }, onError: (_) {}, onDone: () {});
+      final nonce = await nonceC.future.timeout(const Duration(seconds: 8));
+      final auth = await PadlockIdentity.authFields(nonce, aux: true);
+      ch.sink.add(jsonEncode({'type': 'register', ...auth, 'aux': true}));
+      await regC.future.timeout(const Duration(seconds: 8));
+      ch.sink.add(jsonEncode(packet));
+      await Future.delayed(const Duration(milliseconds: 1200));
+    } catch (e) {
+      dlog('Erro na ligação auxiliar: $e');
+    } finally {
+      try { await sub?.cancel(); } catch (_) {}
+      try { await ch?.sink.close(); } catch (_) {}
+    }
+  }
+}
+
+const String kServerUrl = 'wss://servidor-padlock.onrender.com';
+
+// Registo de depuração: em produção (release) não escreve NADA no log do
+// telemóvel - antes, cada pacote recebido (remetente, destino, tamanhos) ia
+// para o logcat, legível por quem ligasse o telemóvel a um computador.
+void dlog(Object? message) {
+  if (kDebugMode) debugPrint('$message');
+}
+
+// Identidade criptográfica do utilizador. O ID de privacidade é DERIVADO da
+// chave pública Ed25519 (ID = SHA-256(pub)[0..16]) - "auto-certificado":
+// ninguém consegue usar o teu ID sem a tua chave privada, e ninguém precisa
+// de confiar no servidor para saber a quem pertence um ID. A semente fica no
+// Keystore do Android (flutter_secure_storage), fora do cofre - assim também
+// está disponível no isolate em segundo plano (chamadas com a app fechada).
+class PadlockIdentity {
+  static const FlutterSecureStorage _storage = FlutterSecureStorage();
+  static const String _seedKey = 'padlock_auth_seed_v1';
+  static crypto.SimpleKeyPair? _keyPair;
+  static Uint8List? _pub;
+  static String? _id;
+  static Future<void>? _loading;
+
+  static Future<void> _ensureLoaded() {
+    return _loading ??= _load().catchError((e) {
+      _loading = null;
+      throw e;
+    });
+  }
+
+  static Future<void> _load() async {
+    final stored = await _storage.read(key: _seedKey);
+    Uint8List seed;
+    if (stored == null || stored.isEmpty) {
+      final r = Random.secure();
+      seed = Uint8List.fromList(List<int>.generate(32, (_) => r.nextInt(256)));
+      await _storage.write(key: _seedKey, value: base64Encode(seed));
+    } else {
+      seed = base64Decode(stored);
+    }
+    final kp = await crypto.Ed25519().newKeyPairFromSeed(seed);
+    final pk = await kp.extractPublicKey();
+    _keyPair = kp;
+    _pub = Uint8List.fromList(pk.bytes);
+    _id = await idFromPublicKey(_pub!);
+  }
+
+  static Future<String> idFromPublicKey(List<int> pub) async {
+    final d = await crypto.Sha256().hash(pub);
+    final hex = d.bytes.take(16).map((b) => b.toRadixString(16).padLeft(2, '0')).join().toUpperCase();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 16)}-${hex.substring(16, 24)}-${hex.substring(24, 32)}';
+  }
+
+  static Future<String> id() async {
+    await _ensureLoaded();
+    return _id!;
+  }
+
+  static Future<String> publicKeyB64() async {
+    await _ensureLoaded();
+    return base64Encode(_pub!);
+  }
+
+  static Future<String> signB64(List<int> message) async {
+    await _ensureLoaded();
+    final sig = await crypto.Ed25519().sign(message, keyPair: _keyPair!);
+    return base64Encode(sig.bytes);
+  }
+
+  static Future<bool> verify({required String pubB64, required List<int> message, required String sigB64}) async {
+    try {
+      final pub = base64Decode(pubB64);
+      final sig = base64Decode(sigB64);
+      if (pub.length != 32 || sig.length != 64) return false;
+      return await crypto.Ed25519().verify(
+        message,
+        signature: crypto.Signature(sig, publicKey: crypto.SimplePublicKey(pub, type: crypto.KeyPairType.ed25519)),
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Campos do pacote 'register' (prova de posse da chave privada do ID).
+  static Future<Map<String, String>> authFields(String nonce, {required bool aux}) async {
+    final myId = await id();
+    final sig = await signB64(utf8.encode('padlock-auth-v1|$nonce|$myId|${aux ? 'aux' : 'main'}'));
+    return {'senderId': myId, 'authPub': await publicKeyB64(), 'sig': sig};
+  }
+
+  // Assinatura do handshake: liga a chave pública de troca (X25519) enviada
+  // num contact_request/contact_accepted ao ID de quem a envia - o servidor
+  // (ou um intermediário) não consegue trocar a chave sem ser detetado.
+  static List<int> handshakeMessage(String senderId, String targetId, String handshakePubB64) =>
+      utf8.encode('padlock-hs-v1|$senderId|$targetId|$handshakePubB64');
+
+  static Future<Map<String, String>> handshakeFields(String targetId, String handshakePubB64) async {
+    final myId = await id();
+    return {
+      'authPub': await publicKeyB64(),
+      'hsig': await signB64(handshakeMessage(myId, targetId, handshakePubB64)),
+    };
+  }
+
+  // Verifica um contact_request/contact_accepted recebido. O senderId vem
+  // carimbado pelo servidor, mas confirma-se também que o ID É o hash da
+  // chave de autenticação enviada (auto-certificação) e que a assinatura do
+  // handshake é válida. Devolve a authPub (base64) se estiver tudo certo.
+  static Future<String?> verifyHandshake(Map data, String myId) async {
+    final senderId = data['senderId'];
+    final authPub = data['authPub'];
+    final hsig = data['hsig'];
+    final hsPub = data['publicKey'];
+    if (senderId is! String || authPub is! String || hsig is! String || hsPub is! String) return null;
+    try {
+      final pubBytes = base64Decode(authPub);
+      if (pubBytes.length != 32) return null;
+      if (await idFromPublicKey(pubBytes) != senderId) return null;
+    } catch (_) {
+      return null;
+    }
+    final ok = await verify(pubB64: authPub, message: handshakeMessage(senderId, myId, hsPub), sigB64: hsig);
+    return ok ? authPub : null;
+  }
+
+  static Future<void> wipe() async {
+    await _storage.delete(key: _seedKey);
+    _keyPair = null;
+    _pub = null;
+    _id = null;
+    _loading = null;
   }
 }
 
@@ -187,10 +439,11 @@ class PadlockVaultKey {
   // hash simples em SharedPreferences ANTES de chamar Hive.openBox, nunca
   // mais se chama openBox com uma chave errada - o Hive nunca fica nesse
   // estado, porque só o vemos com a chave já confirmada como certa.
-  static Future<void> storeKeyHash(String hashPrefsKey, Uint8List derivedKey) async {
+  static Future<void> storeKeyHash(String hashPrefsKey, Uint8List derivedKey, {int version = 1}) async {
     final digest = await crypto.Sha256().hash(derivedKey);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(hashPrefsKey, base64Encode(digest.bytes));
+    await prefs.setInt('${hashPrefsKey}_kdfv', version);
   }
 
   static Future<bool> verifyKeyHash(String hashPrefsKey, Uint8List derivedKey) async {
@@ -204,21 +457,138 @@ class PadlockVaultKey {
   static Future<void> wipeKeyHash(String hashPrefsKey) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(hashPrefsKey);
+    await prefs.remove('${hashPrefsKey}_kdfv');
   }
 
-  static Future<Uint8List> deriveKey(String passphrase, Uint8List salt) async {
+  // Versões do formato do cofre. v1 = o formato antigo (Argon2id 19 MiB +
+  // AES-CBC do Hive, sem autenticação) - continua a abrir-se para não
+  // perder dados de quem já tinha cofre. v2 = Argon2id 64 MiB + AES-256-GCM
+  // (cifra AUTENTICADA: qualquer adulteração do ficheiro no disco é
+  // detetada). Cofres NOVOS são sempre v2.
+  static const int kdfLegacy = 1;
+  static const int kdfCurrent = 2;
+
+  static Future<int> kdfVersion(String hashPrefsKey) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt('${hashPrefsKey}_kdfv') ?? kdfLegacy;
+  }
+
+  // Deriva a chave com a versão certa: cofre novo -> versão atual; cofre
+  // existente -> a versão com que foi criado.
+  static Future<({Uint8List key, int version})> deriveFor(
+      String hashPrefsKey, String passphrase, Uint8List salt, {required bool creating}) async {
+    final version = creating ? kdfCurrent : await kdfVersion(hashPrefsKey);
+    final key = await deriveKey(passphrase, salt, version: version);
+    return (key: key, version: version);
+  }
+
+  static HiveCipher cipherFor(Uint8List key, int version) =>
+      version >= kdfCurrent ? AesGcmHiveCipher(key) : HiveAesCipher(key);
+
+  static Future<Uint8List> _argon(String passphrase, Uint8List salt, int memory, int iterations) async {
     final algorithm = crypto.Argon2id(
       parallelism: 1,
-      memory: 19456, // ~19 MiB, mínimo recomendado pela OWASP para Argon2id
-      iterations: 3,
+      memory: memory,
+      iterations: iterations,
       hashLength: 32,
     );
-    final secretKey = await algorithm.deriveKeyFromPassword(
-      password: passphrase,
-      nonce: salt,
-    );
-    final bytes = await secretKey.extractBytes();
-    return Uint8List.fromList(bytes);
+    final secretKey = await algorithm.deriveKeyFromPassword(password: passphrase, nonce: salt);
+    return Uint8List.fromList(await secretKey.extractBytes());
+  }
+
+  static Future<Uint8List> deriveKey(String passphrase, Uint8List salt, {int version = 1}) async {
+    final int memory = version >= kdfCurrent ? 65536 : 19456; // KiB: 64 MiB (v2) / ~19 MiB (v1)
+    final int iterations = 3;
+    // Corre num isolate à parte: com 64 MiB o cálculo demora alguns segundos
+    // e não pode congelar o ecrã.
+    try {
+      return await Isolate.run(() => _argon(passphrase, salt, memory, iterations));
+    } catch (_) {
+      return _argon(passphrase, salt, memory, iterations);
+    }
+  }
+}
+
+// Limite de tentativas: depois de 5 falhas seguidas, espera crescente (30s,
+// 60s, 120s... até 1h). Trava adivinhar o código no próprio telemóvel; o que
+// protege contra um atacante com uma CÓPIA do cofre é o Argon2id + frase forte.
+class PadlockThrottle {
+  static Future<int> secondsLeft(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    final until = prefs.getInt('throttle_${name}_until') ?? 0;
+    final left = until - DateTime.now().millisecondsSinceEpoch;
+    return left <= 0 ? 0 : (left / 1000).ceil();
+  }
+
+  static Future<void> fail(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    final fails = (prefs.getInt('throttle_${name}_fails') ?? 0) + 1;
+    await prefs.setInt('throttle_${name}_fails', fails);
+    if (fails >= 5) {
+      final seconds = min(3600, 30 * pow(2, fails - 5).toInt());
+      await prefs.setInt('throttle_${name}_until', DateTime.now().millisecondsSinceEpoch + seconds * 1000);
+    }
+  }
+
+  static Future<void> success(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('throttle_${name}_fails');
+    await prefs.remove('throttle_${name}_until');
+  }
+}
+
+// Cifra do Hive com AES-256-GCM (autenticada). Formato de cada registo:
+// nonce(12) || cifra || tag(16). O AES-CBC por omissão do Hive não autentica
+// nada: um ficheiro adulterado podia ser aceite com dados alterados.
+class AesGcmHiveCipher implements HiveCipher {
+  static final Random _rng = Random.secure();
+  final Uint8List _key;
+  late final int _keyCrc;
+
+  AesGcmHiveCipher(List<int> key) : _key = Uint8List.fromList(key) {
+    if (_key.length != 32) throw ArgumentError('A chave tem de ter 32 bytes.');
+    final digest = pc.SHA256Digest().process(_key);
+    _keyCrc = _crc32(digest);
+  }
+
+  static int _crc32(Uint8List data) {
+    int crc = 0xFFFFFFFF;
+    for (final b in data) {
+      crc ^= b;
+      for (int i = 0; i < 8; i++) {
+        crc = (crc & 1) != 0 ? (crc >> 1) ^ 0xEDB88320 : crc >> 1;
+      }
+    }
+    return (crc ^ 0xFFFFFFFF) & 0xFFFFFFFF;
+  }
+
+  pc.GCMBlockCipher _cipher(bool encrypt, Uint8List nonce) {
+    final c = pc.GCMBlockCipher(pc.AESEngine());
+    c.init(encrypt, pc.AEADParameters(pc.KeyParameter(_key), 128, nonce, Uint8List(0)));
+    return c;
+  }
+
+  @override
+  int calculateKeyCrc() => _keyCrc;
+
+  @override
+  int maxEncryptedSize(Uint8List inp) => inp.length + 12 + 16;
+
+  @override
+  int encrypt(Uint8List inp, int inpOff, int inpLength, Uint8List out, int outOff) {
+    final nonce = Uint8List.fromList(List<int>.generate(12, (_) => _rng.nextInt(256)));
+    final ct = _cipher(true, nonce).process(Uint8List.sublistView(inp, inpOff, inpOff + inpLength));
+    out.setAll(outOff, nonce);
+    out.setAll(outOff + 12, ct);
+    return 12 + ct.length;
+  }
+
+  @override
+  int decrypt(Uint8List inp, int inpOff, int inpLength, Uint8List out, int outOff) {
+    final nonce = Uint8List.fromList(Uint8List.sublistView(inp, inpOff, inpOff + 12));
+    final pt = _cipher(false, nonce).process(Uint8List.sublistView(inp, inpOff + 12, inpOff + inpLength));
+    out.setAll(outOff, pt);
+    return pt.length;
   }
 }
 
@@ -244,13 +614,13 @@ class PremiumService {
         if (purchase.status == PurchaseStatus.purchased || purchase.status == PurchaseStatus.restored) {
           Hive.box('padlock_vault').put('is_premium', true);
         } else if (purchase.status == PurchaseStatus.error) {
-          print('Erro na compra Premium: ${purchase.error}');
+          dlog('Erro na compra Premium: ${purchase.error}');
         }
         if (purchase.pendingCompletePurchase) {
           InAppPurchase.instance.completePurchase(purchase);
         }
       }
-    }, onError: (e) => print('Erro no stream de compras: $e'));
+    }, onError: (e) => dlog('Erro no stream de compras: $e'));
   }
 
   static Future<void> buy(String productId) async {
@@ -436,7 +806,7 @@ class PadlockWallet {
     try {
       return await _withClient(rpcUrl, (client) => _readBalance(client, owner, token.contractAddress!));
     } catch (e) {
-      print('Erro ao ler saldo do token na RPC principal, a tentar reserva: $e');
+      dlog('Erro ao ler saldo do token na RPC principal, a tentar reserva: $e');
       return await _withClient(rpcUrlFallback, (client) => _readBalance(client, owner, token.contractAddress!));
     }
   }
@@ -462,7 +832,7 @@ class PadlockWallet {
       final price = entry?['usd'];
       return price is num ? price.toDouble() : null;
     } catch (e) {
-      print('Erro ao obter cotação USD de ${token.symbol}: $e');
+      dlog('Erro ao obter cotação USD de ${token.symbol}: $e');
       return null;
     }
   }
@@ -489,7 +859,7 @@ class PadlockWallet {
     try {
       return await _withClient(rpcUrl, (client) => client.getBalance(address));
     } catch (e) {
-      print('Erro ao ler saldo na RPC principal, a tentar reserva: $e');
+      dlog('Erro ao ler saldo na RPC principal, a tentar reserva: $e');
       return await _withClient(rpcUrlFallback, (client) => client.getBalance(address));
     }
   }
@@ -509,7 +879,7 @@ class PadlockWallet {
             chainId: chainId,
           ));
     } catch (e) {
-      print('Erro ao enviar transação na RPC principal, a tentar reserva: $e');
+      dlog('Erro ao enviar transação na RPC principal, a tentar reserva: $e');
       return await _withClient(rpcUrlFallback, (client) => client.sendTransaction(
             credentials,
             Transaction(to: to, value: amount),
@@ -535,7 +905,7 @@ class PadlockWallet {
             chainId: chainId,
           ));
     } catch (e) {
-      print('Erro ao enviar token na RPC principal, a tentar reserva: $e');
+      dlog('Erro ao enviar token na RPC principal, a tentar reserva: $e');
       return await _withClient(rpcUrlFallback, (client) => client.sendTransaction(
             credentials,
             Transaction(to: token, data: data),
@@ -726,6 +1096,13 @@ class PadlockRatchet {
     await vault.put('chain_recv_n_$peerId', 0);
     await vault.delete('skipped_keys_$peerId');
     await vault.delete('shared_secret_$peerId');
+    // Chave própria deste contacto para autenticar mensagens de controlo e
+    // sinalização de chamadas (nunca muda durante a vida do contacto).
+    final ctrlMac = await hmac.calculateMac(
+      utf8.encode('padlock-ctrl-v1'),
+      secretKey: crypto.SecretKey(sharedSecretBytes),
+    );
+    await vault.put('ctrl_key_$peerId', base64Encode(ctrlMac.bytes));
 
     // Estado base do ratchet DH: o par de chaves do handshake serve de
     // "chave de ratchet" inicial de cada lado (ambos já a conhecem, tal
@@ -922,8 +1299,137 @@ class PadlockRatchet {
     await vault.delete('chave_publica_trancada_$peerId');
     await vault.delete('my_public_key_$peerId');
     await vault.delete('their_public_key_$peerId');
+    await vault.delete('ctrl_key_$peerId');
+    await vault.delete('ctrl_seen_$peerId');
+    await vault.delete('auth_pub_$peerId');
   }
 }
+// Mensagem que se assina nas chamadas: liga a oferta/resposta SDP (que contém
+// a impressão digital DTLS da chamada) à identidade de quem a envia. Sem isto,
+// quem controla a sinalização podia trocar o SDP e ficar "no meio" da chamada
+// (as chamadas são cifradas por DTLS-SRTP, mas a impressão digital viajava sem
+// autenticação). A resposta fica ainda ligada à oferta original.
+Future<List<int>> callSigMessage(String kind, String from, String to, int ts, String sdp,
+    {bool isVideo = false, String offerSdp = ''}) async {
+  final h1 = base64Encode((await crypto.Sha256().hash(utf8.encode(sdp))).bytes);
+  final h2 = offerSdp.isEmpty ? '' : base64Encode((await crypto.Sha256().hash(utf8.encode(offerSdp))).bytes);
+  return utf8.encode('padlock-call-v1|$kind|$from|$to|$ts|$isVideo|$h1|$h2');
+}
+
+// Autenticação das mensagens de CONTROLO (apagar conversa/contacto/mensagem,
+// temporizador, recibos de leitura). Nas mensagens normais o AES-GCM já
+// impede falsificações, mas estas ordens iam em claro - qualquer um (ou o
+// próprio servidor) podia forjar um "apaga tudo". Agora levam um MAC
+// (HMAC-SHA256) com uma chave própria de cada contacto, derivada do segredo
+// do handshake, e são recusadas se o MAC falhar, se forem repetidas (replay)
+// ou se forem demasiado antigas.
+class PadlockCtrl {
+  static int _lastTs = 0;
+  static const Map<String, List<String>> _fieldKeys = {
+    'delete_message': ['timestamp'],
+    'update_timer': ['time'],
+  };
+  static const int _maxAgeMs = 4 * 24 * 60 * 60 * 1000;
+
+  static String _canon(String type, Map<dynamic, dynamic> src) {
+    final keys = _fieldKeys[type] ?? const <String>[];
+    return keys.map((k) => '$k=${src[k]}').join(',');
+  }
+
+  static Future<List<int>?> _mac(String peerId, String body) async {
+    final b64 = Hive.box('padlock_vault').get('ctrl_key_$peerId');
+    if (b64 is! String) return null;
+    final mac = await crypto.Hmac.sha256().calculateMac(
+      utf8.encode(body),
+      secretKey: crypto.SecretKey(base64Decode(b64)),
+    );
+    return mac.bytes;
+  }
+
+  static Future<Map<String, dynamic>?> build(String peerId, String type, {Map<String, dynamic> fields = const {}}) async {
+    try {
+      final myId = Hive.box('padlock_vault').get('user_privacy_id');
+      if (myId is! String) return null;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final ts = now > _lastTs ? now : _lastTs + 1;
+      _lastTs = ts;
+      final mac = await _mac(peerId, 'padlock-ctrl-v1|$type|$myId|$peerId|$ts|${_canon(type, fields)}');
+      if (mac == null) return null;
+      return {'type': type, 'targetId': peerId, 'senderId': myId, 'ts': ts, 'mac': base64Encode(mac), ...fields};
+    } catch (e) {
+      dlog('Erro a assinar mensagem de controlo: $e');
+      return null;
+    }
+  }
+
+  static Future<void> send(String peerId, String type, {Map<String, dynamic> fields = const {}}) async {
+    final packet = await build(peerId, type, fields: fields);
+    if (packet == null) return;
+    try {
+      PadlockNetwork.channel?.sink.add(jsonEncode(packet));
+    } catch (_) {}
+  }
+
+  static bool _constEq(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    int r = 0;
+    for (int i = 0; i < a.length; i++) {
+      r |= a[i] ^ b[i];
+    }
+    return r == 0;
+  }
+
+  // Vários ouvintes (ecrã principal + chat aberto) recebem o MESMO pacote;
+  // o resultado da 1ª verificação é partilhado (senão a 2ª veria o MAC como
+  // "repetido"). Cada resultado vive 2 minutos em memória.
+  // No máximo 2 utilizações do mesmo resultado (ecrã principal + chat aberto);
+  // a 3ª é tratada como repetição maliciosa e recusada.
+  static final Map<String, ({Future<bool> verdict, int uses})> _verdicts = {};
+
+  static Future<bool> verify(Map data) {
+    final macKey = data['mac'];
+    if (macKey is! String) return Future.value(false);
+    final cacheKey = '${data['senderId']}|$macKey';
+    final existing = _verdicts[cacheKey];
+    if (existing != null) {
+      if (existing.uses >= 2) return Future.value(false);
+      _verdicts[cacheKey] = (verdict: existing.verdict, uses: existing.uses + 1);
+      return existing.verdict;
+    }
+    final result = _verifyOnce(data);
+    _verdicts[cacheKey] = (verdict: result, uses: 1);
+    Timer(const Duration(minutes: 2), () => _verdicts.remove(cacheKey));
+    return result;
+  }
+
+  static Future<bool> _verifyOnce(Map data) async {
+    try {
+      final type = data['type'];
+      final peerId = data['senderId'];
+      final macB64 = data['mac'];
+      final ts = data['ts'];
+      final myId = Hive.box('padlock_vault').get('user_privacy_id');
+      if (type is! String || peerId is! String || macB64 is! String || ts is! int || myId is! String) return false;
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if ((now - ts).abs() > _maxAgeMs) return false;
+      final expected = await _mac(peerId, 'padlock-ctrl-v1|$type|$peerId|$myId|$ts|${_canon(type, data)}');
+      if (expected == null) return false;
+      if (!_constEq(expected, base64Decode(macB64))) return false;
+
+      // Anti-replay: cada MAC só é aceite uma vez (guardados 5 dias).
+      final vault = Hive.box('padlock_vault');
+      final Map<String, dynamic> seen = Map<String, dynamic>.from(jsonDecode(vault.get('ctrl_seen_$peerId') ?? '{}'));
+      seen.removeWhere((_, v) => v is! int || now - v > 5 * 24 * 60 * 60 * 1000);
+      if (seen.containsKey(macB64)) return false;
+      seen[macB64] = ts;
+      await vault.put('ctrl_seen_$peerId', jsonEncode(seen));
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+}
+
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 const int kMaxVaultFileBytes = 6 * 1024 * 1024; // 6MB - limite do relay atual (um único frame WebSocket)
@@ -1017,7 +1523,7 @@ Future<String> decryptSecureMessage(String peerId, Map<String, dynamic> data) as
     final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
     return encrypter.decrypt(encryptedData, iv: iv);
   } catch (e) {
-    print('Erro ao decifrar: $e');
+    dlog('Erro ao decifrar: $e');
     return '[Message not decrypted]';
   }
 }
@@ -1057,7 +1563,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         duration: 60000,
         textAccept: 'Atender',
         textDecline: 'Recusar',
-        extra: {'targetId': senderId, 'sdp': message.data['sdp'], 'isVideo': message.data['isVideo']},
+        extra: {'targetId': senderId, 'sdp': message.data['sdp'], 'isVideo': message.data['isVideo'], 'ts': message.data['ts'], 'sig': message.data['sig']},
         android: const AndroidParams(
           isCustomNotification: true,
           isShowLogo: true,
@@ -1073,11 +1579,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     // som de Morse a tocar durante todo o tempo em que o outro lado já
     // estava a tocar de verdade.
     try {
-      final tempChannel = WebSocketChannel.connect(Uri.parse('wss://servidor-padlock.onrender.com'));
-      tempChannel.sink.add(jsonEncode({'action': 'call_ringing', 'targetId': senderId}));
-      Future.delayed(const Duration(milliseconds: 1500), () => tempChannel.sink.close());
+      await PadlockNetwork.sendAux({'action': 'call_ringing', 'targetId': senderId});
     } catch (e) {
-      print('Erro ao avisar que está a tocar: $e');
+      dlog('Erro ao avisar que está a tocar: $e');
     }
   } else {
     // --- POP-UP DE MENSAGEM MILITAR ---
@@ -1108,7 +1612,9 @@ void main() async {
       final sdp = jsonDecode(event.body['extra']['sdp']);
       final isVideoCall = event.body['extra']['isVideo'] == 'true' || event.body['extra']['isVideo'] == true;
 
-      PadlockNetwork.pendingCallData = {'targetId': targetId, 'sdp': sdp, 'isVideo': isVideoCall};
+      final callTs = int.tryParse('${event.body['extra']['ts']}');
+      final callSig = event.body['extra']['sig']?.toString();
+      PadlockNetwork.pendingCallData = {'targetId': targetId, 'sdp': sdp, 'isVideo': isVideoCall, 'timestamp': callTs, 'sig': callSig};
 
       if (!PadlockNetwork.isUnlocked) {
         // Cofre ainda fechado (app estava morta): fica em espera no LoginScreen.
@@ -1128,6 +1634,8 @@ void main() async {
             incomingSdp: sdp,
             acceptedViaCallKit: true,
             isVideo: isVideoCall,
+            callTimestamp: callTs,
+            callSig: callSig,
           ));
         } else if (tentativas > 0) {
           Future.delayed(const Duration(milliseconds: 200), () => abrirEcraChamada(tentativas - 1));
@@ -1137,9 +1645,7 @@ void main() async {
     } else if (event.event == Event.actionCallDecline) {
       FlutterCallkitIncoming.endAllCalls();
         final targetId = event.body['extra']['targetId'];
-        final tempChannel = WebSocketChannel.connect(Uri.parse('wss://servidor-padlock.onrender.com'));
-        tempChannel.sink.add(jsonEncode({'action': 'call_end', 'targetId': targetId}));
-        Future.delayed(const Duration(milliseconds: 1500), () => tempChannel.sink.close());
+        PadlockNetwork.sendAux({'action': 'call_end', 'targetId': targetId});
         // Recusar explicitamente também tem de ficar registado na conversa -
         // antes, só o esgotar do tempo (60s sem resposta) ficava gravado, e
         // recusar de propósito não deixava rasto nenhum no chat.
@@ -1230,6 +1736,8 @@ androidImplementation?.requestNotificationsPermission();
               'targetId': senderId,
               'sdp': jsonEncode(data['sdp']),
               'isVideo': data['isVideo'].toString(),
+              'ts': data['timestamp'].toString(),
+              'sig': data['sig']?.toString(),
             },
             android: const AndroidParams(
               isCustomNotification: true,
@@ -1251,7 +1759,9 @@ androidImplementation?.requestNotificationsPermission();
       if (PadlockNetwork.emChamada) return;
       final senderId = message.data['senderId'] ?? 'Unknown';
       final isVideoCall = message.data['isVideo'] == 'true';
-      PadlockNetwork.pendingCallData = {'targetId': senderId, 'sdp': message.data['sdp'], 'isVideo': isVideoCall};
+      final pTs = int.tryParse('${message.data['ts']}');
+      final pSig = message.data['sig']?.toString();
+      PadlockNetwork.pendingCallData = {'targetId': senderId, 'sdp': message.data['sdp'], 'isVideo': isVideoCall, 'timestamp': pTs, 'sig': pSig};
       if (!PadlockNetwork.isUnlocked) return;
       Future.delayed(const Duration(seconds: 1), () {
         PadlockCallOverlay.show(ActiveCallScreen(
@@ -1262,6 +1772,8 @@ androidImplementation?.requestNotificationsPermission();
           incomingSdp: message.data['sdp'],
           channel: PadlockNetwork.channel,
           isVideo: isVideoCall,
+          callTimestamp: pTs,
+          callSig: pSig,
         ));
       });
     }
@@ -1272,15 +1784,20 @@ androidImplementation?.requestNotificationsPermission();
       if (PadlockNetwork.emChamada) return;
       final senderId = message.data['senderId'] ?? 'Unknown';
       final isVideoCall = message.data['isVideo'] == 'true';
-      PadlockNetwork.pendingCallData = {'targetId': senderId, 'sdp': message.data['sdp'], 'isVideo': isVideoCall};
+      final pTs = int.tryParse('${message.data['ts']}');
+      final pSig = message.data['sig']?.toString();
+      PadlockNetwork.pendingCallData = {'targetId': senderId, 'sdp': message.data['sdp'], 'isVideo': isVideoCall, 'timestamp': pTs, 'sig': pSig};
       if (!PadlockNetwork.isUnlocked) return;
       PadlockCallOverlay.show(ActiveCallScreen(
         local: t['EN']!,
         recipientName: senderId,
         targetId: senderId,
         isIncoming: true,
+        incomingSdp: message.data['sdp'],
         channel: PadlockNetwork.channel,
         isVideo: isVideoCall,
+        callTimestamp: pTs,
+        callSig: pSig,
       ));
     }
   });
@@ -1447,7 +1964,7 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'Privacy ID',
     'profile_bio_paragraph': 'Engineered with military-grade Zero-Knowledge encryption.\nAll communications operate strictly Peer-to-Peer (P2P).\nMessages automatically self-destruct after 24 hours\nusing secure anti-trace memory sanitization.\nZero trace, zero logs, total privacy.',
     'close_button': 'Close',
-    'crypto_code_too_weak': 'Code is too weak: use at least 10 characters and avoid repeated or sequential patterns.',
+    'crypto_code_too_weak': 'Code is too weak: use at least 12 characters and avoid repeated or sequential patterns.',
     'invalid_recovery_phrase': 'Invalid recovery phrase - check the words and try again.',
     'crypto_vault_not_initialized': 'Crypto Vault not initialized on this device.',
     'invalid_crypto_vault_code': 'Invalid Crypto Vault code.',
@@ -1560,7 +2077,7 @@ Map<String, Map<String, String>> t = {
     'call_contact_unavailable': 'Contact Unavailable or Offline.',
     'missed_secure_call': 'Missed Secure Call',
     'missed_call_notification_title': 'Missed Call',
-    'setup_code_too_weak': 'Decryption Key is too weak: use at least 10 characters and avoid repeated or sequential patterns.',
+    'setup_code_too_weak': 'Decryption Key is too weak: use at least 12 characters and avoid repeated or sequential patterns.',
     'vault_init_failed_prefix': 'Vault initialization failed',
     'create_vault_title': 'CREATE YOUR ENCRYPTED VAULT',
     'create_vault_subtitle': 'Set your master key to generate\nP2P cryptographic identity',
@@ -1597,6 +2114,8 @@ Map<String, Map<String, String>> t = {
     'scan_privacy_id_title': 'Scan Privacy ID',
     'contact_already_in_list': 'This contact is already in your list!',
     'add_button': 'Add',
+    'too_many_attempts': 'Too many attempts. Try again in {s} seconds.',
+    'invalid_privacy_id': 'Invalid Privacy ID.',
   },
   'PT': {
     'chats': 'Conversas',
@@ -1682,7 +2201,7 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'ID de Privacidade',
     'profile_bio_paragraph': 'Construído com encriptação de Conhecimento-Zero de nível militar.\nTodas as comunicações funcionam estritamente Peer-to-Peer (P2P).\nAs mensagens autodestroem-se automaticamente ao fim de 24 horas\nusando sanitização de memória anti-rasto segura.\nZero rasto, zero registos, privacidade total.',
     'close_button': 'Fechar',
-    'crypto_code_too_weak': 'O código é fraco demais: usa pelo menos 10 caracteres e evita padrões repetidos ou sequenciais.',
+    'crypto_code_too_weak': 'O código é fraco demais: usa pelo menos 12 caracteres e evita padrões repetidos ou sequenciais.',
     'invalid_recovery_phrase': 'Frase de recuperação inválida - verifica as palavras e tenta novamente.',
     'crypto_vault_not_initialized': 'Crypto Vault não inicializado neste dispositivo.',
     'invalid_crypto_vault_code': 'Código do Crypto Vault inválido.',
@@ -1795,7 +2314,7 @@ Map<String, Map<String, String>> t = {
     'call_contact_unavailable': 'Contacto indisponível ou offline.',
     'missed_secure_call': 'Chamada Segura Perdida',
     'missed_call_notification_title': 'Chamada Perdida',
-    'setup_code_too_weak': 'A chave de encriptação é demasiado fraca: usa pelo menos 10 caracteres e evita padrões repetidos ou sequenciais.',
+    'setup_code_too_weak': 'A chave de encriptação é demasiado fraca: usa pelo menos 12 caracteres e evita padrões repetidos ou sequenciais.',
     'vault_init_failed_prefix': 'Falha ao inicializar o cofre',
     'create_vault_title': 'CRIA O TEU COFRE ENCRIPTADO',
     'create_vault_subtitle': 'Define a tua chave-mestra para gerar\na identidade criptográfica P2P',
@@ -1832,6 +2351,8 @@ Map<String, Map<String, String>> t = {
     'scan_privacy_id_title': 'Digitalizar ID de Privacidade',
     'contact_already_in_list': 'Este contacto já está na tua lista!',
     'add_button': 'Adicionar',
+    'too_many_attempts': 'Demasiadas tentativas. Tenta novamente daqui a {s} segundos.',
+    'invalid_privacy_id': 'ID de Privacidade inválido.',
   },
   'ES': {
     'chats': 'Chats',
@@ -1917,7 +2438,7 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'ID de Privacidad',
     'profile_bio_paragraph': 'Construido con encriptación de Conocimiento Cero de nivel militar.\nTodas las comunicaciones funcionan estrictamente Peer-to-Peer (P2P).\nLos mensajes se autodestruyen automáticamente tras 24 horas\nusando sanitización de memoria antirrastreo segura.\nCero rastro, cero registros, privacidad total.',
     'close_button': 'Cerrar',
-    'crypto_code_too_weak': 'El código es demasiado débil: usa al menos 10 caracteres y evita patrones repetidos o secuenciales.',
+    'crypto_code_too_weak': 'El código es demasiado débil: usa al menos 12 caracteres y evita patrones repetidos o secuenciales.',
     'invalid_recovery_phrase': 'Frase de recuperación inválida - revisa las palabras e inténtalo de nuevo.',
     'crypto_vault_not_initialized': 'Crypto Vault no inicializado en este dispositivo.',
     'invalid_crypto_vault_code': 'Código de Crypto Vault inválido.',
@@ -2030,7 +2551,7 @@ Map<String, Map<String, String>> t = {
     'call_contact_unavailable': 'Contacto no disponible o desconectado.',
     'missed_secure_call': 'Llamada Segura Perdida',
     'missed_call_notification_title': 'Llamada Perdida',
-    'setup_code_too_weak': 'La clave de descifrado es demasiado débil: usa al menos 10 caracteres y evita patrones repetidos o secuenciales.',
+    'setup_code_too_weak': 'La clave de descifrado es demasiado débil: usa al menos 12 caracteres y evita patrones repetidos o secuenciales.',
     'vault_init_failed_prefix': 'Error al inicializar la bóveda',
     'create_vault_title': 'CREA TU BÓVEDA CIFRADA',
     'create_vault_subtitle': 'Establece tu clave maestra para generar\ntu identidad criptográfica P2P',
@@ -2067,6 +2588,8 @@ Map<String, Map<String, String>> t = {
     'scan_privacy_id_title': 'Escanear ID de Privacidad',
     'contact_already_in_list': '¡Este contacto ya está en tu lista!',
     'add_button': 'Añadir',
+    'too_many_attempts': 'Demasiados intentos. Inténtalo de nuevo en {s} segundos.',
+    'invalid_privacy_id': 'ID de Privacidad no válido.',
   },
   'FR': {
     'chats': 'Chats',
@@ -2152,7 +2675,7 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'ID de Confidentialité',
     'profile_bio_paragraph': 'Conçu avec un chiffrement Zero-Knowledge de niveau militaire.\nToutes les communications fonctionnent strictement en Pair-à-Pair (P2P).\nLes messages s\'autodétruisent automatiquement après 24 heures\nen utilisant une désinfection de mémoire anti-traçage sécurisée.\nAucune trace, aucun journal, confidentialité totale.',
     'close_button': 'Fermer',
-    'crypto_code_too_weak': 'Le code est trop faible : utilisez au moins 10 caractères et évitez les motifs répétés ou séquentiels.',
+    'crypto_code_too_weak': 'Le code est trop faible : utilisez au moins 12 caractères et évitez les motifs répétés ou séquentiels.',
     'invalid_recovery_phrase': 'Phrase de récupération invalide - vérifiez les mots et réessayez.',
     'crypto_vault_not_initialized': 'Crypto Vault non initialisé sur cet appareil.',
     'invalid_crypto_vault_code': 'Code de Crypto Vault invalide.',
@@ -2265,7 +2788,7 @@ Map<String, Map<String, String>> t = {
     'call_contact_unavailable': 'Contact indisponible ou hors ligne.',
     'missed_secure_call': 'Appel Sécurisé Manqué',
     'missed_call_notification_title': 'Appel Manqué',
-    'setup_code_too_weak': 'La clé de déchiffrement est trop faible : utilisez au moins 10 caractères et évitez les motifs répétés ou séquentiels.',
+    'setup_code_too_weak': 'La clé de déchiffrement est trop faible : utilisez au moins 12 caractères et évitez les motifs répétés ou séquentiels.',
     'vault_init_failed_prefix': 'Échec de l\'initialisation du coffre',
     'create_vault_title': 'CRÉEZ VOTRE COFFRE CHIFFRÉ',
     'create_vault_subtitle': 'Définissez votre clé maîtresse pour générer\nvotre identité cryptographique P2P',
@@ -2302,6 +2825,8 @@ Map<String, Map<String, String>> t = {
     'scan_privacy_id_title': 'Scanner l\'ID de Confidentialité',
     'contact_already_in_list': 'Ce contact est déjà dans votre liste !',
     'add_button': 'Ajouter',
+    'too_many_attempts': 'Trop de tentatives. Réessayez dans {s} secondes.',
+    'invalid_privacy_id': 'ID de Confidentialité invalide.',
   },
   'DE': {
     'chats': 'Chats',
@@ -2387,7 +2912,7 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'Datenschutz-ID',
     'profile_bio_paragraph': 'Entwickelt mit militärischer Zero-Knowledge-Verschlüsselung.\nAlle Kommunikationen erfolgen strikt Peer-to-Peer (P2P).\nNachrichten werden nach 24 Stunden automatisch selbst zerstört\ndurch sichere Anti-Trace-Speicherbereinigung.\nKeine Spuren, keine Protokolle, totale Privatsphäre.',
     'close_button': 'Schließen',
-    'crypto_code_too_weak': 'Der Code ist zu schwach: Verwenden Sie mindestens 10 Zeichen und vermeiden Sie wiederholte oder fortlaufende Muster.',
+    'crypto_code_too_weak': 'Der Code ist zu schwach: Verwenden Sie mindestens 12 Zeichen und vermeiden Sie wiederholte oder fortlaufende Muster.',
     'invalid_recovery_phrase': 'Ungültige Wiederherstellungsphrase - überprüfen Sie die Wörter und versuchen Sie es erneut.',
     'crypto_vault_not_initialized': 'Crypto Vault auf diesem Gerät nicht initialisiert.',
     'invalid_crypto_vault_code': 'Ungültiger Crypto-Vault-Code.',
@@ -2500,7 +3025,7 @@ Map<String, Map<String, String>> t = {
     'call_contact_unavailable': 'Kontakt nicht verfügbar oder offline.',
     'missed_secure_call': 'Verpasster sicherer Anruf',
     'missed_call_notification_title': 'Verpasster Anruf',
-    'setup_code_too_weak': 'Der Entschlüsselungsschlüssel ist zu schwach: verwende mindestens 10 Zeichen und vermeide wiederholte oder fortlaufende Muster.',
+    'setup_code_too_weak': 'Der Entschlüsselungsschlüssel ist zu schwach: verwende mindestens 12 Zeichen und vermeide wiederholte oder fortlaufende Muster.',
     'vault_init_failed_prefix': 'Tresor-Initialisierung fehlgeschlagen',
     'create_vault_title': 'ERSTELLE DEINEN VERSCHLÜSSELTEN TRESOR',
     'create_vault_subtitle': 'Lege deinen Hauptschlüssel fest, um deine\nP2P-kryptografische Identität zu erzeugen',
@@ -2537,6 +3062,8 @@ Map<String, Map<String, String>> t = {
     'scan_privacy_id_title': 'Datenschutz-ID scannen',
     'contact_already_in_list': 'Dieser Kontakt ist bereits in deiner Liste!',
     'add_button': 'Hinzufügen',
+    'too_many_attempts': 'Zu viele Versuche. Versuche es in {s} Sekunden erneut.',
+    'invalid_privacy_id': 'Ungültige Datenschutz-ID.',
   },
   'RU': {
     'chats': 'Чаты',
@@ -2622,7 +3149,7 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'ID конфиденциальности',
     'profile_bio_paragraph': 'Создано с шифрованием Zero-Knowledge военного уровня.\nВсе коммуникации работают строго по принципу P2P (точка-точка).\nСообщения автоматически самоуничтожаются через 24 часа\nс использованием безопасной защиты памяти от отслеживания.\nНи следа, ни логов, полная конфиденциальность.',
     'close_button': 'Закрыть',
-    'crypto_code_too_weak': 'Код слишком слабый: используйте не менее 10 символов и избегайте повторяющихся или последовательных шаблонов.',
+    'crypto_code_too_weak': 'Код слишком слабый: используйте не менее 12 символов и избегайте повторяющихся или последовательных шаблонов.',
     'invalid_recovery_phrase': 'Неверная фраза восстановления - проверьте слова и попробуйте снова.',
     'crypto_vault_not_initialized': 'Crypto Vault не инициализирован на этом устройстве.',
     'invalid_crypto_vault_code': 'Неверный код Crypto Vault.',
@@ -2735,7 +3262,7 @@ Map<String, Map<String, String>> t = {
     'call_contact_unavailable': 'Контакт недоступен или не в сети.',
     'missed_secure_call': 'Пропущенный защищённый звонок',
     'missed_call_notification_title': 'Пропущенный звонок',
-    'setup_code_too_weak': 'Ключ расшифровки слишком слабый: используйте минимум 10 символов и избегайте повторяющихся или последовательных шаблонов.',
+    'setup_code_too_weak': 'Ключ расшифровки слишком слабый: используйте минимум 12 символов и избегайте повторяющихся или последовательных шаблонов.',
     'vault_init_failed_prefix': 'Не удалось инициализировать хранилище',
     'create_vault_title': 'СОЗДАЙТЕ СВОЁ ЗАШИФРОВАННОЕ ХРАНИЛИЩЕ',
     'create_vault_subtitle': 'Задайте главный ключ для создания\nвашей криптографической P2P-личности',
@@ -2772,6 +3299,8 @@ Map<String, Map<String, String>> t = {
     'scan_privacy_id_title': 'Сканировать ID конфиденциальности',
     'contact_already_in_list': 'Этот контакт уже есть в вашем списке!',
     'add_button': 'Добавить',
+    'too_many_attempts': 'Слишком много попыток. Повторите через {s} с.',
+    'invalid_privacy_id': 'Неверный ID конфиденциальности.',
   },
   'UK': {
     'chats': 'Чати',
@@ -2857,7 +3386,7 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'ID конфіденційності',
     'profile_bio_paragraph': 'Створено з шифруванням Zero-Knowledge військового рівня.\nУсі комунікації працюють строго за принципом P2P (точка-точка).\nПовідомлення автоматично самознищуються через 24 години\nіз використанням безпечного захисту пам\'яті від відстеження.\nЖодного сліду, жодних журналів, повна конфіденційність.',
     'close_button': 'Закрити',
-    'crypto_code_too_weak': 'Код надто слабкий: використовуйте щонайменше 10 символів і уникайте повторюваних чи послідовних шаблонів.',
+    'crypto_code_too_weak': 'Код надто слабкий: використовуйте щонайменше 12 символів і уникайте повторюваних чи послідовних шаблонів.',
     'invalid_recovery_phrase': 'Невірна фраза відновлення - перевірте слова і спробуйте ще раз.',
     'crypto_vault_not_initialized': 'Crypto Vault не ініціалізовано на цьому пристрої.',
     'invalid_crypto_vault_code': 'Невірний код Crypto Vault.',
@@ -2970,7 +3499,7 @@ Map<String, Map<String, String>> t = {
     'call_contact_unavailable': 'Контакт недоступний або офлайн.',
     'missed_secure_call': 'Пропущений захищений виклик',
     'missed_call_notification_title': 'Пропущений виклик',
-    'setup_code_too_weak': 'Ключ розшифрування занадто слабкий: використовуйте щонайменше 10 символів і уникайте повторюваних або послідовних шаблонів.',
+    'setup_code_too_weak': 'Ключ розшифрування занадто слабкий: використовуйте щонайменше 12 символів і уникайте повторюваних або послідовних шаблонів.',
     'vault_init_failed_prefix': 'Не вдалося ініціалізувати сховище',
     'create_vault_title': 'СТВОРІТЬ СВОЄ ЗАШИФРОВАНЕ СХОВИЩЕ',
     'create_vault_subtitle': 'Встановіть головний ключ для створення\nвашої криптографічної P2P-ідентичності',
@@ -3007,6 +3536,8 @@ Map<String, Map<String, String>> t = {
     'scan_privacy_id_title': 'Сканувати ID конфіденційності',
     'contact_already_in_list': 'Цей контакт вже є у вашому списку!',
     'add_button': 'Додати',
+    'too_many_attempts': 'Забагато спроб. Спробуйте ще раз за {s} с.',
+    'invalid_privacy_id': 'Невірний ID конфіденційності.',
   },
   'ZH': {
     'chats': '聊天',
@@ -3092,7 +3623,7 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': '隐私 ID',
     'profile_bio_paragraph': '采用军事级零知识加密技术打造。\n所有通信严格采用点对点（P2P）方式运行。\n消息在 24 小时后使用安全的反追踪内存清理技术自动销毁。\n零痕迹，零日志，完全隐私。',
     'close_button': '关闭',
-    'crypto_code_too_weak': '密码太弱：请至少使用 10 个字符，并避免重复或连续的模式。',
+    'crypto_code_too_weak': '密码太弱：请至少使用 12 个字符，并避免重复或连续的模式。',
     'invalid_recovery_phrase': '恢复短语无效 - 请检查单词并重试。',
     'crypto_vault_not_initialized': '此设备上尚未初始化 Crypto Vault。',
     'invalid_crypto_vault_code': 'Crypto Vault 密码无效。',
@@ -3205,7 +3736,7 @@ Map<String, Map<String, String>> t = {
     'call_contact_unavailable': '联系人不可用或离线。',
     'missed_secure_call': '未接安全通话',
     'missed_call_notification_title': '未接来电',
-    'setup_code_too_weak': '解密密钥太弱:请使用至少 10 个字符,并避免重复或连续的模式。',
+    'setup_code_too_weak': '解密密钥太弱:请使用至少 12 个字符,并避免重复或连续的模式。',
     'vault_init_failed_prefix': '保险库初始化失败',
     'create_vault_title': '创建您的加密保险库',
     'create_vault_subtitle': '设置您的主密钥以生成\nP2P 加密身份',
@@ -3242,6 +3773,8 @@ Map<String, Map<String, String>> t = {
     'scan_privacy_id_title': '扫描隐私 ID',
     'contact_already_in_list': '此联系人已在您的列表中!',
     'add_button': '添加',
+    'too_many_attempts': '尝试次数过多,请在 {s} 秒后重试。',
+    'invalid_privacy_id': '隐私 ID 无效。',
   },
   'KO': {
     'chats': '채팅',
@@ -3327,7 +3860,7 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': '개인정보 ID',
     'profile_bio_paragraph': '군사급 제로 지식 암호화로 설계되었습니다.\n모든 통신은 엄격하게 P2P(피어 투 피어) 방식으로 작동합니다.\n메시지는 안전한 추적 방지 메모리 삭제 기술을 사용하여 24시간 후 자동으로 파기됩니다.\n흔적 없음, 로그 없음, 완전한 개인정보 보호.',
     'close_button': '닫기',
-    'crypto_code_too_weak': '코드가 너무 약합니다: 최소 10자를 사용하고 반복되거나 순차적인 패턴을 피하세요.',
+    'crypto_code_too_weak': '코드가 너무 약합니다: 최소 12자를 사용하고 반복되거나 순차적인 패턴을 피하세요.',
     'invalid_recovery_phrase': '복구 문구가 잘못되었습니다 - 단어를 확인하고 다시 시도하세요.',
     'crypto_vault_not_initialized': '이 기기에서 Crypto Vault가 초기화되지 않았습니다.',
     'invalid_crypto_vault_code': 'Crypto Vault 코드가 잘못되었습니다.',
@@ -3440,7 +3973,7 @@ Map<String, Map<String, String>> t = {
     'call_contact_unavailable': '연락처를 사용할 수 없거나 오프라인입니다.',
     'missed_secure_call': '부재중 보안 통화',
     'missed_call_notification_title': '부재중 전화',
-    'setup_code_too_weak': '암호 해독 키가 너무 약합니다: 최소 10자를 사용하고 반복되거나 연속된 패턴을 피하세요.',
+    'setup_code_too_weak': '암호 해독 키가 너무 약합니다: 최소 12자를 사용하고 반복되거나 연속된 패턴을 피하세요.',
     'vault_init_failed_prefix': '보관함 초기화 실패',
     'create_vault_title': '암호화된 보관함 만들기',
     'create_vault_subtitle': '마스터 키를 설정하여\nP2P 암호화 신원을 생성하세요',
@@ -3477,6 +4010,8 @@ Map<String, Map<String, String>> t = {
     'scan_privacy_id_title': '개인정보 ID 스캔',
     'contact_already_in_list': '이 연락처는 이미 목록에 있습니다!',
     'add_button': '추가',
+    'too_many_attempts': '시도 횟수가 너무 많습니다. {s}초 후에 다시 시도하세요.',
+    'invalid_privacy_id': '잘못된 개인정보 ID입니다.',
   },
   'AR': {
     'chats': 'الدردشات',
@@ -3562,7 +4097,7 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'معرّف الخصوصية',
     'profile_bio_paragraph': 'مصمم بتشفير Zero-Knowledge بمستوى عسكري.\nتعمل جميع الاتصالات بشكل صارم نظير إلى نظير (P2P).\nتُدمَّر الرسائل تلقائيًا بعد 24 ساعة\nباستخدام تعقيم ذاكرة آمن مضاد للتتبع.\nبدون أثر، بدون سجلات، خصوصية تامة.',
     'close_button': 'إغلاق',
-    'crypto_code_too_weak': 'الرمز ضعيف جدًا: استخدم 10 أحرف على الأقل وتجنب الأنماط المتكررة أو المتسلسلة.',
+    'crypto_code_too_weak': 'الرمز ضعيف جدًا: استخدم 12 أحرف على الأقل وتجنب الأنماط المتكررة أو المتسلسلة.',
     'invalid_recovery_phrase': 'عبارة الاسترداد غير صالحة - تحقق من الكلمات وحاول مرة أخرى.',
     'crypto_vault_not_initialized': 'لم يتم تهيئة Crypto Vault على هذا الجهاز.',
     'invalid_crypto_vault_code': 'رمز Crypto Vault غير صالح.',
@@ -3675,7 +4210,7 @@ Map<String, Map<String, String>> t = {
     'call_contact_unavailable': 'جهة الاتصال غير متاحة أو غير متصلة.',
     'missed_secure_call': 'مكالمة آمنة فائتة',
     'missed_call_notification_title': 'مكالمة فائتة',
-    'setup_code_too_weak': 'مفتاح فك التشفير ضعيف جدًا: استخدم 10 أحرف على الأقل وتجنب الأنماط المتكررة أو المتسلسلة.',
+    'setup_code_too_weak': 'مفتاح فك التشفير ضعيف جدًا: استخدم 12 أحرف على الأقل وتجنب الأنماط المتكررة أو المتسلسلة.',
     'vault_init_failed_prefix': 'فشل تهيئة الخزنة',
     'create_vault_title': 'أنشئ خزنتك المشفرة',
     'create_vault_subtitle': 'عيّن مفتاحك الرئيسي لإنشاء\nهويتك التشفيرية من نظير إلى نظير',
@@ -3712,6 +4247,8 @@ Map<String, Map<String, String>> t = {
     'scan_privacy_id_title': 'مسح معرّف الخصوصية',
     'contact_already_in_list': 'جهة الاتصال هذه موجودة بالفعل في قائمتك!',
     'add_button': 'إضافة',
+    'too_many_attempts': 'محاولات كثيرة جدًا. حاول مرة أخرى بعد {s} ثانية.',
+    'invalid_privacy_id': 'معرّف الخصوصية غير صالح.',
   },
   'TR': {
     'chats': 'Sohbetler',
@@ -3797,7 +4334,7 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'Gizlilik Kimliği',
     'profile_bio_paragraph': 'Askeri düzeyde Sıfır Bilgi şifrelemesiyle tasarlandı.\nTüm iletişimler kesinlikle Eşler Arası (P2P) çalışır.\nMesajlar, güvenli iz karşıtı bellek temizleme kullanılarak 24 saat sonra otomatik olarak kendini imha eder.\nSıfır iz, sıfır günlük, tam gizlilik.',
     'close_button': 'Kapat',
-    'crypto_code_too_weak': 'Kod çok zayıf: en az 10 karakter kullanın ve tekrarlanan veya sıralı desenlerden kaçının.',
+    'crypto_code_too_weak': 'Kod çok zayıf: en az 12 karakter kullanın ve tekrarlanan veya sıralı desenlerden kaçının.',
     'invalid_recovery_phrase': 'Geçersiz kurtarma ifadesi - kelimeleri kontrol edin ve tekrar deneyin.',
     'crypto_vault_not_initialized': 'Bu cihazda Crypto Vault başlatılmadı.',
     'invalid_crypto_vault_code': 'Geçersiz Crypto Vault kodu.',
@@ -3910,7 +4447,7 @@ Map<String, Map<String, String>> t = {
     'call_contact_unavailable': 'Kişi kullanılamıyor veya çevrimdışı.',
     'missed_secure_call': 'Cevapsız Güvenli Arama',
     'missed_call_notification_title': 'Cevapsız Arama',
-    'setup_code_too_weak': 'Şifre çözme anahtarı çok zayıf: en az 10 karakter kullanın ve tekrarlayan veya ardışık desenlerden kaçının.',
+    'setup_code_too_weak': 'Şifre çözme anahtarı çok zayıf: en az 12 karakter kullanın ve tekrarlayan veya ardışık desenlerden kaçının.',
     'vault_init_failed_prefix': 'Kasa başlatma başarısız oldu',
     'create_vault_title': 'ŞİFRELİ KASANIZI OLUŞTURUN',
     'create_vault_subtitle': 'P2P kriptografik kimliğinizi oluşturmak için\nana anahtarınızı belirleyin',
@@ -3947,6 +4484,8 @@ Map<String, Map<String, String>> t = {
     'scan_privacy_id_title': 'Gizlilik Kimliğini Tara',
     'contact_already_in_list': 'Bu kişi zaten listenizde!',
     'add_button': 'Ekle',
+    'too_many_attempts': 'Çok fazla deneme. {s} saniye sonra tekrar deneyin.',
+    'invalid_privacy_id': 'Geçersiz Gizlilik Kimliği.',
   },
   'IT': {
     'chats': 'Chat',
@@ -4032,7 +4571,7 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'ID Privacy',
     'profile_bio_paragraph': 'Progettato con crittografia Zero-Knowledge di livello militare.\nTutte le comunicazioni funzionano rigorosamente Peer-to-Peer (P2P).\nI messaggi si autodistruggono automaticamente dopo 24 ore\nutilizzando una sanificazione della memoria anti-tracciamento sicura.\nNessuna traccia, nessun registro, privacy totale.',
     'close_button': 'Chiudi',
-    'crypto_code_too_weak': 'Il codice è troppo debole: usa almeno 10 caratteri ed evita schemi ripetuti o sequenziali.',
+    'crypto_code_too_weak': 'Il codice è troppo debole: usa almeno 12 caratteri ed evita schemi ripetuti o sequenziali.',
     'invalid_recovery_phrase': 'Frase di recupero non valida - controlla le parole e riprova.',
     'crypto_vault_not_initialized': 'Crypto Vault non inizializzato su questo dispositivo.',
     'invalid_crypto_vault_code': 'Codice Crypto Vault non valido.',
@@ -4145,7 +4684,7 @@ Map<String, Map<String, String>> t = {
     'call_contact_unavailable': 'Contatto non disponibile o offline.',
     'missed_secure_call': 'Chiamata Sicura Persa',
     'missed_call_notification_title': 'Chiamata Persa',
-    'setup_code_too_weak': 'La chiave di decrittazione è troppo debole: usa almeno 10 caratteri ed evita schemi ripetuti o sequenziali.',
+    'setup_code_too_weak': 'La chiave di decrittazione è troppo debole: usa almeno 12 caratteri ed evita schemi ripetuti o sequenziali.',
     'vault_init_failed_prefix': 'Inizializzazione del caveau non riuscita',
     'create_vault_title': 'CREA IL TUO CAVEAU CRITTOGRAFATO',
     'create_vault_subtitle': 'Imposta la tua chiave principale per generare\nla tua identità crittografica P2P',
@@ -4182,6 +4721,8 @@ Map<String, Map<String, String>> t = {
     'scan_privacy_id_title': 'Scansiona ID Privacy',
     'contact_already_in_list': 'Questo contatto è già nella tua lista!',
     'add_button': 'Aggiungi',
+    'too_many_attempts': 'Troppi tentativi. Riprova tra {s} secondi.',
+    'invalid_privacy_id': 'ID Privacy non valido.',
   },
   'JA': {
     'chats': 'チャット',
@@ -4267,7 +4808,7 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'プライバシーID',
     'profile_bio_paragraph': '軍事レベルのゼロ知識暗号化で構築。\nすべての通信は厳密にピアツーピア（P2P）で動作します。\nメッセージは安全な追跡防止メモリ消去技術を使用して24時間後に自動的に自己破棄されます。\n痕跡ゼロ、ログゼロ、完全なプライバシー。',
     'close_button': '閉じる',
-    'crypto_code_too_weak': 'コードが弱すぎます：少なくとも10文字を使用し、繰り返しや連続したパターンを避けてください。',
+    'crypto_code_too_weak': 'コードが弱すぎます：少なくとも12文字を使用し、繰り返しや連続したパターンを避けてください。',
     'invalid_recovery_phrase': 'リカバリーフレーズが無効です - 単語を確認して再試行してください。',
     'crypto_vault_not_initialized': 'このデバイスでCrypto Vaultが初期化されていません。',
     'invalid_crypto_vault_code': 'Crypto Vaultコードが無効です。',
@@ -4380,7 +4921,7 @@ Map<String, Map<String, String>> t = {
     'call_contact_unavailable': '連絡先が利用できないかオフラインです。',
     'missed_secure_call': '不在着信(セキュア通話)',
     'missed_call_notification_title': '不在着信',
-    'setup_code_too_weak': '復号鍵が弱すぎます。10文字以上を使用し、繰り返しや連続したパターンは避けてください。',
+    'setup_code_too_weak': '復号鍵が弱すぎます。12文字以上を使用し、繰り返しや連続したパターンは避けてください。',
     'vault_init_failed_prefix': 'ボールトの初期化に失敗しました',
     'create_vault_title': '暗号化ボールトを作成',
     'create_vault_subtitle': 'マスターキーを設定して\nP2P暗号アイデンティティを生成します',
@@ -4417,6 +4958,8 @@ Map<String, Map<String, String>> t = {
     'scan_privacy_id_title': 'プライバシーIDをスキャン',
     'contact_already_in_list': 'この連絡先はすでにリストにあります!',
     'add_button': '追加',
+    'too_many_attempts': '試行回数が多すぎます。{s}秒後にもう一度お試しください。',
+    'invalid_privacy_id': 'プライバシーIDが無効です。',
   },
   'HI': {
     'chats': 'चैट',
@@ -4502,7 +5045,7 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'गोपनीयता ID',
     'profile_bio_paragraph': 'सैन्य-स्तर की ज़ीरो-नॉलेज एन्क्रिप्शन के साथ बनाया गया।\nसभी संचार सख्ती से पीयर-टू-पीयर (P2P) पर काम करते हैं।\nसंदेश सुरक्षित एंटी-ट्रेस मेमोरी सैनिटाइजेशन का उपयोग करके 24 घंटे बाद स्वतः नष्ट हो जाते हैं।\nशून्य निशान, शून्य लॉग, पूर्ण गोपनीयता।',
     'close_button': 'बंद करें',
-    'crypto_code_too_weak': 'कोड बहुत कमज़ोर है: कम से कम 10 अक्षरों का उपयोग करें और दोहराए जाने वाले या क्रमिक पैटर्न से बचें।',
+    'crypto_code_too_weak': 'कोड बहुत कमज़ोर है: कम से कम 12 अक्षरों का उपयोग करें और दोहराए जाने वाले या क्रमिक पैटर्न से बचें।',
     'invalid_recovery_phrase': 'अमान्य रिकवरी फ्रेज़ - शब्दों की जाँच करें और फिर से प्रयास करें।',
     'crypto_vault_not_initialized': 'इस डिवाइस पर Crypto Vault प्रारंभ नहीं किया गया है।',
     'invalid_crypto_vault_code': 'अमान्य Crypto Vault कोड।',
@@ -4615,7 +5158,7 @@ Map<String, Map<String, String>> t = {
     'call_contact_unavailable': 'संपर्क अनुपलब्ध है या ऑफ़लाइन है।',
     'missed_secure_call': 'छूटी हुई सुरक्षित कॉल',
     'missed_call_notification_title': 'छूटी हुई कॉल',
-    'setup_code_too_weak': 'डिक्रिप्शन कुंजी बहुत कमज़ोर है: कम से कम 10 अक्षरों का उपयोग करें और दोहराए जाने वाले या क्रमिक पैटर्न से बचें।',
+    'setup_code_too_weak': 'डिक्रिप्शन कुंजी बहुत कमज़ोर है: कम से कम 12 अक्षरों का उपयोग करें और दोहराए जाने वाले या क्रमिक पैटर्न से बचें।',
     'vault_init_failed_prefix': 'वॉल्ट प्रारंभ करने में विफल',
     'create_vault_title': 'अपना एन्क्रिप्टेड वॉल्ट बनाएं',
     'create_vault_subtitle': 'अपनी P2P क्रिप्टोग्राफिक पहचान बनाने के लिए\nअपनी मास्टर कुंजी सेट करें',
@@ -4652,6 +5195,8 @@ Map<String, Map<String, String>> t = {
     'scan_privacy_id_title': 'गोपनीयता ID स्कैन करें',
     'contact_already_in_list': 'यह संपर्क पहले से ही आपकी सूची में है!',
     'add_button': 'जोड़ें',
+    'too_many_attempts': 'बहुत अधिक प्रयास। {s} सेकंड बाद पुनः प्रयास करें।',
+    'invalid_privacy_id': 'अमान्य गोपनीयता ID।',
   },
   'NL': {
     'chats': 'Chats',
@@ -4737,7 +5282,7 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'Privacy-ID',
     'profile_bio_paragraph': 'Ontworpen met militaire Zero-Knowledge-versleuteling.\nAlle communicatie werkt strikt Peer-to-Peer (P2P).\nBerichten vernietigen zichzelf automatisch na 24 uur\nmet behulp van veilige anti-tracering geheugensanering.\nGeen spoor, geen logboeken, volledige privacy.',
     'close_button': 'Sluiten',
-    'crypto_code_too_weak': 'Code is te zwak: gebruik minstens 10 tekens en vermijd herhalende of opeenvolgende patronen.',
+    'crypto_code_too_weak': 'Code is te zwak: gebruik minstens 12 tekens en vermijd herhalende of opeenvolgende patronen.',
     'invalid_recovery_phrase': 'Ongeldige herstelzin - controleer de woorden en probeer het opnieuw.',
     'crypto_vault_not_initialized': 'Crypto Vault is niet geïnitialiseerd op dit apparaat.',
     'invalid_crypto_vault_code': 'Ongeldige Crypto Vault-code.',
@@ -4850,7 +5395,7 @@ Map<String, Map<String, String>> t = {
     'call_contact_unavailable': 'Contact niet beschikbaar of offline.',
     'missed_secure_call': 'Gemiste Beveiligde Oproep',
     'missed_call_notification_title': 'Gemiste Oproep',
-    'setup_code_too_weak': 'Decoderingssleutel is te zwak: gebruik minstens 10 tekens en vermijd herhalende of opeenvolgende patronen.',
+    'setup_code_too_weak': 'Decoderingssleutel is te zwak: gebruik minstens 12 tekens en vermijd herhalende of opeenvolgende patronen.',
     'vault_init_failed_prefix': 'Initialisatie van kluis mislukt',
     'create_vault_title': 'MAAK JE VERSLEUTELDE KLUIS',
     'create_vault_subtitle': 'Stel je hoofdsleutel in om je\nP2P-cryptografische identiteit te genereren',
@@ -4887,6 +5432,8 @@ Map<String, Map<String, String>> t = {
     'scan_privacy_id_title': 'Privacy-ID Scannen',
     'contact_already_in_list': 'Dit contact staat al in je lijst!',
     'add_button': 'Toevoegen',
+    'too_many_attempts': 'Te veel pogingen. Probeer het over {s} seconden opnieuw.',
+    'invalid_privacy_id': 'Ongeldige privacy-ID.',
   },
   'PL': {
     'chats': 'Czaty',
@@ -4972,7 +5519,7 @@ Map<String, Map<String, String>> t = {
     'privacy_id_label': 'ID Prywatności',
     'profile_bio_paragraph': 'Zaprojektowano z szyfrowaniem Zero-Knowledge wojskowej klasy.\nWszystkie komunikacje działają ściśle w trybie Peer-to-Peer (P2P).\nWiadomości automatycznie samoniszczą się po 24 godzinach\nprzy użyciu bezpiecznego czyszczenia pamięci anty-śledzenia.\nZero śladu, zero logów, pełna prywatność.',
     'close_button': 'Zamknij',
-    'crypto_code_too_weak': 'Kod jest za słaby: użyj co najmniej 10 znaków i unikaj powtarzających się lub sekwencyjnych wzorców.',
+    'crypto_code_too_weak': 'Kod jest za słaby: użyj co najmniej 12 znaków i unikaj powtarzających się lub sekwencyjnych wzorców.',
     'invalid_recovery_phrase': 'Nieprawidłowa fraza odzyskiwania - sprawdź słowa i spróbuj ponownie.',
     'crypto_vault_not_initialized': 'Crypto Vault nie został zainicjowany na tym urządzeniu.',
     'invalid_crypto_vault_code': 'Nieprawidłowy kod Crypto Vault.',
@@ -5085,7 +5632,7 @@ Map<String, Map<String, String>> t = {
     'call_contact_unavailable': 'Kontakt niedostępny lub offline.',
     'missed_secure_call': 'Nieodebrane Bezpieczne Połączenie',
     'missed_call_notification_title': 'Nieodebrane Połączenie',
-    'setup_code_too_weak': 'Klucz deszyfrowania jest za słaby: użyj co najmniej 10 znaków i unikaj powtarzających się lub sekwencyjnych wzorców.',
+    'setup_code_too_weak': 'Klucz deszyfrowania jest za słaby: użyj co najmniej 12 znaków i unikaj powtarzających się lub sekwencyjnych wzorców.',
     'vault_init_failed_prefix': 'Inicjalizacja skarbca nie powiodła się',
     'create_vault_title': 'UTWÓRZ SWÓJ ZASZYFROWANY SKARBIEC',
     'create_vault_subtitle': 'Ustaw swój klucz główny, aby wygenerować\nswoją kryptograficzną tożsamość P2P',
@@ -5122,6 +5669,8 @@ Map<String, Map<String, String>> t = {
     'scan_privacy_id_title': 'Skanuj ID Prywatności',
     'contact_already_in_list': 'Ten kontakt już znajduje się na Twojej liście!',
     'add_button': 'Dodaj',
+    'too_many_attempts': 'Zbyt wiele prób. Spróbuj ponownie za {s} s.',
+    'invalid_privacy_id': 'Nieprawidłowe ID prywatności.',
   },
 };
 
@@ -5200,11 +5749,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
 // Gatilho Inteligente de Arranque: Espera o canal abrir e só depois pede as mensagens pendentes
     Timer.periodic(const Duration(milliseconds: 300), (timer) {
       if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
-       PadlockNetwork.channel!.sink.add(jsonEncode({
-              'type': 'register',
-              'senderId': _myPrivacyId,
-              'fcmToken': Hive.box('padlock_vault').get('my_fcm_token')
-            }));
+       PadlockNetwork.registerMain(fcmToken: Hive.box('padlock_vault').get('my_fcm_token'));
         timer.cancel(); // Mensagens pedidas com sucesso, desliga o motor de busca
       }
     });
@@ -5230,10 +5775,24 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
               if (data['type'] == 'contact_request') {
                 final String senderId = data['senderId'];
                 // 1. Apanha a Chave Pública do amigo do outro lado da rede
-                final String? senderPubKey = data['publicKey']; 
-                
-                // Vai dar ERRO VERMELHO aqui! Ignora e avança, vamos consertar a seguir.
-                mostrarPedidoDeConexao(senderId, senderPubKey);
+                final String? senderPubKey = data['publicKey'];
+                // Só mostra o pedido se a chave vier ASSINADA pelo dono do ID
+                // (ID = hash da chave de identidade). Um pedido forjado ou com
+                // a chave trocada pelo caminho é descartado em silêncio.
+                final myIdNow = Hive.box('padlock_vault').get('user_privacy_id');
+                final String? authPubOk = (myIdNow is String && senderId != myIdNow)
+                    ? await PadlockIdentity.verifyHandshake(data, myIdNow)
+                    : null;
+                if (authPubOk == null) {
+                  dlog('Pedido de contacto com assinatura inválida descartado.');
+                  return;
+                }
+                // Já é contacto com canal completo: um pedido repetido (ex:
+                // repetido por um intermediário) nunca pode repor as cadeias.
+                if (_contacts.any((c) => c['id'] == senderId && c['handshake'] == 'completed')) {
+                  return;
+                }
+                mostrarPedidoDeConexao(senderId, senderPubKey, authPubOk);
               } 
               else if (data['action'] == 'call_candidate') {
         PadlockNetwork.earlyCandidates.add(data);
@@ -5241,6 +5800,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
         FlutterCallkitIncoming.endAllCalls();
         PadlockNetwork.emChamada = false;
       } else if (data['type'] == 'wipe_chat') {
+        if (!await PadlockCtrl.verify(data)) return;
         final peerId = data['senderId'] ?? data['targetId'];
         for (var chat in _chats) {
           if (chat['id'] == peerId) {
@@ -5253,7 +5813,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
         Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
         setState(() {});
       }else if (data['type'] == 'delete_contact') {
-          final peerId = data['targetId'];
+          if (!await PadlockCtrl.verify(data)) return;
+          // O contacto a remover é QUEM ENVIOU a ordem (targetId sou eu).
+          final peerId = data['senderId'];
           setState(() {
             // 1. Limpeza Forense dos Chats
             for (var c in _chats) {
@@ -5271,13 +5833,23 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
           final vault = Hive.box('padlock_vault');
           vault.put('contacts', jsonEncode(_contacts));
           vault.put('chats', jsonEncode(_chats));
-          vault.delete('shared_secret_$peerId');
-          vault.delete('private_key_$peerId');
+          await PadlockRatchet.purgeContactKeys(peerId);
         }
               else if (data['type'] == 'contact_accepted') {
                 
                 final String acceptedId = data['senderId'];
                 final String? acceptedPubKey = data['publicKey'];
+                // Só aceita se a chave vier assinada pelo dono do ID a quem
+                // pedimos (auto-certificação) - impede trocar a chave pelo caminho.
+                final myIdNow = Hive.box('padlock_vault').get('user_privacy_id');
+                final String? authPubOk = (myIdNow is String)
+                    ? await PadlockIdentity.verifyHandshake(data, myIdNow)
+                    : null;
+                if (authPubOk == null) {
+                  dlog('contact_accepted com assinatura inválida descartado.');
+                  return;
+                }
+                await Hive.box('padlock_vault').put('auth_pub_$acceptedId', authPubOk);
 
                 // 2. O teu amigo aceitou. Recebes a chave pública dele e fechas a ponte!
                 if (acceptedPubKey != null) {
@@ -5291,7 +5863,7 @@ if (chaveTrancada == null) {
   vault.put('chave_publica_trancada_$acceptedId', acceptedPubKey);
 } else if (chaveTrancada != acceptedPubKey) {
   // ATAQUE DETETADO! A chave não é a mesma que estava no cofre.
-  print('ALERTA CRÍTICO: Tentativa de interceção! Chave alterada.');
+  dlog('ALERTA CRÍTICO: Tentativa de interceção! Chave alterada.');
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(
       content: Text('ALERTA DE SEGURANÇA: Chave alterada. Ligação bloqueada!'),
@@ -5336,10 +5908,14 @@ if (chaveTrancada == null) {
   myHandshakePublicKeyBytes: myPublicKeyBytes,
   theirHandshakePublicKeyBytes: theirPublicKeyBytes,
 );
-                      // vault.delete('private_key_$acceptedId');
+                      // A chave privada do handshake já não serve para nada depois
+                      // de as cadeias estarem criadas - apagá-la mantém o sigilo
+                      // perante o futuro e impede que uma repetição maliciosa
+                      // deste 'contact_accepted' volte a repor as cadeias.
+                      await vault.delete('private_key_$acceptedId');
                     }
                   } catch (e) {
-                    print('Erro na fundição da chave P2P: $e');
+                    dlog('Erro na fundição da chave P2P: $e');
                   }
                 }
 
@@ -5359,9 +5935,13 @@ if (chaveTrancada == null) {
         final int callAge = DateTime.now().millisecondsSinceEpoch - callTimestamp;
         
         if (callAge > 60000) {
-          print('Chamada fantasma bloqueada (Tinha $callAge milissegundos de atraso)');
+          dlog('Chamada fantasma bloqueada (Tinha $callAge milissegundos de atraso)');
           return; // Aborta o ecrã de chamada aqui mesmo
           }
+          // Só toca se quem liga for um contacto aprovado (senderId vem
+          // carimbado pelo servidor); a assinatura da oferta é verificada
+          // antes de atender (ver ActiveCallScreen.acceptSecureCall).
+          if (!_contacts.any((c) => c['id'] == data['senderId'])) return;
           if (PadlockNetwork.emChamada) {
           PadlockNetwork.channel?.sink.add(jsonEncode({'action': 'call_end', 'targetId': data['senderId']}));
           return;
@@ -5377,6 +5957,8 @@ if (chaveTrancada == null) {
     incomingSdp: data['sdp'],
     acceptedViaCallKit: false,
     isVideo: data['isVideo'] == true,
+    callTimestamp: data['timestamp'] is int ? data['timestamp'] : null,
+    callSig: data['sig']?.toString(),
   ));
 }
 }
@@ -5431,7 +6013,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
                 }
               }
             } catch (e) {
-              print('Erro ao decifrar: $e');
+              dlog('Erro ao decifrar: $e');
             }
                  
                  
@@ -5460,7 +6042,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
                // body: 'New encrypted message received.',
                // );
               } catch (e) {
-                print('Erro ao disparar pop-up de notificação: $e');
+                dlog('Erro ao disparar pop-up de notificação: $e');
               }
          }
           }
@@ -5495,7 +6077,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
                 }
               }
             } catch (e) {
-              print('Erro ao decifrar ficheiro: $e');
+              dlog('Erro ao decifrar ficheiro: $e');
             }
 
             int chatIdx = _chats.indexWhere((c) => c['id'] == peerId);
@@ -5542,7 +6124,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
                 }
               }
             } catch (e) {
-              print('Erro ao decifrar mensagem de voz: $e');
+              dlog('Erro ao decifrar mensagem de voz: $e');
             }
             if (audioBase64 == null) return;
 
@@ -5568,12 +6150,13 @@ final int msgTimestamp = data['timestamp'] ?? 0;
             Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
           }
           else if (data['type'] == 'delete_message') {
+        if (!await PadlockCtrl.verify(data)) return;
         final int targetTimestamp = data['timestamp'];
         final String senderOfDelete = data['senderId'];
         
         setState(() {
           for (var chat in _chats) {
-            if (chat['id'] == senderOfDelete || chat['id'] == data['targetId'] || chat['id'] == data['target']) {
+            if (chat['id'] == senderOfDelete) {
               if (chat['messages'] != null) {
                 for (var msg in chat['messages']) {
                   if (msg['timestamp'] == targetTimestamp) {
@@ -5591,7 +6174,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
         try {
           Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
         } catch (e) {
-          print('Erro ao atualizar cofre após delete: $e');
+          dlog('Erro ao atualizar cofre após delete: $e');
         }
       }
           // --- 1. LER A RESPOSTA DO SERVIDOR E PINTAR OS CADEADOS ---
@@ -5621,10 +6204,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
       if (PadlockNetwork.channel == null) {
         PadlockNetwork.connect();
         Future.delayed(const Duration(seconds: 1), () {
-          final myId = Hive.box('padlock_vault').get('user_privacy_id');
-          if (myId != null && PadlockNetwork.channel != null) {
-            PadlockNetwork.channel!.sink.add(jsonEncode({'type': 'register', 'senderId': myId}));
-          }
+          PadlockNetwork.registerMain(fcmToken: Hive.box('padlock_vault').get('my_fcm_token'));
         });
         return; 
       }
@@ -5699,7 +6279,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
     });
 
     } catch (e) {
-      print('Erro ao escutar WebSocket: $e');
+      dlog('Erro ao escutar WebSocket: $e');
     }
   }
 @override
@@ -5717,6 +6297,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
   }
 
   StreamSubscription? _hubSubscription;
+  DateTime? _pausedAt;
   Timer? _statusTimer; // O nosso Radar de Estado Online
   Timer? _inactivityTimer;
   Timer? _destructTimer;
@@ -5761,7 +6342,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
         _resetInactivityTimer();
         return;
       }
-      print('Sessão de 15 Minutos expirada. A forçar Logout.');
+      dlog('Sessão de 15 Minutos expirada. A forçar Logout.');
       _logout();
     });
   }
@@ -5770,19 +6351,29 @@ final int msgTimestamp = data['timestamp'] ?? 0;
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       // Deixa o túnel livre. Não corta a ligação para receberes mensagens em segundo plano.
+      _pausedAt = DateTime.now();
     }
     else if (state == AppLifecycleState.resumed) {
+      // Bloqueio ao regressar: se a app esteve mais de 3 minutos em segundo
+      // plano (e não há chamada ativa), exige a frase outra vez - como o
+      // Signal com o bloqueio de ecrã. Quem apanhar o telemóvel desbloqueado
+      // não abre as tuas conversas.
+      final pausedAt = _pausedAt;
+      _pausedAt = null;
+      if (pausedAt != null &&
+          DateTime.now().difference(pausedAt) > const Duration(minutes: 3) &&
+          !PadlockCallOverlay.isActive &&
+          !PadlockNetwork.emChamada) {
+        _logout();
+        return;
+      }
       // 2. Acordou. Liga a mangueira.
       PadlockNetwork.connect();
 
       // 3. Registo Inteligente: Tenta registar mal deteta que o canal está vivo
     Timer.periodic(const Duration(milliseconds: 300), (timer) {
       if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
-        PadlockNetwork.channel!.sink.add(jsonEncode({
-              'type': 'register',
-              'senderId': _myPrivacyId,
-              'fcmToken': Hive.box('padlock_vault').get('my_fcm_token'),
-            }));
+        PadlockNetwork.registerMain(fcmToken: Hive.box('padlock_vault').get('my_fcm_token'));
         timer.cancel(); // Registo feito, mata o temporizador para não gastar bateria
       }
     });
@@ -5841,35 +6432,28 @@ String? chatsData = vault.get('chats');
   }
  Future<void> _initNotifications() async {
     // Notificações nativas Android serão geridas pelo Firebase ou LocalNotifications
-    print('Sistema de notificações nativo inicializado.');
+    dlog('Sistema de notificações nativo inicializado.');
   }
   
   
 Future<void> _generateNewId() async {
   final vault = Hive.box('padlock_vault');
-  String? savedId = vault.get('user_privacy_id');
-
-    if (savedId != null && savedId.isNotEmpty) {
-      setState(() {
-        _myPrivacyId = savedId;
-      });
-      PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'register', 'senderId': savedId, 'fcmToken': Hive.box('padlock_vault').get('my_fcm_token')}));
-      return;
-    }
-
-  final random = Random();
-  final values = List<int>.generate(16, (i) => random.nextInt(256));
-  final hex = values.map((b) => b.toRadixString(16).padLeft(2, '0')).join('').toUpperCase();
-  final newId = '6432842A-${hex.substring(8, 16)}-${hex.substring(16, 24)}-${hex.substring(24, 32)}';
-
-    // 3. Tranca o teu novo ID de privacidade no cofre AES-256
-    vault.put('user_privacy_id', newId);
-    
-    setState(() {
-      _myPrivacyId = newId;
-    });
-    PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'register', 'senderId': newId, 'fcmToken': Hive.box('padlock_vault').get('my_fcm_token')}));
+  // O ID é SEMPRE derivado da chave pública de identidade (auto-certificado,
+  // ver PadlockIdentity) - já não é um número aleatório solto. Se o ID
+  // guardado for de um formato antigo (não derivado), é substituído: sem isto
+  // o servidor recusaria o registo (ID não corresponde à chave).
+  final identityId = await PadlockIdentity.id();
+  final String? savedId = vault.get('user_privacy_id');
+  if (savedId != identityId) {
+    await vault.put('user_privacy_id', identityId);
   }
+  if (mounted) {
+    setState(() {
+      _myPrivacyId = identityId;
+    });
+  }
+  PadlockNetwork.registerMain(fcmToken: vault.get('my_fcm_token'));
+}
 Future<void> _logout() async {
     // Evita entrar em conflito com o bloqueio automático do Vault Files ou
     // do Crypto Vault, caso disparem quase ao mesmo tempo (ver comentário
@@ -5895,7 +6479,7 @@ Future<void> _logout() async {
       // sem voltar a validar a chave derivada de Argon2id.
       await vault.close().timeout(const Duration(seconds: 5));
     } catch (e) {
-      print('Aviso: logout não conseguiu fechar o cofre a tempo: $e');
+      dlog('Aviso: logout não conseguiu fechar o cofre a tempo: $e');
     }
 
     PadlockNetwork.disconnect();
@@ -5913,7 +6497,7 @@ Future<void> _logout() async {
     Future.delayed(const Duration(seconds: 2), () => PadlockNetwork.isPerformingAutoLock = false);
   }
  // Função acionada pela rede P2P quando chega um pedido de nova conexão
-  void mostrarPedidoDeConexao(String incomingId, String? senderPubKey) {
+  void mostrarPedidoDeConexao(String incomingId, String? senderPubKey, String authPubB64) {
     showDialog(
       context: context,
       barrierDismissible: false, 
@@ -5943,6 +6527,9 @@ Future<void> _logout() async {
           ),
           TextButton(
             onPressed: () async {
+              // Guarda a chave de autenticação (verificada) de quem pediu: serve
+              // para autenticar as chamadas e mensagens de controlo desse contacto.
+              await Hive.box('padlock_vault').put('auth_pub_$incomingId', authPubB64);
               // 1. Gera o teu próprio par de chaves militares para responder
               final algorithm = crypto.X25519();
               final keyPair = await algorithm.newKeyPair();
@@ -5966,7 +6553,7 @@ if (chaveTrancada == null) {
   vaultSeguro.put('chave_publica_trancada_$incomingId', senderPubKey);
 } else if (chaveTrancada != senderPubKey) {
   // ATAQUE DETETADO!
-  print('ALERTA CRÍTICO: Chave de quem pede foi alterada.');
+  dlog('ALERTA CRÍTICO: Chave de quem pede foi alterada.');
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
       content: Text((t[_currentLang] ?? t['EN']!)['security_alert_blocked']!),
@@ -5995,7 +6582,7 @@ await PadlockRatchet.establishChains(
   theirHandshakePublicKeyBytes: theirPublicKeyBytes,
 );
                 } catch (e) {
-                  print('Erro a gerar segredo partilhado: $e');
+                  dlog('Erro a gerar segredo partilhado: $e');
                 }
               }
 
@@ -6006,9 +6593,11 @@ await PadlockRatchet.establishChains(
                   'targetId': incomingId,
                   'senderId': _myPrivacyId,
                   'publicKey': myPublicKeyBase64, // <- Mandas a tua chave pública para ele fechar o cofre do lado dele
+                  // Assinatura que liga esta chave ao TEU ID (ver PadlockIdentity)
+                  ...await PadlockIdentity.handshakeFields(incomingId, myPublicKeyBase64),
                 }));
               } catch (e) {
-                print('Erro ao enviar aceitação de contacto: $e');
+                dlog('Erro ao enviar aceitação de contacto: $e');
               }
 
               setState(() {
@@ -6067,7 +6656,8 @@ await PadlockRatchet.establishChains(
               final cId = _contacts[index]['id'] ?? _contacts[index]['name'];
                     
                     if (cId != null && PadlockNetwork.channel != null) {
-                      try { PadlockNetwork.channel!.sink.add(jsonEncode({'type': 'delete_contact', 'targetId': cId, 'senderId': Hive.box('padlock_vault').get('user_privacy_id')})); } catch (_) {}
+                      // Assinado com o MAC deste contacto; tem de ser enviado ANTES de as chaves serem queimadas.
+                      await PadlockCtrl.send(cId.toString(), 'delete_contact');
                     }
 
                     setState(() {
@@ -6197,12 +6787,18 @@ if (context.mounted) {
           );
         },
        onSelectContact: (contactName) {
-          int existingIndex = _chats.indexWhere((c) => c['name'] == contactName);
+          // O chat tem de usar o ID REAL do contacto (chaves, mensagens e
+          // sinalização são todas por ID). Antes usava o nome de apresentação:
+          // depois de renomear um contacto sem chat aberto, o chat nascia com o
+          // nome como "ID" e não conseguia enviar nem receber.
+          final contactRec = _contacts.firstWhere((c) => c['name'] == contactName, orElse: () => <String, String>{});
+          final String contactId = contactRec['id'] ?? contactName;
+          int existingIndex = _chats.indexWhere((c) => c['id'] == contactId);
           
           if (existingIndex == -1) {
             _chats.insert(0, {
               'name': contactName,
-              'id': contactName,
+              'id': contactId,
               'msg': local['secure_channel_established']!,
               'time': local['just_now']!,
               'unread': 0,
@@ -6504,7 +7100,7 @@ title: const Text(
     ),
   );
                   } catch (e) {
-                    print('Scan Error: $e');
+                    dlog('Scan Error: $e');
                   }
                 },
               ),
@@ -6517,7 +7113,15 @@ title: const Text(
             ),
             TextButton(
               onPressed: () async {
-                final targetId = controller.text.trim();
+                final targetId = controller.text.trim().toUpperCase();
+                if (targetId.isNotEmpty && !RegExp(r'^[0-9A-F]{8}(-[0-9A-F]{8}){3}$').hasMatch(targetId)) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(local['invalid_privacy_id']!)));
+                  return;
+                }
+                if (targetId.isNotEmpty && targetId == _myPrivacyId) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(local['invalid_privacy_id']!)));
+                  return;
+                }
                 if (targetId.isNotEmpty) {
                   try {
                     // 1. Inicia o motor matemático de Nível Militar (Curve25519)
@@ -6542,9 +7146,11 @@ title: const Text(
                       'targetId': targetId,
                       'senderId': _myPrivacyId,
                       'publicKey': publicKeyBase64, // <- A chave pública entra em ação
+                      // Assinatura que liga esta chave ao TEU ID (ver PadlockIdentity)
+                      ...await PadlockIdentity.handshakeFields(targetId, publicKeyBase64),
                     }));
                   } catch (e) {
-                    print('Erro na ignição criptográfica: $e');
+                    dlog('Erro na ignição criptográfica: $e');
                   }
 
                   // 6. Mantém a tua interface visual a funcionar perfeitamente
@@ -6753,13 +7359,8 @@ class ChatsScreen extends StatelessWidget {
           await Future.delayed(const Duration(milliseconds: 1500));
           
           // 3. Grita para o servidor pedindo as mensagens e os vistos que ficaram retidos
-          final myId = Hive.box('padlock_vault').get('user_privacy_id');
-          if (myId != null && PadlockNetwork.channel != null) {
-            PadlockNetwork.channel?.sink.add(jsonEncode({
-              'type': 'register',
-              'senderId': myId,
-              'fcmToken': Hive.box('padlock_vault').get('my_fcm_token'),
-            }));
+          if (PadlockNetwork.channel != null) {
+            PadlockNetwork.registerMain(fcmToken: Hive.box('padlock_vault').get('my_fcm_token'));
           }
           
           // 4. Força o ecrã a redesenhar as cores e as listas
@@ -7036,13 +7637,7 @@ Future<void> _processoMensagem = Future.value();
     // --- METRALHADORA DE VISTOS BILATERAL ---
     void _forceReadReceipts() {
       if (PadlockNetwork.channel != null) {
-        try {
-          PadlockNetwork.channel!.sink.add(jsonEncode({
-            'type': 'message_read',
-            'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
-            'targetId': widget.chatData['id']
-          }));
-        } catch (e) {}
+        PadlockCtrl.send(widget.chatData['id'].toString(), 'message_read');
       }
     }
 
@@ -7092,10 +7687,19 @@ Future<void> _processoMensagem = Future.value();
     });
     // Escuta bilateral de mensagens recebidas via WebSocket P2P
     _chatSubscription = PadlockNetwork.messageHub.stream.listen((data) async {
-     print('TESTE DE ENTRADA DO WEBSOCKET: $data');
+     dlog('TESTE DE ENTRADA DO WEBSOCKET: $data');
      
       try {
         final decoded = jsonDecode(data);
+        // Só interessa a ESTE chat o que veio do próprio contacto. Sem isto,
+        // uma mensagem de OUTRO contacto era decifrada com as chaves deste
+        // chat (corrompendo o ratchet e mostrando "Message not decrypted"),
+        // e ordens de controlo de outros contactos mexiam nesta conversa.
+        const chatTypes = {'delete_message', 'wipe_chat', 'update_timer', 'message_read', 'secure_message'};
+        if (chatTypes.contains(decoded['type'])) {
+          if (decoded['senderId'] != widget.chatData['id']) return;
+          if (decoded['type'] != 'secure_message' && !await PadlockCtrl.verify(decoded)) return;
+        }
         if (decoded['type'] == 'delete_message') {
               if (mounted) {
                 setState(() {
@@ -7225,7 +7829,7 @@ SystemSound.play(SystemSoundType.click);
       }
      
     } catch (e) {
-      print('Erro no fluxo de entrada P2P: $e');
+      dlog('Erro no fluxo de entrada P2P: $e');
     }
   });
 
@@ -7271,11 +7875,7 @@ void _checkExpiredMessages() {
   msg['text'] = '0000000000000000'; // Sobregravação de segurança anti-forense
   msg['read'] = true;
   apagouAlgumaCoisa = true;
-  PadlockNetwork.channel?.sink.add(jsonEncode({
-  'type': 'delete_message', 
-  'timestamp': timestamp,
-  'target': widget.chatData['id']
-}));
+  PadlockCtrl.send(widget.chatData['id'].toString(), 'delete_message', fields: {'timestamp': timestamp});
   return true; // Aniquilação total do registo
 }
         return false; // Mantém a mensagem
@@ -7309,7 +7909,7 @@ void _checkExpiredMessages() {
   
 
 // 1. MOTOR DE DESTRUIÇÃO CORRIGIDO (Usa a impressão digital 'timestamp' em vez da posição)
-  void _deleteMessage(int timestamp) {
+  Future<void> _deleteMessage(int timestamp) async {
     setState(() {
       // Destruição forense: Sobregrava os dados na RAM
       for (var msg in widget.chatData['messages']) {
@@ -7320,26 +7920,27 @@ void _checkExpiredMessages() {
       }
     });
 
-    // Sinal de Morte Bilateral para o outro telemóvel
-    final killSignal = {
-      'type': 'delete_message',
-      'timestamp': timestamp,
-      'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
-      'targetId': widget.chatData['id']
-    };
+    // Sinal de Morte Bilateral para o outro telemóvel (assinado com o MAC do contacto)
+    final killSignal = await PadlockCtrl.build(
+      widget.chatData['id'].toString(),
+      'delete_message',
+      fields: {'timestamp': timestamp},
+    );
 
-    try {
-      PadlockNetwork.channel?.sink.add(jsonEncode(killSignal));
-    } catch (e) {
-      print('Erro ao enviar sinal de destruição: $e');
-    }
-
-    // --- 1.2 FILA DE MORTE: Guarda a ordem no cofre ---
     final vault = Hive.box('padlock_vault');
-    String? pendingStr = vault.get('pending_kills');
-    List<dynamic> pendingKills = pendingStr != null ? jsonDecode(pendingStr) : [];
-    pendingKills.add(killSignal);
-    vault.put('pending_kills', jsonEncode(pendingKills));
+    if (killSignal != null) {
+      try {
+        PadlockNetwork.channel?.sink.add(jsonEncode(killSignal));
+      } catch (e) {
+        dlog('Erro ao enviar sinal de destruição: $e');
+      }
+
+      // --- 1.2 FILA DE MORTE: Guarda a ordem no cofre ---
+      String? pendingStr = vault.get('pending_kills');
+      List<dynamic> pendingKills = pendingStr != null ? jsonDecode(pendingStr) : [];
+      pendingKills.add(killSignal);
+      vault.put('pending_kills', jsonEncode(pendingKills));
+    }
 
     // Limpeza Local
     setState(() {
@@ -7397,7 +7998,16 @@ String _getTimeLeft(int timestamp) {
                 leading: const Icon(Icons.copy, color: Colors.white),
                 title: Text(widget.local['copy_message']!, style: const TextStyle(color: Colors.white)),
                 onTap: () {
-                  Clipboard.setData(ClipboardData(text: msg['text']));
+                  final copiedText = msg['text'].toString();
+                  Clipboard.setData(ClipboardData(text: copiedText));
+                  // Uma mensagem copiada não deve ficar na área de transferência
+                  // (legível por outras apps): limpa-se sozinha ao fim de 30s.
+                  Future.delayed(const Duration(seconds: 30), () async {
+                    try {
+                      final cur = await Clipboard.getData('text/plain');
+                      if (cur?.text == copiedText) await Clipboard.setData(const ClipboardData(text: ''));
+                    } catch (_) {}
+                  });
                   Navigator.pop(context); // Fecha o menu
                 },
               ),
@@ -7597,7 +8207,7 @@ final dhPub = encResult['dh']!;
           'timestamp': currentTimestamp,
         }));
       } catch (e) {
-        print('Erro ao enviar mensagem: $e');
+        dlog('Erro ao enviar mensagem: $e');
       }
     }
 
@@ -7747,15 +8357,7 @@ flexibleSpace: Container(
   onSelected: (val) {
     if (val == 'clear') {
               // 1. Sinal de Morte Global: Obriga o outro telefone a destruir o chat todo
-              try {
-                PadlockNetwork.channel?.sink.add(jsonEncode({
-                  'type': 'wipe_chat',
-                  'targetId': widget.chatData['id'],
-                  'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
-                }));
-              } catch (e) {
-                print('Erro ao enviar sinal de aniquilação total: $e');
-              }
+              PadlockCtrl.send(widget.chatData['id'].toString(), 'wipe_chat');
 
               // 2. Destruição Forense (Sobregravação na RAM de todas as mensagens)
               setState(() {
@@ -7800,14 +8402,8 @@ flexibleSpace: Container(
                         });
 
                         // 2. Sinal de Morte Global para o trânsito (Servidor e Remetente)
-                        try {
-                          PadlockNetwork.channel?.sink.add(jsonEncode({
-                            'type': 'wipe_chat',
-                            'targetId': cId
-                          }));
-                        } catch (e) {
-                          print('Erro ao enviar sinal de aniquilação no bloqueio: $e');
-                        }
+                        // Tem de ir assinado ANTES de as chaves serem queimadas (purge abaixo).
+                        await PadlockCtrl.send(cId.toString(), 'wipe_chat');
 
                         // 3. Queima todo o estado criptográfico (Obriga a novo pedido)
                         final vault = Hive.box('padlock_vault');
@@ -7930,7 +8526,7 @@ flexibleSpace: Container(
                             setState(() { widget.chatData['destructTime'] = '1m'; });
                             widget.onUpdate();
                             Hive.box('padlock_vault').put(widget.chatData['id'], widget.chatData);
-                            try { PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'update_timer', 'targetId': widget.chatData['id'], 'time': '1m'})); } catch (e) {}
+                            PadlockCtrl.send(widget.chatData['id'].toString(), 'update_timer', fields: {'time': '1m'});
                             Navigator.pop(context);
                           },
                         ),
@@ -7940,7 +8536,7 @@ flexibleSpace: Container(
                             setState(() { widget.chatData['destructTime'] = '5m'; });
                             widget.onUpdate();
                             Hive.box('padlock_vault').put(widget.chatData['id'], widget.chatData);
-                            try { PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'update_timer', 'targetId': widget.chatData['id'], 'time': '5m'})); } catch (e) {}
+                            PadlockCtrl.send(widget.chatData['id'].toString(), 'update_timer', fields: {'time': '5m'});
                             Navigator.pop(context);
                           },
                         ),
@@ -7950,7 +8546,7 @@ flexibleSpace: Container(
                             setState(() { widget.chatData['destructTime'] = '1h'; });
                             widget.onUpdate();
                             Hive.box('padlock_vault').put(widget.chatData['id'], widget.chatData);
-                            try { PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'update_timer', 'targetId': widget.chatData['id'], 'time': '1h'})); } catch (e) {}
+                            PadlockCtrl.send(widget.chatData['id'].toString(), 'update_timer', fields: {'time': '1h'});
                             Navigator.pop(context);
                           },
                         ),
@@ -7960,7 +8556,7 @@ flexibleSpace: Container(
                             setState(() { widget.chatData['destructTime'] = '24h'; });
                             widget.onUpdate();
                             Hive.box('padlock_vault').put(widget.chatData['id'], widget.chatData);
-                            try { PadlockNetwork.channel?.sink.add(jsonEncode({'type': 'update_timer', 'targetId': widget.chatData['id'], 'time': '24h'})); } catch (e) {}
+                            PadlockCtrl.send(widget.chatData['id'].toString(), 'update_timer', fields: {'time': '24h'});
                             Navigator.pop(context);
                           },
                         ),
@@ -8466,8 +9062,20 @@ class SettingsScreen extends StatelessWidget {
                                 await VaultFilesKey.wipe();
                                 VaultFilesKey.lock();
 
+                                // O Crypto Vault (carteira) também tem de desaparecer.
+                                if (Hive.isBoxOpen('padlock_crypto_vault')) {
+                                  await Hive.box('padlock_crypto_vault').close();
+                                }
+                                await Hive.deleteBoxFromDisk('padlock_crypto_vault');
+                                await CryptoWalletKey.wipe();
+                                CryptoWalletKey.lock();
+                                for (final k in const ['padlock_vault_keyhash', 'padlock_vault_files_keyhash', 'padlock_crypto_vault_keyhash']) {
+                                  await PadlockVaultKey.wipeKeyHash(k);
+                                }
+
                                 const storage = FlutterSecureStorage();
                                 await storage.deleteAll();
+                                await PadlockIdentity.wipe(); // identidade nova depois de destruir tudo
                                 await PadlockVaultKey.wipe();
                                 PadlockNetwork.isUnlocked = false;
 
@@ -8479,7 +9087,7 @@ class SettingsScreen extends StatelessWidget {
                                   );
                                 }
                               } catch (e) {
-                                print('Erro ao triturar cofre: $e');
+                                dlog('Erro ao triturar cofre: $e');
                               }
                             },
                             child: Text(local['nuke_everything_button']!, style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
@@ -9134,6 +9742,8 @@ class ActiveCallScreen extends StatefulWidget {
   final dynamic incomingSdp;
   final bool acceptedViaCallKit;
   final bool isVideo;
+  final int? callTimestamp; // carimbo da oferta recebida (assinado)
+  final String? callSig;    // assinatura Ed25519 da oferta recebida
 
   const ActiveCallScreen({
     super.key,
@@ -9145,6 +9755,8 @@ class ActiveCallScreen extends StatefulWidget {
     this.incomingSdp,
     this.acceptedViaCallKit = false,
     this.isVideo = false,
+    this.callTimestamp,
+    this.callSig,
   });
 
   @override
@@ -9207,12 +9819,23 @@ bool _isRemoteSet = false;
     _callSubscription = PadlockNetwork.messageHub.stream.listen((data) async {
       try {
         final decoded = jsonDecode(data);
+        // Sinalização de chamada só vale se vier de QUEM está na chamada
+        // (senderId é carimbado pelo servidor) - antes, qualquer pessoa com
+        // o teu ID podia mandar um "call_end" e derrubar a chamada.
+        final act = decoded['action'];
+        if (act is String && act.startsWith('call_') && decoded['senderId'] != widget.targetId) return;
         if (decoded['action'] == 'call_answer' && !widget.isIncoming) {
+          // A resposta tem de vir ASSINADA pelo contacto (liga o SDP/impressão
+          // digital DTLS à identidade dele) - senão é ignorada.
+          if (!await _verifyAnswer(decoded)) {
+            dlog('Resposta de chamada com assinatura inválida ignorada.');
+            return;
+          }
           setState(() {
             _callStatusText = _local['call_status_exchanging_keys']!;
             _callStatusColor = Colors.lightBlueAccent;
           });
-          _audioPlayer.play(AssetSource('sounds/morse.mp3')).catchError((e) => print('Erro audio: $e'));
+          _audioPlayer.play(AssetSource('sounds/morse.mp3')).catchError((e) => dlog('Erro audio: $e'));
           _audioPlayer.setVolume(0.3);
           RTCSessionDescription remoteDesc = RTCSessionDescription(
             decoded['sdp']['sdp'],
@@ -9265,7 +9888,7 @@ bool _isRemoteSet = false;
     audioFocus: AndroidAudioFocus.gainTransient,
   ),
 ));
-    _audioPlayer.play(AssetSource('sounds/ringing.mp3')).catchError((e) => print('Erro audio: $e'));
+    _audioPlayer.play(AssetSource('sounds/ringing.mp3')).catchError((e) => dlog('Erro audio: $e'));
           }
         else if (decoded['action'] == 'call_end') {
           if (mounted) {
@@ -9280,7 +9903,7 @@ bool _isRemoteSet = false;
           }
         }
       } catch (e) {
-        print('Erro a processar pacote P2P na chamada: $e');
+        dlog('Erro a processar pacote P2P na chamada: $e');
       }
     });
 
@@ -9402,7 +10025,7 @@ if (!widget.acceptedViaCallKit && !silentModeAtivo) {
       vault.put('chats', jsonEncode(allChats));
       flutterLocalNotificationsPlugin.show(DateTime.now().millisecond, 'Padlock - ${_local['missed_call_notification_title']}', missedMsg, const NotificationDetails(android: AndroidNotificationDetails('padlock_msg_channel', 'Secure Messages', importance: Importance.max, priority: Priority.high, playSound: true)));
     } catch (e) {
-      print('Erro ao registar chamada perdida: $e');
+      dlog('Erro ao registar chamada perdida: $e');
     }
   }
 
@@ -9527,6 +10150,41 @@ if (!widget.acceptedViaCallKit && !silentModeAtivo) {
     return fallback;
   }
 
+  String _myOfferSdp = '';
+
+  Future<bool> _verifyIncomingOffer() async {
+    try {
+      final vault = Hive.box('padlock_vault');
+      final myId = vault.get('user_privacy_id');
+      final authPub = vault.get('auth_pub_${widget.targetId}');
+      final ts = widget.callTimestamp;
+      final sig = widget.callSig;
+      if (myId is! String || authPub is! String || ts == null || sig == null || widget.incomingSdp == null) return false;
+      if ((DateTime.now().millisecondsSinceEpoch - ts).abs() > 10 * 60 * 1000) return false;
+      final sdpMap = (widget.incomingSdp is String) ? jsonDecode(widget.incomingSdp) : widget.incomingSdp;
+      final msg = await callSigMessage('offer', widget.targetId, myId, ts, sdpMap['sdp'].toString(), isVideo: widget.isVideo);
+      return await PadlockIdentity.verify(pubB64: authPub, message: msg, sigB64: sig);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _verifyAnswer(Map decoded) async {
+    try {
+      final vault = Hive.box('padlock_vault');
+      final myId = vault.get('user_privacy_id');
+      final authPub = vault.get('auth_pub_${widget.targetId}');
+      final ts = decoded['timestamp'];
+      final sig = decoded['sig'];
+      if (myId is! String || authPub is! String || ts is! int || sig is! String || _myOfferSdp.isEmpty) return false;
+      if ((DateTime.now().millisecondsSinceEpoch - ts).abs() > 10 * 60 * 1000) return false;
+      final msg = await callSigMessage('answer', widget.targetId, myId, ts, decoded['sdp']['sdp'].toString(), offerSdp: _myOfferSdp);
+      return await PadlockIdentity.verify(pubB64: authPub, message: msg, sigB64: sig);
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> startSecureCall(String targetPrivacyId) async {
     var status = await Permission.microphone.request();
     if (status != PermissionStatus.granted) return;
@@ -9562,14 +10220,21 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
       RTCSessionDescription offer = await _peerConnection!.createOffer();
       await _peerConnection!.setLocalDescription(offer);
 
+      final String myIdCall = Hive.box('padlock_vault').get('user_privacy_id');
+      final int callTs = DateTime.now().millisecondsSinceEpoch;
+      _myOfferSdp = offer.sdp ?? '';
+      final String callSigB64 = await PadlockIdentity.signB64(
+        await callSigMessage('offer', myIdCall, targetPrivacyId, callTs, _myOfferSdp, isVideo: widget.isVideo),
+      );
       final callSignal = {
           'action': 'call_offer',
           'type': 'offer',
-          'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
+          'senderId': myIdCall,
           'targetId': targetPrivacyId,
           'sdp': offer.toMap(),
           'isVideo': widget.isVideo,
-          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'timestamp': callTs,
+          'sig': callSigB64,
         };
       PadlockNetwork.channel?.sink.add(jsonEncode(callSignal));
       _audioPlayer.setReleaseMode(ReleaseMode.loop);
@@ -9585,13 +10250,23 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
 _audioPlayer.setVolume(0.3);
 _audioPlayer.play(AssetSource('sounds/morse.mp3'));
     } catch (e) {
-      print('Erro ao iniciar motor WebRTC P2P: $e');
+      dlog('Erro ao iniciar motor WebRTC P2P: $e');
     }
   }
 
   Future<void> acceptSecureCall() async {
     var status = await Permission.microphone.request();
     if (status != PermissionStatus.granted) return;
+
+    // Só atende se a oferta vier assinada pelo dono do ID (contacto aprovado):
+    // impede que o servidor (ou alguém no meio) troque a chamada por outra.
+    if (!await _verifyIncomingOffer()) {
+      dlog('Oferta de chamada com assinatura inválida - chamada recusada.');
+      _callHandled = true;
+      _callTimeoutTimer?.cancel();
+      endCall(widget.targetId);
+      return;
+    }
 
     setState(() {
       _callStatusText = _local['call_status_exchanging_keys']!;
@@ -9620,9 +10295,11 @@ _audioPlayer.play(AssetSource('sounds/morse.mp3'));
         _peerConnection!.addTrack(track, _localStream!);
       }
 
+      String offerSdpForAnswer = '';
       if (widget.incomingSdp != null) {
         _audioPlayer.stop();
         final sdpMap = (widget.incomingSdp is String) ? jsonDecode(widget.incomingSdp) : widget.incomingSdp;
+        offerSdpForAnswer = sdpMap['sdp'].toString();
         RTCSessionDescription remoteDesc = RTCSessionDescription(
           sdpMap['sdp'],
           sdpMap['type'],
@@ -9638,19 +10315,25 @@ _isRemoteSet = true;
       RTCSessionDescription answer = await _peerConnection!.createAnswer();
       await _peerConnection!.setLocalDescription(answer);
 
+      final String myIdAns = Hive.box('padlock_vault').get('user_privacy_id');
+      final int ansTs = DateTime.now().millisecondsSinceEpoch;
+      final String ansSigB64 = await PadlockIdentity.signB64(
+        await callSigMessage('answer', myIdAns, widget.targetId, ansTs, answer.sdp ?? '', offerSdp: offerSdpForAnswer),
+      );
       final answerSignal = {
   'action': 'call_answer',
   'type': 'answer',
-  'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
+  'senderId': myIdAns,
   'targetId': widget.targetId,
   'sdp': answer.toMap(),
-  'timestamp': DateTime.now().millisecondsSinceEpoch,
+  'timestamp': ansTs,
+  'sig': ansSigB64,
 };
       PadlockNetwork.channel?.sink.add(jsonEncode(answerSignal));
       _audioPlayer.stop();
 flutterLocalNotificationsPlugin.cancel(99);
     } catch (e) {
-      print('Erro ao aceitar chamada P2P: $e');
+      dlog('Erro ao aceitar chamada P2P: $e');
     }
   }
 
@@ -10255,7 +10938,7 @@ bool _isTrivialPassphrase(String s) {
 
 // 0 = demasiado fraca (bloqueia), 1 = fraca, 2 = média, 3 = forte, 4 = muito forte
 int _passphraseScore(String s) {
-  if (s.length < 10 || _isTrivialPassphrase(s)) return 0;
+  if (s.length < 12 || _isTrivialPassphrase(s)) return 0;
   final categories = _passphraseCategories(s);
   int score = 1;
   if (s.length >= 12) score++;
@@ -10292,12 +10975,13 @@ class _SetupScreenState extends State<SetupScreen> {
       // Deriva a chave do cofre a partir da frase escolhida (Argon2id) - a frase
       // em si nunca é guardada, só um sal aleatório para repetir a derivação.
       final salt = await PadlockVaultKey.createSalt();
-      final derivedKey = await PadlockVaultKey.deriveKey(key, salt);
+      final kd = await PadlockVaultKey.deriveFor('padlock_vault_keyhash', key, salt, creating: true);
+      final derivedKey = kd.key;
       // Guarda o hash da chave ANTES de tocar no Hive - é isto que o ecrã de
       // login usa para validar a frase sem nunca abrir o cofre com a chave
       // errada (ver explicação completa em PadlockVaultKey.storeKeyHash).
-      await PadlockVaultKey.storeKeyHash('padlock_vault_keyhash', derivedKey);
-      final newVault = await Hive.openBox('padlock_vault', encryptionCipher: HiveAesCipher(derivedKey));
+      await PadlockVaultKey.storeKeyHash('padlock_vault_keyhash', derivedKey, version: kd.version);
+      final newVault = await Hive.openBox('padlock_vault', encryptionCipher: PadlockVaultKey.cipherFor(derivedKey, kd.version));
       // Valor de controlo: segunda camada de validação, para o caso raro de
       // o cofre ficar corrompido por outra razão.
       await newVault.put('_vault_canary', 'padlock_ok');
@@ -10511,6 +11195,16 @@ class _LoginScreenState extends State<LoginScreen> {
     final inputKey = _keyController.text.trim();
     if (inputKey.isEmpty) return;
 
+    final waitSecs = await PadlockThrottle.secondsLeft('login');
+    if (waitSecs > 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(_local['too_many_attempts']!.replaceAll('{s}', '$waitSecs'))),
+        );
+      }
+      return;
+    }
+
     setState(() => _isProcessing = true);
 
     final salt = await PadlockVaultKey.getSalt();
@@ -10527,7 +11221,8 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     try {
-      final derivedKey = await PadlockVaultKey.deriveKey(inputKey, salt);
+      final kd = await PadlockVaultKey.deriveFor('padlock_vault_keyhash', inputKey, salt, creating: false);
+      final derivedKey = kd.key;
 
       // NUNCA chamar Hive.openBox com uma chave ainda não confirmada. Duas
       // descobertas juntas explicam o bug relatado ("depois de errar uma
@@ -10543,13 +11238,14 @@ class _LoginScreenState extends State<LoginScreen> {
       // certeza, que a chave está certa.
       final validKey = await PadlockVaultKey.verifyKeyHash('padlock_vault_keyhash', derivedKey);
       if (!validKey) {
+        await PadlockThrottle.fail('login');
         throw Exception(_local['invalid_decryption_key']!);
       }
 
       if (Hive.isBoxOpen('padlock_vault')) {
         try { await Hive.box('padlock_vault').close(); } catch (_) {}
       }
-      final opened = await Hive.openBox('padlock_vault', encryptionCipher: HiveAesCipher(derivedKey));
+      final opened = await Hive.openBox('padlock_vault', encryptionCipher: PadlockVaultKey.cipherFor(derivedKey, kd.version));
 
       // Segunda camada, dentro do próprio cofre - deve confirmar sempre,
       // dado que a chave já foi validada acima. Se alguma vez não bater
@@ -10560,6 +11256,7 @@ class _LoginScreenState extends State<LoginScreen> {
         throw Exception(_local['vault_data_corrupted']!);
       }
 
+      await PadlockThrottle.success('login');
       PadlockNetwork.isUnlocked = true;
       PadlockNetwork.isPerformingAutoLock = false;
       if (PadlockNetwork.pendingFcmToken != null) {
@@ -10593,6 +11290,8 @@ class _LoginScreenState extends State<LoginScreen> {
             incomingSdp: pendingCall['sdp'],
             acceptedViaCallKit: true,
             isVideo: pendingCall['isVideo'] == true,
+            callTimestamp: pendingCall['timestamp'] is int ? pendingCall['timestamp'] : null,
+            callSig: pendingCall['sig']?.toString(),
           ));
         }
       }
@@ -10798,22 +11497,34 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
     }
     if (!firstTime && code.isEmpty) return;
 
+    final waitSecs = await PadlockThrottle.secondsLeft('vaultfiles');
+    if (waitSecs > 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(widget.local['too_many_attempts']!.replaceAll('{s}', '$waitSecs'))),
+        );
+      }
+      return;
+    }
+
     setState(() => _isProcessing = true);
     try {
       final salt = firstTime ? await VaultFilesKey.createSalt() : await VaultFilesKey.getSalt();
       if (salt == null) throw Exception(widget.local['vault_files_not_initialized']!);
 
-      final derivedKey = await PadlockVaultKey.deriveKey(code, salt);
+      final kd = await PadlockVaultKey.deriveFor('padlock_vault_files_keyhash', code, salt, creating: firstTime);
+      final derivedKey = kd.key;
 
       // Nunca abrir o Hive com uma chave ainda não confirmada - mesma razão
       // do login principal: uma chave errada pode não dar erro nenhum (só
       // lixo que parece válido), e uma abertura falhada pode deixar a caixa
       // presa, recusando a chave certa nas tentativas seguintes.
       if (firstTime) {
-        await PadlockVaultKey.storeKeyHash('padlock_vault_files_keyhash', derivedKey);
+        await PadlockVaultKey.storeKeyHash('padlock_vault_files_keyhash', derivedKey, version: kd.version);
       } else {
         final validKey = await PadlockVaultKey.verifyKeyHash('padlock_vault_files_keyhash', derivedKey);
         if (!validKey) {
+          await PadlockThrottle.fail('vaultfiles');
           throw Exception(widget.local['invalid_vault_files_code']!);
         }
       }
@@ -10821,7 +11532,7 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
       if (Hive.isBoxOpen('padlock_vault_files')) {
         try { await Hive.box('padlock_vault_files').close(); } catch (_) {}
       }
-      final filesBox = await Hive.openBox('padlock_vault_files', encryptionCipher: HiveAesCipher(derivedKey));
+      final filesBox = await Hive.openBox('padlock_vault_files', encryptionCipher: PadlockVaultKey.cipherFor(derivedKey, kd.version));
 
       // Segunda camada, dentro do próprio cofre.
       final canary = filesBox.get('_vault_canary');
@@ -10832,6 +11543,7 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
       }
 
       await VaultFilesStore.migratePending(filesBox);
+      await PadlockThrottle.success('vaultfiles');
       VaultFilesKey.markUnlocked();
 
       if (mounted) {
@@ -11415,6 +12127,16 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
     }
     if (!firstTime && code.isEmpty) return;
 
+    final waitSecs = await PadlockThrottle.secondsLeft('cryptovault');
+    if (waitSecs > 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(widget.local['too_many_attempts']!.replaceAll('{s}', '$waitSecs'))),
+        );
+      }
+      return;
+    }
+
     // Restaurar carteira existente (telemóvel novo, reinstalação): a frase
     // de recuperação tem de ser válida ANTES de sequer criar o cofre.
     bip39.Mnemonic? restoredMnemonic;
@@ -11435,7 +12157,8 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
       final salt = firstTime ? await CryptoWalletKey.createSalt() : await CryptoWalletKey.getSalt();
       if (salt == null) throw Exception(widget.local['crypto_vault_not_initialized']!);
 
-      final derivedKey = await PadlockVaultKey.deriveKey(code, salt);
+      final kd = await PadlockVaultKey.deriveFor('padlock_crypto_vault_keyhash', code, salt, creating: firstTime);
+      final derivedKey = kd.key;
 
       // Nunca abrir o Hive com uma chave ainda não confirmada - mesma razão
       // dos outros dois cofres: pode não dar erro (só lixo válido-parecido),
@@ -11444,6 +12167,7 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
       if (!firstTime) {
         final validKey = await PadlockVaultKey.verifyKeyHash('padlock_crypto_vault_keyhash', derivedKey);
         if (!validKey) {
+          await PadlockThrottle.fail('cryptovault');
           throw Exception(widget.local['invalid_crypto_vault_code']!);
         }
       }
@@ -11451,7 +12175,7 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
       if (Hive.isBoxOpen('padlock_crypto_vault')) {
         try { await Hive.box('padlock_crypto_vault').close(); } catch (_) {}
       }
-      final walletBox = await Hive.openBox('padlock_crypto_vault', encryptionCipher: HiveAesCipher(derivedKey));
+      final walletBox = await Hive.openBox('padlock_crypto_vault', encryptionCipher: PadlockVaultKey.cipherFor(derivedKey, kd.version));
 
       // Segunda camada, dentro do próprio cofre.
       final canary = walletBox.get('_vault_canary');
@@ -11459,10 +12183,11 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
         throw Exception(widget.local['crypto_vault_corrupted']!);
       }
 
+      await PadlockThrottle.success('cryptovault');
       CryptoWalletKey.markUnlocked();
 
       if (firstTime) {
-        await PadlockVaultKey.storeKeyHash('padlock_crypto_vault_keyhash', derivedKey);
+        await PadlockVaultKey.storeKeyHash('padlock_crypto_vault_keyhash', derivedKey, version: kd.version);
         await walletBox.put('_vault_canary', 'padlock_ok');
         if (restoredMnemonic != null) {
           // Restauro: a frase já é conhecida do utilizador, não voltamos a mostrá-la.
@@ -11823,7 +12548,7 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
           });
         }
       } catch (e) {
-        print('Erro ao carregar saldo de ${token.symbol} (ambas as RPCs falharam): $e');
+        dlog('Erro ao carregar saldo de ${token.symbol} (ambas as RPCs falharam): $e');
         if (mounted) setState(() => _balanceText[token.symbol] = widget.local['could_not_load_balance']!);
       }
     }));
@@ -12106,7 +12831,7 @@ class _CryptoSendScreenState extends State<CryptoSendScreen> {
         ),
       );
     } catch (e) {
-      print('Scan Error: $e');
+      dlog('Scan Error: $e');
     }
   }
 
@@ -12402,6 +13127,10 @@ void openCryptoVault(BuildContext context) {
 // tiver este código de código-fonte consegue Premium grátis, por isso tem
 // de sair antes de a app ir para produção a sério.
 const String _kCryptoVaultTesterCode = 'PADLOCK_TESTER_2026';
+// Só existe em builds de depuração (ou se compilares com
+// --dart-define=PADLOCK_TESTER=true). Numa build de produção normal o botão
+// e o código desaparecem do APK - já não há "Premium grátis" escondido.
+const bool _kTesterUnlockEnabled = kDebugMode || bool.fromEnvironment('PADLOCK_TESTER', defaultValue: false);
 
 void _showCryptoVaultTesterUnlock(BuildContext dialogContext) {
   final controller = TextEditingController();
@@ -12427,7 +13156,7 @@ void _showCryptoVaultTesterUnlock(BuildContext dialogContext) {
         ),
         TextButton(
           onPressed: () async {
-            if (controller.text.trim() == _kCryptoVaultTesterCode) {
+            if (_kTesterUnlockEnabled && controller.text.trim() == _kCryptoVaultTesterCode) {
               await Hive.box('padlock_vault').put('is_premium', true);
               if (ctx.mounted) Navigator.pop(ctx);
               if (dialogContext.mounted) {
@@ -12460,7 +13189,7 @@ void showPremiumRequiredDialog(BuildContext context) {
         borderRadius: BorderRadius.circular(12),
       ),
       title: GestureDetector(
-        onLongPress: () => _showCryptoVaultTesterUnlock(context),
+        onLongPress: _kTesterUnlockEnabled ? () => _showCryptoVaultTesterUnlock(context) : null,
         child: const Row(
           children: [
             Text('💎', style: TextStyle(fontSize: 22)),
