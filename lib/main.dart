@@ -1697,7 +1697,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
   String _myPrivacyId = '';
   String _destructTime = '7 Days';
 
-  bool _notificationsActive = true;
   bool _silentMode = false;
   bool _passcodeLock = false;
   bool _blockScreenshots = true;
@@ -1714,8 +1713,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
     _generateNewId();
      _loadUsername(); // Chama a função para ler o nome
     _loadStoredData(); // Carrega os contactos e mensagens do cofre
-    _notificationsActive = Hive.box('padlock_vault').get('notifications_enabled', defaultValue: true);
-    _silentMode = !_notificationsActive;
+    _silentMode = !(Hive.box('padlock_vault').get('notifications_enabled', defaultValue: true) as bool);
     _initNotifications();
     _resetInactivityTimer();
     // Auto-destruição em tempo real: sem isto, uma mensagem só desaparecia
@@ -2709,24 +2707,16 @@ if (context.mounted) {
         local: local,
         currentLang: widget.currentLanguage,
         destructTime: _destructTime,
-        notificationsActive: _notificationsActive,
         silentMode: _silentMode,
         passcodeLock: _passcodeLock,
         blockScreenshots: _blockScreenshots,
         onLangChange: widget.onLanguageChange,
         onDestructChange: (time) => setState(() => _destructTime = time),
-        onNotificationsChange: (val) {
-          setState(() {
-            _notificationsActive = val;
-            _silentMode = !val;
-          });
-          Hive.box('padlock_vault').put('notifications_enabled', val);
-        },
+        // Só existe o Silent Mode agora - ter dois botões (Notifications e
+        // Silent Mode) a controlar exatamente a mesma coisa por baixo não
+        // fazia sentido nenhum, era só confuso.
         onSilentChange: (val) {
-          setState(() {
-            _silentMode = val;
-            _notificationsActive = !val;
-          });
+          setState(() => _silentMode = val);
           Hive.box('padlock_vault').put('notifications_enabled', !val);
         },
         onPasscodeChange: (val) => setState(() => _passcodeLock = val),
@@ -4728,14 +4718,12 @@ class SettingsScreen extends StatelessWidget {
   // Mantemos as variáveis no construtor para o MainNavigationScreen não dar erro,
   // mesmo as que passaram a ser regras automáticas do sistema.
   final String destructTime;
-  final bool notificationsActive;
   final bool silentMode;
   final bool passcodeLock;
   final bool blockScreenshots;
 
   final Function(String) onLangChange;
   final Function(String) onDestructChange;
-  final Function(bool) onNotificationsChange;
   final Function(bool) onSilentChange;
   final Function(bool) onPasscodeChange;
   final Function(bool) onScreenshotsChange;
@@ -4745,13 +4733,11 @@ class SettingsScreen extends StatelessWidget {
     required this.local,
     required this.currentLang,
     required this.destructTime,
-    required this.notificationsActive,
     required this.silentMode,
     required this.passcodeLock,
     required this.blockScreenshots,
     required this.onLangChange,
     required this.onDestructChange,
-    required this.onNotificationsChange,
     required this.onSilentChange,
     required this.onPasscodeChange,
     required this.onScreenshotsChange,
@@ -4850,18 +4836,14 @@ class SettingsScreen extends StatelessWidget {
                   trailing: const Icon(Icons.chevron_right, color: Colors.grey),
                   onTap: () => _showLanguageDialog(context),
                 ),
-                SwitchListTile(
-                  secondary: const Icon(Icons.notifications_active, color: Color(0xFF1e4d2b)),
-                  title: const Text('Push Notifications', style: TextStyle(color: Colors.white)),
-                  subtitle: const Text('System uses exclusive encrypted tones.', style: TextStyle(fontSize: 11, color: Colors.grey)),
-                  value: notificationsActive,
-                  activeTrackColor: const Color(0xFF1e4d2b),
-                  onChanged: onNotificationsChange,
-                ),
+                // Só um botão agora - ter "Push Notifications" e "Silent
+                // Mode" separados não fazia sentido, os dois controlavam
+                // exatamente o mesmo interruptor por baixo. Ligado = corta
+                // notificações E toques de chamada; desligado = toca tudo.
                 SwitchListTile(
                   secondary: const Icon(Icons.volume_off, color: Color(0xFF1e4d2b)),
                   title: const Text('Silent Mode', style: TextStyle(color: Colors.white)),
-                  subtitle: const Text('Mutes all incoming P2P alerts.', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  subtitle: const Text('Mutes all notifications and call ringtones.', style: TextStyle(fontSize: 11, color: Colors.grey)),
                   value: silentMode,
                   activeTrackColor: const Color(0xFF1e4d2b),
                   onChanged: onSilentChange,
@@ -5719,8 +5701,11 @@ bool _isRemoteSet = false;
       // _fetchIceServers.
       PadlockNetwork.channel?.sink.add(jsonEncode(ringingSignal));
 });
-// Aciona o toque para quem recebe a chamada (com o nome exato do teu ficheiro)
-if (!widget.acceptedViaCallKit) {
+// Aciona o toque para quem recebe a chamada (com o nome exato do teu
+// ficheiro) - só se o Silent Mode estiver desligado. Antes tocava sempre,
+// sem olhar nenhuma para essa definição.
+final bool silentModeAtivo = !(Hive.box('padlock_vault').get('notifications_enabled', defaultValue: true) as bool);
+if (!widget.acceptedViaCallKit && !silentModeAtivo) {
   _audioPlayer.setReleaseMode(ReleaseMode.loop);
   _audioPlayer.setAudioContext(AudioContext(android: AudioContextAndroid(isSpeakerphoneOn: true, stayAwake: true, contentType: AndroidContentType.music, usageType: AndroidUsageType.notificationRingtone, audioFocus: AndroidAudioFocus.gainTransient)));
   _audioPlayer.setVolume(0.7);
