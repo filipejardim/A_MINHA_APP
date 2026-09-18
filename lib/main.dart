@@ -1438,6 +1438,15 @@ Map<String, Map<String, String>> t = {
     'nuke_confirm_body': 'Are you sure you want to NUKE the vault?\n\n⚠️ WITHDRAW ALL CRYPTO FUNDS AND SAVE YOUR FILES BEFORE PROCEEDING.\n\nThis action is irreversible. The application will be wiped to a factory state.',
     'nuke_everything_button': 'NUKE EVERYTHING',
     'got_it_button': 'Got it',
+    'edit_name_title': 'Edit Name',
+    'save_button': 'Save',
+    'qr_code_button': 'QR Code',
+    'copy_id_button': 'Copy ID',
+    'secure_crypto_vault_short': 'Secure\nCrypto Vault',
+    'secure_vault_files_short': 'Secure\nVault Files',
+    'privacy_id_label': 'Privacy ID',
+    'profile_bio_paragraph': 'Engineered with military-grade Zero-Knowledge encryption.\nAll communications operate strictly Peer-to-Peer (P2P).\nMessages automatically self-destruct after 24 hours\nusing secure anti-trace memory sanitization.\nZero trace, zero logs, total privacy.',
+    'close_button': 'Close',
   },
   'PT': {
     'chats': 'Conversas',
@@ -1514,6 +1523,15 @@ Map<String, Map<String, String>> t = {
     'nuke_confirm_body': 'Tens a certeza que queres DESTRUIR o cofre?\n\n⚠️ LEVANTA TODOS OS FUNDOS DE CRIPTO E GUARDA OS TEUS FICHEIROS ANTES DE CONTINUAR.\n\nEsta ação é irreversível. A aplicação vai ficar como se tivesse acabado de ser instalada.',
     'nuke_everything_button': 'DESTRUIR TUDO',
     'got_it_button': 'Entendido',
+    'edit_name_title': 'Editar Nome',
+    'save_button': 'Guardar',
+    'qr_code_button': 'Código QR',
+    'copy_id_button': 'Copiar ID',
+    'secure_crypto_vault_short': 'Secure\nCrypto Vault',
+    'secure_vault_files_short': 'Secure\nVault Files',
+    'privacy_id_label': 'ID de Privacidade',
+    'profile_bio_paragraph': 'Construído com encriptação de Conhecimento-Zero de nível militar.\nTodas as comunicações funcionam estritamente Peer-to-Peer (P2P).\nAs mensagens autodestroem-se automaticamente ao fim de 24 horas\nusando sanitização de memória anti-rasto segura.\nZero rasto, zero registos, privacidade total.',
+    'close_button': 'Fechar',
   },
   'ES': {
     'chats': 'Chats',
@@ -1590,6 +1608,15 @@ Map<String, Map<String, String>> t = {
     'nuke_confirm_body': '¿Estás seguro de que quieres DESTRUIR la bóveda?\n\n⚠️ RETIRA TODOS LOS FONDOS CRIPTO Y GUARDA TUS ARCHIVOS ANTES DE CONTINUAR.\n\nEsta acción es irreversible. La aplicación quedará como recién instalada.',
     'nuke_everything_button': 'DESTRUIR TODO',
     'got_it_button': 'Entendido',
+    'edit_name_title': 'Editar Nombre',
+    'save_button': 'Guardar',
+    'qr_code_button': 'Código QR',
+    'copy_id_button': 'Copiar ID',
+    'secure_crypto_vault_short': 'Secure\nCrypto Vault',
+    'secure_vault_files_short': 'Secure\nVault Files',
+    'privacy_id_label': 'ID de Privacidad',
+    'profile_bio_paragraph': 'Construido con encriptación de Conocimiento Cero de nivel militar.\nTodas las comunicaciones funcionan estrictamente Peer-to-Peer (P2P).\nLos mensajes se autodestruyen automáticamente tras 24 horas\nusando sanitización de memoria antirrastreo segura.\nCero rastro, cero registros, privacidad total.',
+    'close_button': 'Cerrar',
   },
   'FR': {
     'chats': 'Chats',
@@ -1666,6 +1693,15 @@ Map<String, Map<String, String>> t = {
     'nuke_confirm_body': 'Êtes-vous sûr de vouloir DÉTRUIRE le coffre ?\n\n⚠️ RETIREZ TOUS LES FONDS CRYPTO ET SAUVEGARDEZ VOS FICHIERS AVANT DE CONTINUER.\n\nCette action est irréversible. L\'application reviendra à un état d\'usine.',
     'nuke_everything_button': 'TOUT DÉTRUIRE',
     'got_it_button': 'Compris',
+    'edit_name_title': 'Modifier le Nom',
+    'save_button': 'Enregistrer',
+    'qr_code_button': 'Code QR',
+    'copy_id_button': 'Copier l\'ID',
+    'secure_crypto_vault_short': 'Secure\nCrypto Vault',
+    'secure_vault_files_short': 'Secure\nVault Files',
+    'privacy_id_label': 'ID de Confidentialité',
+    'profile_bio_paragraph': 'Conçu avec un chiffrement Zero-Knowledge de niveau militaire.\nToutes les communications fonctionnent strictement en Pair-à-Pair (P2P).\nLes messages s\'autodétruisent automatiquement après 24 heures\nen utilisant une désinfection de mémoire anti-traçage sécurisée.\nAucune trace, aucun journal, confidentialité totale.',
+    'close_button': 'Fermer',
   },
   'DE': {
     'chats': 'Chats',
@@ -1742,6 +1778,15 @@ Map<String, Map<String, String>> t = {
     'nuke_confirm_body': 'Sind Sie sicher, dass Sie den Tresor VERNICHTEN möchten?\n\n⚠️ HEBEN SIE ALLE KRYPTO-GUTHABEN AB UND SICHERN SIE IHRE DATEIEN, BEVOR SIE FORTFAHREN.\n\nDiese Aktion ist unwiderruflich. Die Anwendung wird auf den Werkszustand zurückgesetzt.',
     'nuke_everything_button': 'ALLES VERNICHTEN',
     'got_it_button': 'Verstanden',
+    'edit_name_title': 'Namen Bearbeiten',
+    'save_button': 'Speichern',
+    'qr_code_button': 'QR-Code',
+    'copy_id_button': 'ID Kopieren',
+    'secure_crypto_vault_short': 'Secure\nCrypto Vault',
+    'secure_vault_files_short': 'Secure\nVault Files',
+    'privacy_id_label': 'Datenschutz-ID',
+    'profile_bio_paragraph': 'Entwickelt mit militärischer Zero-Knowledge-Verschlüsselung.\nAlle Kommunikationen erfolgen strikt Peer-to-Peer (P2P).\nNachrichten werden nach 24 Stunden automatisch selbst zerstört\ndurch sichere Anti-Trace-Speicherbereinigung.\nKeine Spuren, keine Protokolle, totale Privatsphäre.',
+    'close_button': 'Schließen',
   },
   'RU': {
     'chats': 'Чаты',
@@ -1818,6 +1863,15 @@ Map<String, Map<String, String>> t = {
     'nuke_confirm_body': 'Вы уверены, что хотите УНИЧТОЖИТЬ хранилище?\n\n⚠️ ВЫВЕДИТЕ ВСЕ КРИПТО-СРЕДСТВА И СОХРАНИТЕ ФАЙЛЫ ПЕРЕД ПРОДОЛЖЕНИЕМ.\n\nЭто действие необратимо. Приложение будет сброшено до заводского состояния.',
     'nuke_everything_button': 'УНИЧТОЖИТЬ ВСЁ',
     'got_it_button': 'Понятно',
+    'edit_name_title': 'Изменить Имя',
+    'save_button': 'Сохранить',
+    'qr_code_button': 'QR-код',
+    'copy_id_button': 'Копировать ID',
+    'secure_crypto_vault_short': 'Secure\nCrypto Vault',
+    'secure_vault_files_short': 'Secure\nVault Files',
+    'privacy_id_label': 'ID конфиденциальности',
+    'profile_bio_paragraph': 'Создано с шифрованием Zero-Knowledge военного уровня.\nВсе коммуникации работают строго по принципу P2P (точка-точка).\nСообщения автоматически самоуничтожаются через 24 часа\nс использованием безопасной защиты памяти от отслеживания.\nНи следа, ни логов, полная конфиденциальность.',
+    'close_button': 'Закрыть',
   },
   'UK': {
     'chats': 'Чати',
@@ -1894,6 +1948,15 @@ Map<String, Map<String, String>> t = {
     'nuke_confirm_body': 'Ви впевнені, що хочете ЗНИЩИТИ сховище?\n\n⚠️ ВИВЕДІТЬ УСІ КРИПТОКОШТИ ТА ЗБЕРЕЖІТЬ ФАЙЛИ ПЕРЕД ПРОДОВЖЕННЯМ.\n\nЦя дія незворотна. Додаток буде скинуто до заводського стану.',
     'nuke_everything_button': 'ЗНИЩИТИ ВСЕ',
     'got_it_button': 'Зрозуміло',
+    'edit_name_title': 'Змінити Ім\'я',
+    'save_button': 'Зберегти',
+    'qr_code_button': 'QR-код',
+    'copy_id_button': 'Копіювати ID',
+    'secure_crypto_vault_short': 'Secure\nCrypto Vault',
+    'secure_vault_files_short': 'Secure\nVault Files',
+    'privacy_id_label': 'ID конфіденційності',
+    'profile_bio_paragraph': 'Створено з шифруванням Zero-Knowledge військового рівня.\nУсі комунікації працюють строго за принципом P2P (точка-точка).\nПовідомлення автоматично самознищуються через 24 години\nіз використанням безпечного захисту пам\'яті від відстеження.\nЖодного сліду, жодних журналів, повна конфіденційність.',
+    'close_button': 'Закрити',
   },
   'ZH': {
     'chats': '聊天',
@@ -1970,6 +2033,15 @@ Map<String, Map<String, String>> t = {
     'nuke_confirm_body': '您确定要清除保险库吗？\n\n⚠️ 请在继续之前提取所有加密货币资金并保存您的文件。\n\n此操作不可逆转。应用程序将被重置为出厂状态。',
     'nuke_everything_button': '清除所有内容',
     'got_it_button': '知道了',
+    'edit_name_title': '编辑姓名',
+    'save_button': '保存',
+    'qr_code_button': '二维码',
+    'copy_id_button': '复制 ID',
+    'secure_crypto_vault_short': 'Secure\nCrypto Vault',
+    'secure_vault_files_short': 'Secure\nVault Files',
+    'privacy_id_label': '隐私 ID',
+    'profile_bio_paragraph': '采用军事级零知识加密技术打造。\n所有通信严格采用点对点（P2P）方式运行。\n消息在 24 小时后使用安全的反追踪内存清理技术自动销毁。\n零痕迹，零日志，完全隐私。',
+    'close_button': '关闭',
   },
   'KO': {
     'chats': '채팅',
@@ -2046,6 +2118,15 @@ Map<String, Map<String, String>> t = {
     'nuke_confirm_body': '보관함을 초기화하시겠습니까?\n\n⚠️ 계속하기 전에 모든 암호화폐 자금을 인출하고 파일을 저장하세요.\n\n이 작업은 되돌릴 수 없습니다. 애플리케이션이 초기 상태로 재설정됩니다.',
     'nuke_everything_button': '모두 파기',
     'got_it_button': '확인',
+    'edit_name_title': '이름 수정',
+    'save_button': '저장',
+    'qr_code_button': 'QR 코드',
+    'copy_id_button': 'ID 복사',
+    'secure_crypto_vault_short': 'Secure\nCrypto Vault',
+    'secure_vault_files_short': 'Secure\nVault Files',
+    'privacy_id_label': '개인정보 ID',
+    'profile_bio_paragraph': '군사급 제로 지식 암호화로 설계되었습니다.\n모든 통신은 엄격하게 P2P(피어 투 피어) 방식으로 작동합니다.\n메시지는 안전한 추적 방지 메모리 삭제 기술을 사용하여 24시간 후 자동으로 파기됩니다.\n흔적 없음, 로그 없음, 완전한 개인정보 보호.',
+    'close_button': '닫기',
   },
   'AR': {
     'chats': 'الدردشات',
@@ -2122,6 +2203,15 @@ Map<String, Map<String, String>> t = {
     'nuke_confirm_body': 'هل أنت متأكد من رغبتك في تدمير الخزنة؟\n\n⚠️ اسحب جميع أموال العملات المشفرة واحفظ ملفاتك قبل المتابعة.\n\nهذا الإجراء لا رجعة فيه. سيتم إعادة ضبط التطبيق إلى حالة المصنع.',
     'nuke_everything_button': 'تدمير كل شيء',
     'got_it_button': 'فهمت',
+    'edit_name_title': 'تعديل الاسم',
+    'save_button': 'حفظ',
+    'qr_code_button': 'رمز QR',
+    'copy_id_button': 'نسخ المعرّف',
+    'secure_crypto_vault_short': 'Secure\nCrypto Vault',
+    'secure_vault_files_short': 'Secure\nVault Files',
+    'privacy_id_label': 'معرّف الخصوصية',
+    'profile_bio_paragraph': 'مصمم بتشفير Zero-Knowledge بمستوى عسكري.\nتعمل جميع الاتصالات بشكل صارم نظير إلى نظير (P2P).\nتُدمَّر الرسائل تلقائيًا بعد 24 ساعة\nباستخدام تعقيم ذاكرة آمن مضاد للتتبع.\nبدون أثر، بدون سجلات، خصوصية تامة.',
+    'close_button': 'إغلاق',
   },
   'TR': {
     'chats': 'Sohbetler',
@@ -2198,6 +2288,15 @@ Map<String, Map<String, String>> t = {
     'nuke_confirm_body': 'Kasayı İMHA ETMEK istediğinizden emin misiniz?\n\n⚠️ DEVAM ETMEDEN ÖNCE TÜM KRİPTO VARLIKLARINI ÇEKİN VE DOSYALARINIZI KAYDEDİN.\n\nBu işlem geri alınamaz. Uygulama fabrika durumuna sıfırlanacaktır.',
     'nuke_everything_button': 'HER ŞEYİ YOK ET',
     'got_it_button': 'Anladım',
+    'edit_name_title': 'Adı Düzenle',
+    'save_button': 'Kaydet',
+    'qr_code_button': 'QR Kodu',
+    'copy_id_button': 'Kimliği Kopyala',
+    'secure_crypto_vault_short': 'Secure\nCrypto Vault',
+    'secure_vault_files_short': 'Secure\nVault Files',
+    'privacy_id_label': 'Gizlilik Kimliği',
+    'profile_bio_paragraph': 'Askeri düzeyde Sıfır Bilgi şifrelemesiyle tasarlandı.\nTüm iletişimler kesinlikle Eşler Arası (P2P) çalışır.\nMesajlar, güvenli iz karşıtı bellek temizleme kullanılarak 24 saat sonra otomatik olarak kendini imha eder.\nSıfır iz, sıfır günlük, tam gizlilik.',
+    'close_button': 'Kapat',
   },
   'IT': {
     'chats': 'Chat',
@@ -2274,6 +2373,15 @@ Map<String, Map<String, String>> t = {
     'nuke_confirm_body': 'Sei sicuro di voler DISTRUGGERE il caveau?\n\n⚠️ RITIRA TUTTI I FONDI CRYPTO E SALVA I TUOI FILE PRIMA DI PROCEDERE.\n\nQuesta azione è irreversibile. L\'applicazione verrà ripristinata allo stato di fabbrica.',
     'nuke_everything_button': 'DISTRUGGI TUTTO',
     'got_it_button': 'Capito',
+    'edit_name_title': 'Nome Modifica',
+    'save_button': 'Salva',
+    'qr_code_button': 'Codice QR',
+    'copy_id_button': 'Copia ID',
+    'secure_crypto_vault_short': 'Secure\nCrypto Vault',
+    'secure_vault_files_short': 'Secure\nVault Files',
+    'privacy_id_label': 'ID Privacy',
+    'profile_bio_paragraph': 'Progettato con crittografia Zero-Knowledge di livello militare.\nTutte le comunicazioni funzionano rigorosamente Peer-to-Peer (P2P).\nI messaggi si autodistruggono automaticamente dopo 24 ore\nutilizzando una sanificazione della memoria anti-tracciamento sicura.\nNessuna traccia, nessun registro, privacy totale.',
+    'close_button': 'Chiudi',
   },
   'JA': {
     'chats': 'チャット',
@@ -2350,6 +2458,15 @@ Map<String, Map<String, String>> t = {
     'nuke_confirm_body': '本当にボールトを消去しますか？\n\n⚠️ 続行する前に、すべての暗号資産を引き出し、ファイルを保存してください。\n\nこの操作は元に戻せません。アプリケーションは工場出荷状態にリセットされます。',
     'nuke_everything_button': 'すべて破棄',
     'got_it_button': '了解',
+    'edit_name_title': '名前を編集',
+    'save_button': '保存',
+    'qr_code_button': 'QRコード',
+    'copy_id_button': 'IDをコピー',
+    'secure_crypto_vault_short': 'Secure\nCrypto Vault',
+    'secure_vault_files_short': 'Secure\nVault Files',
+    'privacy_id_label': 'プライバシーID',
+    'profile_bio_paragraph': '軍事レベルのゼロ知識暗号化で構築。\nすべての通信は厳密にピアツーピア（P2P）で動作します。\nメッセージは安全な追跡防止メモリ消去技術を使用して24時間後に自動的に自己破棄されます。\n痕跡ゼロ、ログゼロ、完全なプライバシー。',
+    'close_button': '閉じる',
   },
   'HI': {
     'chats': 'चैट',
@@ -2426,6 +2543,15 @@ Map<String, Map<String, String>> t = {
     'nuke_confirm_body': 'क्या आप वाकई वॉल्ट को नष्ट करना चाहते हैं?\n\n⚠️ आगे बढ़ने से पहले सभी क्रिप्टो फंड निकालें और अपनी फ़ाइलें सहेजें।\n\nयह क्रिया अपरिवर्तनीय है। एप्लिकेशन फ़ैक्टरी स्थिति में रीसेट हो जाएगा।',
     'nuke_everything_button': 'सब कुछ नष्ट करें',
     'got_it_button': 'समझ गया',
+    'edit_name_title': 'नाम संपादित करें',
+    'save_button': 'सहेजें',
+    'qr_code_button': 'QR कोड',
+    'copy_id_button': 'ID कॉपी करें',
+    'secure_crypto_vault_short': 'Secure\nCrypto Vault',
+    'secure_vault_files_short': 'Secure\nVault Files',
+    'privacy_id_label': 'गोपनीयता ID',
+    'profile_bio_paragraph': 'सैन्य-स्तर की ज़ीरो-नॉलेज एन्क्रिप्शन के साथ बनाया गया।\nसभी संचार सख्ती से पीयर-टू-पीयर (P2P) पर काम करते हैं।\nसंदेश सुरक्षित एंटी-ट्रेस मेमोरी सैनिटाइजेशन का उपयोग करके 24 घंटे बाद स्वतः नष्ट हो जाते हैं।\nशून्य निशान, शून्य लॉग, पूर्ण गोपनीयता।',
+    'close_button': 'बंद करें',
   },
   'NL': {
     'chats': 'Chats',
@@ -2502,6 +2628,15 @@ Map<String, Map<String, String>> t = {
     'nuke_confirm_body': 'Weet u zeker dat u de kluis wilt VERNIETIGEN?\n\n⚠️ HAAL AL UW CRYPTOFONDSEN OP EN SLA UW BESTANDEN OP VOORDAT U DOORGAAT.\n\nDeze actie is onomkeerbaar. De applicatie wordt teruggezet naar fabrieksinstellingen.',
     'nuke_everything_button': 'ALLES VERNIETIGEN',
     'got_it_button': 'Begrepen',
+    'edit_name_title': 'Naam Bewerken',
+    'save_button': 'Opslaan',
+    'qr_code_button': 'QR-code',
+    'copy_id_button': 'ID Kopiëren',
+    'secure_crypto_vault_short': 'Secure\nCrypto Vault',
+    'secure_vault_files_short': 'Secure\nVault Files',
+    'privacy_id_label': 'Privacy-ID',
+    'profile_bio_paragraph': 'Ontworpen met militaire Zero-Knowledge-versleuteling.\nAlle communicatie werkt strikt Peer-to-Peer (P2P).\nBerichten vernietigen zichzelf automatisch na 24 uur\nmet behulp van veilige anti-tracering geheugensanering.\nGeen spoor, geen logboeken, volledige privacy.',
+    'close_button': 'Sluiten',
   },
   'PL': {
     'chats': 'Czaty',
@@ -2578,6 +2713,15 @@ Map<String, Map<String, String>> t = {
     'nuke_confirm_body': 'Czy na pewno chcesz ZNISZCZYĆ skarbiec?\n\n⚠️ WYPŁAĆ WSZYSTKIE ŚRODKI KRYPTOWALUTOWE I ZAPISZ SWOJE PLIKI PRZED KONTYNUOWANIEM.\n\nTa akcja jest nieodwracalna. Aplikacja zostanie przywrócona do stanu fabrycznego.',
     'nuke_everything_button': 'ZNISZCZ WSZYSTKO',
     'got_it_button': 'Rozumiem',
+    'edit_name_title': 'Edytuj Imię',
+    'save_button': 'Zapisz',
+    'qr_code_button': 'Kod QR',
+    'copy_id_button': 'Kopiuj ID',
+    'secure_crypto_vault_short': 'Secure\nCrypto Vault',
+    'secure_vault_files_short': 'Secure\nVault Files',
+    'privacy_id_label': 'ID Prywatności',
+    'profile_bio_paragraph': 'Zaprojektowano z szyfrowaniem Zero-Knowledge wojskowej klasy.\nWszystkie komunikacje działają ściśle w trybie Peer-to-Peer (P2P).\nWiadomości automatycznie samoniszczą się po 24 godzinach\nprzy użyciu bezpiecznego czyszczenia pamięci anty-śledzenia.\nZero śladu, zero logów, pełna prywatność.',
+    'close_button': 'Zamknij',
   },
 };
 
@@ -6132,7 +6276,7 @@ class ProfileScreen extends StatelessWidget {
             Center(
               child: TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text(currentT['close'] ?? 'Close', style: const TextStyle(color: Colors.white70)),
+                child: Text(currentT['close_button'] ?? 'Close', style: const TextStyle(color: Colors.white70)),
               ),
             )
           ],
@@ -6195,27 +6339,57 @@ Widget build(BuildContext context) {
             TextEditingController controller = TextEditingController(text: username);
             showDialog(
               context: context,
-              builder: (context) => AlertDialog(
-                title: const Text('Editar Nome'),
-                content: TextField(
-                  controller: controller,
-                  decoration: const InputDecoration(labelText: 'Nome de Utilizador'),
+              builder: (context) => Dialog(
+                backgroundColor: Colors.transparent,
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF1e4d2b), Color(0xFF0a1a12)],
+                    ),
+                    border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(local['edit_name_title']!, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: controller,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          labelText: local['username_label'],
+                          labelStyle: const TextStyle(color: Colors.grey),
+                          enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
+                          focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Colors.greenAccent), borderRadius: BorderRadius.all(Radius.circular(8))),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text(local['cancel_button']!, style: const TextStyle(color: Colors.grey)),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              if (controller.text.trim().isNotEmpty) {
+                                onUpdateUsername(controller.text.trim());
+                              }
+                              Navigator.pop(context);
+                            },
+                            child: Text(local['save_button']!, style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancelar'),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      if (controller.text.trim().isNotEmpty) {
-                        onUpdateUsername(controller.text.trim());
-                      }
-                      Navigator.pop(context);
-                    },
-                    child: const Text('Guardar'),
-                  ),
-                ],
               ),
             );
           },
@@ -6283,8 +6457,8 @@ Widget build(BuildContext context) {
          Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _buildActionButton(Icons.qr_code, 'QR Code', () => _showQrDialog(context), color: Colors.lightBlueAccent),
-              _buildActionButton(Icons.copy, 'Copy ID', () {
+              _buildActionButton(Icons.qr_code, local['qr_code_button']!, () => _showQrDialog(context), color: Colors.lightBlueAccent),
+              _buildActionButton(Icons.copy, local['copy_id_button']!, () {
                 Clipboard.setData(ClipboardData(text: privacyId));
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(local['copy_toast']!)),
@@ -6321,19 +6495,19 @@ Widget build(BuildContext context) {
                       ),
                     ],
                   ),
-                  child: const Column(
+                  child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       // O Diamante gigante
-                      Text('💎', style: TextStyle(fontSize: 22)), 
-                      SizedBox(height: 2),
+                      const Text('💎', style: TextStyle(fontSize: 22)),
+                      const SizedBox(height: 2),
                       // O texto em Branco Pérola no fundo
                       Text(
-                        'Secure\nCrypto Vault', 
-                        style: TextStyle(
-                          fontSize: 10, 
-                          fontWeight: FontWeight.bold, 
-                          color: Color(0xFFe4efe6), 
+                        local['secure_crypto_vault_short']!,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFFe4efe6),
                           height: 1.1
                         ),
                         textAlign: TextAlign.center,
@@ -6376,16 +6550,16 @@ Widget build(BuildContext context) {
                         ),
                       ],
                     ),
-                    child: const Column(
+                    child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.folder_copy_rounded, color: Colors.lightBlueAccent, size: 28),
-                        SizedBox(height: 2),
+                        const Icon(Icons.folder_copy_rounded, color: Colors.lightBlueAccent, size: 28),
+                        const SizedBox(height: 2),
                         Text(
-                          'Secure\nVault Files', 
-                          style: TextStyle(
-                            fontSize: 9.5, 
-                            fontWeight: FontWeight.bold, 
+                          local['secure_vault_files_short']!,
+                          style: const TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.bold,
                             color: Color(0xFFe4efe6), // Branco pérola
                             height: 1.1
                           ),
@@ -6429,10 +6603,10 @@ Widget build(BuildContext context) {
           child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-           const Text(
-      'ID de Privacidade',
+           Text(
+      local['privacy_id_label']!,
       textAlign: TextAlign.center,
-      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white70),
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white70),
     ),
     const SizedBox(height: 6),
     SelectableText(
@@ -6443,20 +6617,16 @@ Widget build(BuildContext context) {
     const SizedBox(height: 12),
     const Divider(color: Colors.greenAccent, thickness: 0.5, height: 1),
     const SizedBox(height: 12),
-    const Text(
-      'Bio',
+    Text(
+      local['bio_label']!,
       textAlign: TextAlign.center,
-      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white70),
+      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white70),
     ),
     const SizedBox(height: 6),
-    const Text(
-      'Engineered with military-grade Zero-Knowledge encryption.\n'
-      'All communications operate strictly Peer-to-Peer (P2P).\n'
-      'Messages automatically self-destruct after 24 hours\n'
-      'using secure anti-trace memory sanitization.\n'
-      'Zero trace, zero logs, total privacy.',
+    Text(
+      local['profile_bio_paragraph']!,
       textAlign: TextAlign.center,
-      style: TextStyle(fontSize: 12, color: Colors.white, height: 1.4),
+      style: const TextStyle(fontSize: 12, color: Colors.white, height: 1.4),
     ),
           ],
   ),
