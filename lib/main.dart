@@ -1523,6 +1523,32 @@ Map<String, Map<String, String>> t = {
     'tab_personal': 'Personal',
     'tab_received': 'Received',
     'tab_sent': 'Sent',
+    'copy_message': 'Copy Message',
+    'destroy_message': 'Destroy Message',
+    'node_destruction_title': 'Node Destruction',
+    'destroy_message_confirm_body': 'Do you want to permanently destroy this message on both devices?',
+    'destroy_button': 'Destroy',
+    'failed_to_send_photo_prefix': 'Failed to send photo',
+    'encrypted_photo_sent_message': '🖼️ Encrypted photo sent — view in Secure Vault Files',
+    'photo_chat_preview': '🖼️ Photo',
+    'just_now': 'Just Now',
+    'failed_to_send_voice_prefix': 'Failed to send voice message',
+    'voice_message_chat_preview': '🎤 Voice message',
+    'voice_message_label': 'Voice message',
+    'no_secure_channel_error': 'Could not send: no secure channel with this contact yet ({error}). Try removing and re-adding them.',
+    'block_id_title': 'Block ID',
+    'block_id_confirm_body': 'Do you want to permanently block this ID?',
+    'block_button': 'Block',
+    'keys_not_available': 'Keys not available for this contact.',
+    'safety_number_title': 'Safety Number',
+    'safety_number_desc': 'Make a secure call to this contact and read this number aloud. If they match on both devices, nobody is intercepting your conversation.',
+    'verify_safety_number': 'Verify Safety Number',
+    'encrypted_p2p_channel': 'Encrypted P2P Channel',
+    'destruct_1m': '1 Minute',
+    'destruct_5m': '5 Minutes',
+    'destruct_1h': '1 Hour',
+    'destruct_24h': '24 Hours',
+    'message_not_decrypted': '[Message not decrypted]',
   },
   'PT': {
     'chats': 'Conversas',
@@ -1684,6 +1710,32 @@ Map<String, Map<String, String>> t = {
     'tab_personal': 'Pessoal',
     'tab_received': 'Recebidos',
     'tab_sent': 'Enviados',
+    'copy_message': 'Copiar Mensagem',
+    'destroy_message': 'Destruir Mensagem',
+    'node_destruction_title': 'Destruição de Nó',
+    'destroy_message_confirm_body': 'Deseja destruir esta mensagem permanentemente em ambos os dispositivos?',
+    'destroy_button': 'Destruir',
+    'failed_to_send_photo_prefix': 'Falha ao enviar foto',
+    'encrypted_photo_sent_message': '🖼️ Foto encriptada enviada — vê no Secure Vault Files',
+    'photo_chat_preview': '🖼️ Foto',
+    'just_now': 'Agora Mesmo',
+    'failed_to_send_voice_prefix': 'Falha ao enviar mensagem de voz',
+    'voice_message_chat_preview': '🎤 Mensagem de voz',
+    'voice_message_label': 'Mensagem de voz',
+    'no_secure_channel_error': 'Não foi possível enviar: ainda não há canal seguro com este contacto ({error}). Tenta remover e adicionar novamente.',
+    'block_id_title': 'Bloquear ID',
+    'block_id_confirm_body': 'Deseja bloquear permanentemente este ID?',
+    'block_button': 'Bloquear',
+    'keys_not_available': 'Chaves não disponíveis para este contacto.',
+    'safety_number_title': 'Número de Segurança',
+    'safety_number_desc': 'Faz uma chamada segura a este contacto e lê este número em voz alta. Se coincidir nos dois dispositivos, ninguém está a intercetar a tua conversa.',
+    'verify_safety_number': 'Verificar Número de Segurança',
+    'encrypted_p2p_channel': 'Canal P2P Encriptado',
+    'destruct_1m': '1 Minuto',
+    'destruct_5m': '5 Minutos',
+    'destruct_1h': '1 Hora',
+    'destruct_24h': '24 Horas',
+    'message_not_decrypted': '[Mensagem não decifrada]',
   },
   'ES': {
     'chats': 'Chats',
@@ -1845,6 +1897,32 @@ Map<String, Map<String, String>> t = {
     'tab_personal': 'Personal',
     'tab_received': 'Recibidos',
     'tab_sent': 'Enviados',
+    'copy_message': 'Copiar Mensaje',
+    'destroy_message': 'Destruir Mensaje',
+    'node_destruction_title': 'Destrucción de Nodo',
+    'destroy_message_confirm_body': '¿Deseas destruir este mensaje permanentemente en ambos dispositivos?',
+    'destroy_button': 'Destruir',
+    'failed_to_send_photo_prefix': 'Error al enviar foto',
+    'encrypted_photo_sent_message': '🖼️ Foto cifrada enviada — ver en Secure Vault Files',
+    'photo_chat_preview': '🖼️ Foto',
+    'just_now': 'Justo Ahora',
+    'failed_to_send_voice_prefix': 'Error al enviar mensaje de voz',
+    'voice_message_chat_preview': '🎤 Mensaje de voz',
+    'voice_message_label': 'Mensaje de voz',
+    'no_secure_channel_error': 'No se pudo enviar: aún no hay un canal seguro con este contacto ({error}). Intenta eliminarlo y volver a añadirlo.',
+    'block_id_title': 'Bloquear ID',
+    'block_id_confirm_body': '¿Deseas bloquear permanentemente este ID?',
+    'block_button': 'Bloquear',
+    'keys_not_available': 'Claves no disponibles para este contacto.',
+    'safety_number_title': 'Número de Seguridad',
+    'safety_number_desc': 'Haz una llamada segura a este contacto y lee este número en voz alta. Si coincide en ambos dispositivos, nadie está interceptando tu conversación.',
+    'verify_safety_number': 'Verificar Número de Seguridad',
+    'encrypted_p2p_channel': 'Canal P2P Cifrado',
+    'destruct_1m': '1 Minuto',
+    'destruct_5m': '5 Minutos',
+    'destruct_1h': '1 Hora',
+    'destruct_24h': '24 Horas',
+    'message_not_decrypted': '[Mensaje no descifrado]',
   },
   'FR': {
     'chats': 'Chats',
@@ -2006,6 +2084,32 @@ Map<String, Map<String, String>> t = {
     'tab_personal': 'Personnel',
     'tab_received': 'Reçus',
     'tab_sent': 'Envoyés',
+    'copy_message': 'Copier le Message',
+    'destroy_message': 'Détruire le Message',
+    'node_destruction_title': 'Destruction de Nœud',
+    'destroy_message_confirm_body': 'Voulez-vous détruire définitivement ce message sur les deux appareils ?',
+    'destroy_button': 'Détruire',
+    'failed_to_send_photo_prefix': 'Échec de l\'envoi de la photo',
+    'encrypted_photo_sent_message': '🖼️ Photo chiffrée envoyée — voir dans Secure Vault Files',
+    'photo_chat_preview': '🖼️ Photo',
+    'just_now': 'À l\'instant',
+    'failed_to_send_voice_prefix': 'Échec de l\'envoi du message vocal',
+    'voice_message_chat_preview': '🎤 Message vocal',
+    'voice_message_label': 'Message vocal',
+    'no_secure_channel_error': 'Envoi impossible : pas encore de canal sécurisé avec ce contact ({error}). Essayez de le supprimer puis de l\'ajouter à nouveau.',
+    'block_id_title': 'Bloquer l\'ID',
+    'block_id_confirm_body': 'Voulez-vous bloquer définitivement cet ID ?',
+    'block_button': 'Bloquer',
+    'keys_not_available': 'Clés non disponibles pour ce contact.',
+    'safety_number_title': 'Numéro de Sécurité',
+    'safety_number_desc': 'Passez un appel sécurisé à ce contact et lisez ce numéro à voix haute. S\'il correspond sur les deux appareils, personne n\'intercepte votre conversation.',
+    'verify_safety_number': 'Vérifier le Numéro de Sécurité',
+    'encrypted_p2p_channel': 'Canal P2P Chiffré',
+    'destruct_1m': '1 Minute',
+    'destruct_5m': '5 Minutes',
+    'destruct_1h': '1 Heure',
+    'destruct_24h': '24 Heures',
+    'message_not_decrypted': '[Message non déchiffré]',
   },
   'DE': {
     'chats': 'Chats',
@@ -2167,6 +2271,32 @@ Map<String, Map<String, String>> t = {
     'tab_personal': 'Persönlich',
     'tab_received': 'Empfangen',
     'tab_sent': 'Gesendet',
+    'copy_message': 'Nachricht kopieren',
+    'destroy_message': 'Nachricht vernichten',
+    'node_destruction_title': 'Knotenvernichtung',
+    'destroy_message_confirm_body': 'Möchtest du diese Nachricht dauerhaft auf beiden Geräten vernichten?',
+    'destroy_button': 'Vernichten',
+    'failed_to_send_photo_prefix': 'Foto senden fehlgeschlagen',
+    'encrypted_photo_sent_message': '🖼️ Verschlüsseltes Foto gesendet — in Secure Vault Files ansehen',
+    'photo_chat_preview': '🖼️ Foto',
+    'just_now': 'Gerade eben',
+    'failed_to_send_voice_prefix': 'Sprachnachricht senden fehlgeschlagen',
+    'voice_message_chat_preview': '🎤 Sprachnachricht',
+    'voice_message_label': 'Sprachnachricht',
+    'no_secure_channel_error': 'Senden nicht möglich: noch kein sicherer Kanal mit diesem Kontakt ({error}). Versuche, ihn zu entfernen und erneut hinzuzufügen.',
+    'block_id_title': 'ID blockieren',
+    'block_id_confirm_body': 'Möchtest du diese ID dauerhaft blockieren?',
+    'block_button': 'Blockieren',
+    'keys_not_available': 'Schlüssel für diesen Kontakt nicht verfügbar.',
+    'safety_number_title': 'Sicherheitsnummer',
+    'safety_number_desc': 'Führe einen sicheren Anruf mit diesem Kontakt durch und lies diese Nummer laut vor. Stimmt sie auf beiden Geräten überein, hört niemand euer Gespräch mit.',
+    'verify_safety_number': 'Sicherheitsnummer prüfen',
+    'encrypted_p2p_channel': 'Verschlüsselter P2P-Kanal',
+    'destruct_1m': '1 Minute',
+    'destruct_5m': '5 Minuten',
+    'destruct_1h': '1 Stunde',
+    'destruct_24h': '24 Stunden',
+    'message_not_decrypted': '[Nachricht nicht entschlüsselt]',
   },
   'RU': {
     'chats': 'Чаты',
@@ -2328,6 +2458,32 @@ Map<String, Map<String, String>> t = {
     'tab_personal': 'Личное',
     'tab_received': 'Полученные',
     'tab_sent': 'Отправленные',
+    'copy_message': 'Копировать сообщение',
+    'destroy_message': 'Уничтожить сообщение',
+    'node_destruction_title': 'Уничтожение узла',
+    'destroy_message_confirm_body': 'Уничтожить это сообщение навсегда на обоих устройствах?',
+    'destroy_button': 'Уничтожить',
+    'failed_to_send_photo_prefix': 'Не удалось отправить фото',
+    'encrypted_photo_sent_message': '🖼️ Зашифрованное фото отправлено — смотрите в Secure Vault Files',
+    'photo_chat_preview': '🖼️ Фото',
+    'just_now': 'Только что',
+    'failed_to_send_voice_prefix': 'Не удалось отправить голосовое сообщение',
+    'voice_message_chat_preview': '🎤 Голосовое сообщение',
+    'voice_message_label': 'Голосовое сообщение',
+    'no_secure_channel_error': 'Не удалось отправить: с этим контактом пока нет защищённого канала ({error}). Попробуйте удалить его и добавить снова.',
+    'block_id_title': 'Заблокировать ID',
+    'block_id_confirm_body': 'Заблокировать этот ID навсегда?',
+    'block_button': 'Заблокировать',
+    'keys_not_available': 'Ключи для этого контакта недоступны.',
+    'safety_number_title': 'Код безопасности',
+    'safety_number_desc': 'Совершите защищённый звонок этому контакту и зачитайте этот номер вслух. Если он совпадает на обоих устройствах, никто не перехватывает ваш разговор.',
+    'verify_safety_number': 'Проверить код безопасности',
+    'encrypted_p2p_channel': 'Зашифрованный P2P-канал',
+    'destruct_1m': '1 минута',
+    'destruct_5m': '5 минут',
+    'destruct_1h': '1 час',
+    'destruct_24h': '24 часа',
+    'message_not_decrypted': '[Сообщение не расшифровано]',
   },
   'UK': {
     'chats': 'Чати',
@@ -2489,6 +2645,32 @@ Map<String, Map<String, String>> t = {
     'tab_personal': 'Особисте',
     'tab_received': 'Отримані',
     'tab_sent': 'Надіслані',
+    'copy_message': 'Копіювати повідомлення',
+    'destroy_message': 'Знищити повідомлення',
+    'node_destruction_title': 'Знищення вузла',
+    'destroy_message_confirm_body': 'Знищити це повідомлення назавжди на обох пристроях?',
+    'destroy_button': 'Знищити',
+    'failed_to_send_photo_prefix': 'Не вдалося надіслати фото',
+    'encrypted_photo_sent_message': '🖼️ Зашифроване фото надіслано — перегляньте в Secure Vault Files',
+    'photo_chat_preview': '🖼️ Фото',
+    'just_now': 'Щойно',
+    'failed_to_send_voice_prefix': 'Не вдалося надіслати голосове повідомлення',
+    'voice_message_chat_preview': '🎤 Голосове повідомлення',
+    'voice_message_label': 'Голосове повідомлення',
+    'no_secure_channel_error': 'Не вдалося надіслати: з цим контактом ще немає захищеного каналу ({error}). Спробуйте видалити його та додати знову.',
+    'block_id_title': 'Заблокувати ID',
+    'block_id_confirm_body': 'Заблокувати цей ID назавжди?',
+    'block_button': 'Заблокувати',
+    'keys_not_available': 'Ключі для цього контакту недоступні.',
+    'safety_number_title': 'Код безпеки',
+    'safety_number_desc': 'Здійсніть захищений виклик цьому контакту та прочитайте це число вголос. Якщо воно збігається на обох пристроях, ніхто не перехоплює вашу розмову.',
+    'verify_safety_number': 'Перевірити код безпеки',
+    'encrypted_p2p_channel': 'Зашифрований P2P-канал',
+    'destruct_1m': '1 хвилина',
+    'destruct_5m': '5 хвилин',
+    'destruct_1h': '1 година',
+    'destruct_24h': '24 години',
+    'message_not_decrypted': '[Повідомлення не розшифровано]',
   },
   'ZH': {
     'chats': '聊天',
@@ -2650,6 +2832,32 @@ Map<String, Map<String, String>> t = {
     'tab_personal': '个人',
     'tab_received': '已接收',
     'tab_sent': '已发送',
+    'copy_message': '复制消息',
+    'destroy_message': '销毁消息',
+    'node_destruction_title': '节点销毁',
+    'destroy_message_confirm_body': '要在两台设备上永久销毁此消息吗?',
+    'destroy_button': '销毁',
+    'failed_to_send_photo_prefix': '发送照片失败',
+    'encrypted_photo_sent_message': '🖼️ 已发送加密照片 — 在 Secure Vault Files 中查看',
+    'photo_chat_preview': '🖼️ 照片',
+    'just_now': '刚刚',
+    'failed_to_send_voice_prefix': '发送语音消息失败',
+    'voice_message_chat_preview': '🎤 语音消息',
+    'voice_message_label': '语音消息',
+    'no_secure_channel_error': '无法发送:与该联系人尚无安全通道({error})。请尝试删除后重新添加。',
+    'block_id_title': '屏蔽 ID',
+    'block_id_confirm_body': '要永久屏蔽此 ID 吗?',
+    'block_button': '屏蔽',
+    'keys_not_available': '该联系人的密钥不可用。',
+    'safety_number_title': '安全码',
+    'safety_number_desc': '与该联系人进行一次安全通话,并大声读出此号码。如果两台设备上的号码一致,说明没有人在窃听你们的对话。',
+    'verify_safety_number': '验证安全码',
+    'encrypted_p2p_channel': '加密的 P2P 通道',
+    'destruct_1m': '1 分钟',
+    'destruct_5m': '5 分钟',
+    'destruct_1h': '1 小时',
+    'destruct_24h': '24 小时',
+    'message_not_decrypted': '[消息未解密]',
   },
   'KO': {
     'chats': '채팅',
@@ -2811,6 +3019,32 @@ Map<String, Map<String, String>> t = {
     'tab_personal': '개인',
     'tab_received': '받은 항목',
     'tab_sent': '보낸 항목',
+    'copy_message': '메시지 복사',
+    'destroy_message': '메시지 파기',
+    'node_destruction_title': '노드 파기',
+    'destroy_message_confirm_body': '이 메시지를 두 기기 모두에서 영구적으로 파기하시겠습니까?',
+    'destroy_button': '파기',
+    'failed_to_send_photo_prefix': '사진 전송 실패',
+    'encrypted_photo_sent_message': '🖼️ 암호화된 사진 전송됨 — Secure Vault Files에서 확인하세요',
+    'photo_chat_preview': '🖼️ 사진',
+    'just_now': '방금 전',
+    'failed_to_send_voice_prefix': '음성 메시지 전송 실패',
+    'voice_message_chat_preview': '🎤 음성 메시지',
+    'voice_message_label': '음성 메시지',
+    'no_secure_channel_error': '전송할 수 없습니다: 이 연락처와 아직 보안 채널이 없습니다({error}). 삭제 후 다시 추가해 보세요.',
+    'block_id_title': 'ID 차단',
+    'block_id_confirm_body': '이 ID를 영구적으로 차단하시겠습니까?',
+    'block_button': '차단',
+    'keys_not_available': '이 연락처의 키를 사용할 수 없습니다.',
+    'safety_number_title': '안전 번호',
+    'safety_number_desc': '이 연락처와 안전한 통화를 하고 이 번호를 소리 내어 읽어보세요. 두 기기에서 번호가 일치하면 아무도 대화를 가로채지 않는 것입니다.',
+    'verify_safety_number': '안전 번호 확인',
+    'encrypted_p2p_channel': '암호화된 P2P 채널',
+    'destruct_1m': '1분',
+    'destruct_5m': '5분',
+    'destruct_1h': '1시간',
+    'destruct_24h': '24시간',
+    'message_not_decrypted': '[메시지가 복호화되지 않았습니다]',
   },
   'AR': {
     'chats': 'الدردشات',
@@ -2972,6 +3206,32 @@ Map<String, Map<String, String>> t = {
     'tab_personal': 'شخصي',
     'tab_received': 'المستلمة',
     'tab_sent': 'المرسلة',
+    'copy_message': 'نسخ الرسالة',
+    'destroy_message': 'تدمير الرسالة',
+    'node_destruction_title': 'تدمير العقدة',
+    'destroy_message_confirm_body': 'هل تريد تدمير هذه الرسالة نهائيًا على كلا الجهازين؟',
+    'destroy_button': 'تدمير',
+    'failed_to_send_photo_prefix': 'فشل إرسال الصورة',
+    'encrypted_photo_sent_message': '🖼️ تم إرسال صورة مشفرة — شاهدها في Secure Vault Files',
+    'photo_chat_preview': '🖼️ صورة',
+    'just_now': 'الآن',
+    'failed_to_send_voice_prefix': 'فشل إرسال الرسالة الصوتية',
+    'voice_message_chat_preview': '🎤 رسالة صوتية',
+    'voice_message_label': 'رسالة صوتية',
+    'no_secure_channel_error': 'تعذر الإرسال: لا توجد قناة آمنة بعد مع جهة الاتصال هذه ({error}). حاول حذفها وإضافتها مرة أخرى.',
+    'block_id_title': 'حظر المعرّف',
+    'block_id_confirm_body': 'هل تريد حظر هذا المعرّف نهائيًا؟',
+    'block_button': 'حظر',
+    'keys_not_available': 'المفاتيح غير متوفرة لجهة الاتصال هذه.',
+    'safety_number_title': 'رقم الأمان',
+    'safety_number_desc': 'قم بإجراء مكالمة آمنة مع جهة الاتصال هذه واقرأ هذا الرقم بصوت عالٍ. إذا تطابق على كلا الجهازين، فلا أحد يعترض محادثتك.',
+    'verify_safety_number': 'التحقق من رقم الأمان',
+    'encrypted_p2p_channel': 'قناة P2P مشفرة',
+    'destruct_1m': 'دقيقة واحدة',
+    'destruct_5m': '5 دقائق',
+    'destruct_1h': 'ساعة واحدة',
+    'destruct_24h': '24 ساعة',
+    'message_not_decrypted': '[لم يتم فك تشفير الرسالة]',
   },
   'TR': {
     'chats': 'Sohbetler',
@@ -3133,6 +3393,32 @@ Map<String, Map<String, String>> t = {
     'tab_personal': 'Kişisel',
     'tab_received': 'Alınanlar',
     'tab_sent': 'Gönderilenler',
+    'copy_message': 'Mesajı Kopyala',
+    'destroy_message': 'Mesajı Yok Et',
+    'node_destruction_title': 'Düğüm İmhası',
+    'destroy_message_confirm_body': 'Bu mesajı her iki cihazda da kalıcı olarak yok etmek istiyor musunuz?',
+    'destroy_button': 'Yok Et',
+    'failed_to_send_photo_prefix': 'Fotoğraf gönderilemedi',
+    'encrypted_photo_sent_message': '🖼️ Şifreli fotoğraf gönderildi — Secure Vault Files\'ta görüntüleyin',
+    'photo_chat_preview': '🖼️ Fotoğraf',
+    'just_now': 'Az önce',
+    'failed_to_send_voice_prefix': 'Sesli mesaj gönderilemedi',
+    'voice_message_chat_preview': '🎤 Sesli mesaj',
+    'voice_message_label': 'Sesli mesaj',
+    'no_secure_channel_error': 'Gönderilemedi: bu kişiyle henüz güvenli bir kanal yok ({error}). Kişiyi kaldırıp yeniden eklemeyi deneyin.',
+    'block_id_title': 'Kimliği Engelle',
+    'block_id_confirm_body': 'Bu kimliği kalıcı olarak engellemek istiyor musunuz?',
+    'block_button': 'Engelle',
+    'keys_not_available': 'Bu kişi için anahtarlar mevcut değil.',
+    'safety_number_title': 'Güvenlik Numarası',
+    'safety_number_desc': 'Bu kişiyle güvenli bir arama yapın ve bu numarayı yüksek sesle okuyun. Her iki cihazda da eşleşiyorsa, konuşmanızı kimse dinlemiyor demektir.',
+    'verify_safety_number': 'Güvenlik Numarasını Doğrula',
+    'encrypted_p2p_channel': 'Şifreli P2P Kanalı',
+    'destruct_1m': '1 Dakika',
+    'destruct_5m': '5 Dakika',
+    'destruct_1h': '1 Saat',
+    'destruct_24h': '24 Saat',
+    'message_not_decrypted': '[Mesaj çözülemedi]',
   },
   'IT': {
     'chats': 'Chat',
@@ -3294,6 +3580,32 @@ Map<String, Map<String, String>> t = {
     'tab_personal': 'Personale',
     'tab_received': 'Ricevuti',
     'tab_sent': 'Inviati',
+    'copy_message': 'Copia Messaggio',
+    'destroy_message': 'Distruggi Messaggio',
+    'node_destruction_title': 'Distruzione del Nodo',
+    'destroy_message_confirm_body': 'Vuoi distruggere definitivamente questo messaggio su entrambi i dispositivi?',
+    'destroy_button': 'Distruggi',
+    'failed_to_send_photo_prefix': 'Invio foto non riuscito',
+    'encrypted_photo_sent_message': '🖼️ Foto crittografata inviata — visualizzala in Secure Vault Files',
+    'photo_chat_preview': '🖼️ Foto',
+    'just_now': 'Proprio ora',
+    'failed_to_send_voice_prefix': 'Invio messaggio vocale non riuscito',
+    'voice_message_chat_preview': '🎤 Messaggio vocale',
+    'voice_message_label': 'Messaggio vocale',
+    'no_secure_channel_error': 'Impossibile inviare: non c\'è ancora un canale sicuro con questo contatto ({error}). Prova a rimuoverlo e riaggiungerlo.',
+    'block_id_title': 'Blocca ID',
+    'block_id_confirm_body': 'Vuoi bloccare definitivamente questo ID?',
+    'block_button': 'Blocca',
+    'keys_not_available': 'Chiavi non disponibili per questo contatto.',
+    'safety_number_title': 'Numero di Sicurezza',
+    'safety_number_desc': 'Effettua una chiamata sicura a questo contatto e leggi ad alta voce questo numero. Se corrisponde su entrambi i dispositivi, nessuno sta intercettando la tua conversazione.',
+    'verify_safety_number': 'Verifica Numero di Sicurezza',
+    'encrypted_p2p_channel': 'Canale P2P Crittografato',
+    'destruct_1m': '1 Minuto',
+    'destruct_5m': '5 Minuti',
+    'destruct_1h': '1 Ora',
+    'destruct_24h': '24 Ore',
+    'message_not_decrypted': '[Messaggio non decifrato]',
   },
   'JA': {
     'chats': 'チャット',
@@ -3455,6 +3767,32 @@ Map<String, Map<String, String>> t = {
     'tab_personal': '個人',
     'tab_received': '受信済み',
     'tab_sent': '送信済み',
+    'copy_message': 'メッセージをコピー',
+    'destroy_message': 'メッセージを破棄',
+    'node_destruction_title': 'ノードの破棄',
+    'destroy_message_confirm_body': 'このメッセージを両方の端末で完全に破棄しますか?',
+    'destroy_button': '破棄',
+    'failed_to_send_photo_prefix': '写真の送信に失敗しました',
+    'encrypted_photo_sent_message': '🖼️ 暗号化された写真を送信しました — Secure Vault Files で確認してください',
+    'photo_chat_preview': '🖼️ 写真',
+    'just_now': 'たった今',
+    'failed_to_send_voice_prefix': 'ボイスメッセージの送信に失敗しました',
+    'voice_message_chat_preview': '🎤 ボイスメッセージ',
+    'voice_message_label': 'ボイスメッセージ',
+    'no_secure_channel_error': '送信できませんでした:この連絡先とはまだ安全な通信経路がありません({error})。削除してから再度追加してみてください。',
+    'block_id_title': 'IDをブロック',
+    'block_id_confirm_body': 'このIDを完全にブロックしますか?',
+    'block_button': 'ブロック',
+    'keys_not_available': 'この連絡先の鍵が利用できません。',
+    'safety_number_title': '安全番号',
+    'safety_number_desc': 'この連絡先と安全な通話を行い、この番号を声に出して読み上げてください。両方の端末で一致すれば、誰も会話を傍受していません。',
+    'verify_safety_number': '安全番号を確認',
+    'encrypted_p2p_channel': '暗号化された P2P チャネル',
+    'destruct_1m': '1分',
+    'destruct_5m': '5分',
+    'destruct_1h': '1時間',
+    'destruct_24h': '24時間',
+    'message_not_decrypted': '[メッセージを復号できませんでした]',
   },
   'HI': {
     'chats': 'चैट',
@@ -3616,6 +3954,32 @@ Map<String, Map<String, String>> t = {
     'tab_personal': 'व्यक्तिगत',
     'tab_received': 'प्राप्त',
     'tab_sent': 'भेजे गए',
+    'copy_message': 'संदेश कॉपी करें',
+    'destroy_message': 'संदेश नष्ट करें',
+    'node_destruction_title': 'नोड विनाश',
+    'destroy_message_confirm_body': 'क्या आप इस संदेश को दोनों डिवाइसों पर स्थायी रूप से नष्ट करना चाहते हैं?',
+    'destroy_button': 'नष्ट करें',
+    'failed_to_send_photo_prefix': 'फ़ोटो भेजने में विफल',
+    'encrypted_photo_sent_message': '🖼️ एन्क्रिप्टेड फ़ोटो भेजी गई — Secure Vault Files में देखें',
+    'photo_chat_preview': '🖼️ फ़ोटो',
+    'just_now': 'अभी अभी',
+    'failed_to_send_voice_prefix': 'वॉइस संदेश भेजने में विफल',
+    'voice_message_chat_preview': '🎤 वॉइस संदेश',
+    'voice_message_label': 'वॉइस संदेश',
+    'no_secure_channel_error': 'भेजा नहीं जा सका: इस संपर्क के साथ अभी तक कोई सुरक्षित चैनल नहीं है ({error})। इसे हटाकर फिर से जोड़ने का प्रयास करें।',
+    'block_id_title': 'ID ब्लॉक करें',
+    'block_id_confirm_body': 'क्या आप इस ID को स्थायी रूप से ब्लॉक करना चाहते हैं?',
+    'block_button': 'ब्लॉक करें',
+    'keys_not_available': 'इस संपर्क के लिए कुंजियाँ उपलब्ध नहीं हैं।',
+    'safety_number_title': 'सुरक्षा नंबर',
+    'safety_number_desc': 'इस संपर्क को एक सुरक्षित कॉल करें और इस नंबर को ज़ोर से पढ़ें। यदि यह दोनों डिवाइसों पर मेल खाता है, तो कोई भी आपकी बातचीत को इंटरसेप्ट नहीं कर रहा है।',
+    'verify_safety_number': 'सुरक्षा नंबर सत्यापित करें',
+    'encrypted_p2p_channel': 'एन्क्रिप्टेड P2P चैनल',
+    'destruct_1m': '1 मिनट',
+    'destruct_5m': '5 मिनट',
+    'destruct_1h': '1 घंटा',
+    'destruct_24h': '24 घंटे',
+    'message_not_decrypted': '[संदेश डिक्रिप्ट नहीं हुआ]',
   },
   'NL': {
     'chats': 'Chats',
@@ -3777,6 +4141,32 @@ Map<String, Map<String, String>> t = {
     'tab_personal': 'Persoonlijk',
     'tab_received': 'Ontvangen',
     'tab_sent': 'Verzonden',
+    'copy_message': 'Bericht Kopiëren',
+    'destroy_message': 'Bericht Vernietigen',
+    'node_destruction_title': 'Knooppuntvernietiging',
+    'destroy_message_confirm_body': 'Wil je dit bericht permanent vernietigen op beide apparaten?',
+    'destroy_button': 'Vernietigen',
+    'failed_to_send_photo_prefix': 'Foto verzenden mislukt',
+    'encrypted_photo_sent_message': '🖼️ Versleutelde foto verzonden — bekijk in Secure Vault Files',
+    'photo_chat_preview': '🖼️ Foto',
+    'just_now': 'Zojuist',
+    'failed_to_send_voice_prefix': 'Spraakbericht verzenden mislukt',
+    'voice_message_chat_preview': '🎤 Spraakbericht',
+    'voice_message_label': 'Spraakbericht',
+    'no_secure_channel_error': 'Kan niet verzenden: nog geen beveiligd kanaal met dit contact ({error}). Probeer het te verwijderen en opnieuw toe te voegen.',
+    'block_id_title': 'ID Blokkeren',
+    'block_id_confirm_body': 'Wil je deze ID permanent blokkeren?',
+    'block_button': 'Blokkeren',
+    'keys_not_available': 'Sleutels niet beschikbaar voor dit contact.',
+    'safety_number_title': 'Veiligheidsnummer',
+    'safety_number_desc': 'Bel dit contact veilig op en lees dit nummer hardop voor. Komt het op beide apparaten overeen, dan onderschept niemand je gesprek.',
+    'verify_safety_number': 'Veiligheidsnummer Verifiëren',
+    'encrypted_p2p_channel': 'Versleuteld P2P-kanaal',
+    'destruct_1m': '1 Minuut',
+    'destruct_5m': '5 Minuten',
+    'destruct_1h': '1 Uur',
+    'destruct_24h': '24 Uur',
+    'message_not_decrypted': '[Bericht niet ontsleuteld]',
   },
   'PL': {
     'chats': 'Czaty',
@@ -3938,6 +4328,32 @@ Map<String, Map<String, String>> t = {
     'tab_personal': 'Osobiste',
     'tab_received': 'Otrzymane',
     'tab_sent': 'Wysłane',
+    'copy_message': 'Kopiuj Wiadomość',
+    'destroy_message': 'Zniszcz Wiadomość',
+    'node_destruction_title': 'Zniszczenie Węzła',
+    'destroy_message_confirm_body': 'Czy chcesz trwale zniszczyć tę wiadomość na obu urządzeniach?',
+    'destroy_button': 'Zniszcz',
+    'failed_to_send_photo_prefix': 'Nie udało się wysłać zdjęcia',
+    'encrypted_photo_sent_message': '🖼️ Wysłano zaszyfrowane zdjęcie — zobacz w Secure Vault Files',
+    'photo_chat_preview': '🖼️ Zdjęcie',
+    'just_now': 'Przed chwilą',
+    'failed_to_send_voice_prefix': 'Nie udało się wysłać wiadomości głosowej',
+    'voice_message_chat_preview': '🎤 Wiadomość głosowa',
+    'voice_message_label': 'Wiadomość głosowa',
+    'no_secure_channel_error': 'Nie można wysłać: nie ma jeszcze bezpiecznego kanału z tym kontaktem ({error}). Spróbuj go usunąć i dodać ponownie.',
+    'block_id_title': 'Zablokuj ID',
+    'block_id_confirm_body': 'Czy chcesz trwale zablokować to ID?',
+    'block_button': 'Zablokuj',
+    'keys_not_available': 'Klucze niedostępne dla tego kontaktu.',
+    'safety_number_title': 'Numer Bezpieczeństwa',
+    'safety_number_desc': 'Zadzwoń bezpiecznie do tego kontaktu i przeczytaj ten numer na głos. Jeśli zgadza się na obu urządzeniach, nikt nie przechwytuje Twojej rozmowy.',
+    'verify_safety_number': 'Zweryfikuj Numer Bezpieczeństwa',
+    'encrypted_p2p_channel': 'Zaszyfrowany Kanał P2P',
+    'destruct_1m': '1 Minuta',
+    'destruct_5m': '5 Minut',
+    'destruct_1h': '1 Godzina',
+    'destruct_24h': '24 Godziny',
+    'message_not_decrypted': '[Wiadomość nieodszyfrowana]',
   },
 };
 
@@ -5754,7 +6170,8 @@ class SingleChatScreen extends StatefulWidget {
 class VoiceMessageBubble extends StatefulWidget {
   final String audioBase64;
   final bool isMe;
-  const VoiceMessageBubble({super.key, required this.audioBase64, required this.isMe});
+  final Map<String, String> local;
+  const VoiceMessageBubble({super.key, required this.audioBase64, required this.isMe, required this.local});
 
   @override
   State<VoiceMessageBubble> createState() => _VoiceMessageBubbleState();
@@ -5801,7 +6218,7 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
           onPressed: _toggle,
         ),
         const SizedBox(width: 6),
-        Text('Voice message', style: TextStyle(color: color, fontSize: 13)),
+        Text(widget.local['voice_message_label']!, style: TextStyle(color: color, fontSize: 13)),
       ],
     );
   }
@@ -6180,7 +6597,7 @@ String _getTimeLeft(int timestamp) {
             children: [
               ListTile(
                 leading: const Icon(Icons.copy, color: Colors.white),
-                title: const Text("Copiar Mensagem", style: TextStyle(color: Colors.white)),
+                title: Text(widget.local['copy_message']!, style: const TextStyle(color: Colors.white)),
                 onTap: () {
                   Clipboard.setData(ClipboardData(text: msg['text']));
                   Navigator.pop(context); // Fecha o menu
@@ -6189,28 +6606,28 @@ String _getTimeLeft(int timestamp) {
               const Divider(color: Colors.white10),
               ListTile(
                 leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                title: const Text("Destruir Mensagem", style: TextStyle(color: Colors.redAccent)),
+                title: Text(widget.local['destroy_message']!, style: const TextStyle(color: Colors.redAccent)),
                 onTap: () {
                   Navigator.pop(context); // Fecha o menu principal
-                  
+
                   // Pergunta de confirmação antes de apagar de vez
                   showDialog(
                     context: context,
                     builder: (ctx) => AlertDialog(
                       backgroundColor: const Color(0xFF151515),
-                      title: const Text("Destruição de Nó", style: TextStyle(color: Colors.white)),
-                      content: const Text("Deseja destruir esta mensagem permanentemente em ambos os dispositivos?", style: TextStyle(color: Colors.grey)),
+                      title: Text(widget.local['node_destruction_title']!, style: const TextStyle(color: Colors.white)),
+                      content: Text(widget.local['destroy_message_confirm_body']!, style: const TextStyle(color: Colors.grey)),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(ctx),
-                          child: const Text("Cancelar", style: TextStyle(color: Colors.grey)),
+                          child: Text(widget.local['cancel_button']!, style: const TextStyle(color: Colors.grey)),
                         ),
                         TextButton(
                           onPressed: () {
                             Navigator.pop(ctx);
                             _deleteMessage(msg['timestamp']); // Executa a destruição!
                           },
-                          child: const Text("Destruir", style: TextStyle(color: Colors.redAccent)),
+                          child: Text(widget.local['destroy_button']!, style: const TextStyle(color: Colors.redAccent)),
                         ),
                       ],
                     ),
@@ -6254,13 +6671,13 @@ Future<void> _sendPhotoFromChat() async {
       final currentTimestamp = DateTime.now().millisecondsSinceEpoch;
       setState(() {
         (widget.chatData['messages'] as List).add(<String, Object>{
-          'text': '🖼️ Encrypted photo sent — view in Secure Vault Files',
+          'text': widget.local['encrypted_photo_sent_message']!,
           'isMe': true,
           'status': 'sent',
           'timestamp': currentTimestamp,
         });
-        widget.chatData['msg'] = '🖼️ Photo';
-        widget.chatData['time'] = 'Just Now';
+        widget.chatData['msg'] = widget.local['photo_chat_preview']!;
+        widget.chatData['time'] = widget.local['just_now']!;
       });
       widget.onUpdate();
 
@@ -6283,7 +6700,7 @@ Future<void> _sendPhotoFromChat() async {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send photo: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${widget.local['failed_to_send_photo_prefix']}: $e')));
       }
     }
   }
@@ -6301,14 +6718,14 @@ Future<void> _sendPhotoFromChat() async {
         final currentTimestamp = DateTime.now().millisecondsSinceEpoch;
         setState(() {
           (widget.chatData['messages'] as List).add(<String, Object>{
-            'text': '🎤 Voice message',
+            'text': widget.local['voice_message_chat_preview']!,
             'audioBase64': base64Encode(bytes),
             'isMe': true,
             'status': 'sent',
             'timestamp': currentTimestamp,
           });
-          widget.chatData['msg'] = '🎤 Voice message';
-          widget.chatData['time'] = 'Just Now';
+          widget.chatData['msg'] = widget.local['voice_message_chat_preview']!;
+          widget.chatData['time'] = widget.local['just_now']!;
         });
         widget.onUpdate();
 
@@ -6331,7 +6748,7 @@ Future<void> _sendPhotoFromChat() async {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send voice message: $e')));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${widget.local['failed_to_send_voice_prefix']}: $e')));
         }
       }
     } else {
@@ -6356,7 +6773,7 @@ Future<void> _sendMessage() async {
       // travado.
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not send: no secure channel with this contact yet ($e). Try removing and re-adding them.')),
+          SnackBar(content: Text((widget.local['no_secure_channel_error'] ?? 'Could not send: no secure channel with this contact yet ({error}). Try removing and re-adding them.').replaceAll('{error}', '$e'))),
         );
       }
       return;
@@ -6398,7 +6815,7 @@ final dhPub = encResult['dh']!;
         'dh': dhPub,
       });
       widget.chatData['msg'] = rawText;
-      widget.chatData['time'] = 'Just Now';
+      widget.chatData['time'] = widget.local['just_now']!;
     });
 
     _msgController.clear();
@@ -6489,10 +6906,10 @@ flexibleSpace: Container(
                   
                   // TEXTO INTELIGENTE: Lê o estado real e muda a cor (Verde/Laranja/Vermelho)
                  Text(
-  'Encrypted P2P Channel', 
+  widget.local['encrypted_p2p_channel']!,
   style: const TextStyle(
-    fontSize: 10, 
-    color: Colors.lightBlueAccent, 
+    fontSize: 10,
+    color: Colors.lightBlueAccent,
     fontWeight: FontWeight.bold
   )
 ),
@@ -6561,12 +6978,12 @@ flexibleSpace: Container(
         context: context,
         builder: (context) => AlertDialog(
           backgroundColor: const Color(0xFF151515),
-          title: const Text('Bloquear ID', style: TextStyle(color: Colors.white)),
-          content: const Text('Deseja bloquear permanentemente este ID?', style: TextStyle(color: Colors.white70)),
+          title: Text(widget.local['block_id_title']!, style: const TextStyle(color: Colors.white)),
+          content: Text(widget.local['block_id_confirm_body']!, style: const TextStyle(color: Colors.white70)),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+              child: Text(widget.local['cancel_button']!, style: const TextStyle(color: Colors.grey)),
             ),
            TextButton(
                       onPressed: () async {
@@ -6619,7 +7036,7 @@ flexibleSpace: Container(
                         Navigator.pop(context); // Fecha pop-up confirmação
                         Navigator.pop(context); // Fecha o chat e volta à lista principal
                       },
-                      child: const Text('Bloquear', style: TextStyle(color: Colors.red)),
+                      child: Text(widget.local['block_button']!, style: const TextStyle(color: Colors.red)),
                     ),
           ],
         ),
@@ -6637,13 +7054,13 @@ flexibleSpace: Container(
               
               if (myKey.isEmpty || theirKey.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Keys not available for this contact.', style: TextStyle(color: Colors.white)),
+                  SnackBar(
+                    content: Text(widget.local['keys_not_available']!, style: const TextStyle(color: Colors.white)),
                   ),
                 );
                 return;
               }
-              
+
               computeSafetyNumber(myKey, theirKey).then((number) {
                 showDialog(
                   context: context,
@@ -6653,9 +7070,9 @@ flexibleSpace: Container(
                       borderRadius: BorderRadius.circular(16),
                       side: BorderSide(color: Colors.greenAccent.withOpacity(0.5), width: 1),
                     ),
-                    title: const Text(
-                      'Safety Number', 
-                      style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)
+                    title: Text(
+                      widget.local['safety_number_title']!,
+                      style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)
                     ),
                     content: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -6663,32 +7080,32 @@ flexibleSpace: Container(
                         Text(
                           number,
                           style: const TextStyle(
-                            color: Colors.greenAccent, 
-                            fontFamily: 'monospace', 
-                            fontSize: 13, 
+                            color: Colors.greenAccent,
+                            fontFamily: 'monospace',
+                            fontSize: 13,
                             letterSpacing: 1.2
                           ),
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 20),
-                        const Text(
-                          'Make a secure call to this contact and read this number aloud. If they match on both devices, nobody is intercepting your conversation.',
-                          style: TextStyle(color: Colors.white70, fontSize: 12),
+                        Text(
+                          widget.local['safety_number_desc']!,
+                          style: const TextStyle(color: Colors.white70, fontSize: 12),
                           textAlign: TextAlign.center,
                         ),
                       ],
                     ),
                     actions: [
                       TextButton(
-                        onPressed: () => Navigator.pop(ctx), 
-                        child: const Text('Close', style: TextStyle(color: Colors.greenAccent))
+                        onPressed: () => Navigator.pop(ctx),
+                        child: Text(widget.local['close_button']!, style: const TextStyle(color: Colors.greenAccent))
                       ),
                     ],
                   ),
                 );
               });
             },
-            child: const Text('Verify Safety Number', style: TextStyle(color: Colors.greenAccent)),
+            child: Text(widget.local['verify_safety_number']!, style: const TextStyle(color: Colors.greenAccent)),
           ),
     PopupMenuItem(value: 'clear', child: Text(widget.local['delete_chat']!)),
     PopupMenuItem(value: 'block', child: Text(widget.local['block_peer']!)),
@@ -6710,7 +7127,7 @@ flexibleSpace: Container(
               mainAxisSize: MainAxisSize.min,
               children: [
                         ListTile(
-                          title: const Text("1 Minute", style: TextStyle(color: Colors.white)),
+                          title: Text(widget.local['destruct_1m']!, style: const TextStyle(color: Colors.white)),
                           onTap: () {
                             setState(() { widget.chatData['destructTime'] = '1m'; });
                             widget.onUpdate();
@@ -6720,7 +7137,7 @@ flexibleSpace: Container(
                           },
                         ),
                         ListTile(
-                          title: const Text("5 Minutes", style: TextStyle(color: Colors.white)),
+                          title: Text(widget.local['destruct_5m']!, style: const TextStyle(color: Colors.white)),
                           onTap: () {
                             setState(() { widget.chatData['destructTime'] = '5m'; });
                             widget.onUpdate();
@@ -6730,7 +7147,7 @@ flexibleSpace: Container(
                           },
                         ),
                         ListTile(
-                          title: const Text("1 Hour", style: TextStyle(color: Colors.white)),
+                          title: Text(widget.local['destruct_1h']!, style: const TextStyle(color: Colors.white)),
                           onTap: () {
                             setState(() { widget.chatData['destructTime'] = '1h'; });
                             widget.onUpdate();
@@ -6740,7 +7157,7 @@ flexibleSpace: Container(
                           },
                         ),
                         ListTile(
-                          title: const Text("24 Hours", style: TextStyle(color: Colors.white)),
+                          title: Text(widget.local['destruct_24h']!, style: const TextStyle(color: Colors.white)),
                           onTap: () {
                             setState(() { widget.chatData['destructTime'] = '24h'; });
                             widget.onUpdate();
@@ -6810,10 +7227,10 @@ flexibleSpace: Container(
   crossAxisAlignment: CrossAxisAlignment.end,
   children: [
     if (m['audioBase64'] != null)
-      VoiceMessageBubble(audioBase64: m['audioBase64'], isMe: isMe)
+      VoiceMessageBubble(audioBase64: m['audioBase64'], isMe: isMe, local: widget.local)
     else
       Text(
-      m['text'],
+      m['text'] == '[Message not decrypted]' ? (widget.local['message_not_decrypted'] ?? m['text']) : m['text'],
       style: TextStyle(
         color: m['text'] == '[Message not decrypted]' ? const Color(0xFFB00020) : (isMe ? Colors.white : Colors.black87),
         fontSize: m['text'] == '[Message not decrypted]' ? 11 : 14,
