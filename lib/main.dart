@@ -1496,6 +1496,33 @@ Map<String, Map<String, String>> t = {
     'loading_price': 'Loading price...',
     'price_label_prefix': 'Price',
     'confirm_send_button': 'CONFIRM & SEND',
+    'vault_files_not_initialized': 'Vault Files not initialized on this device.',
+    'invalid_vault_files_code': 'Invalid Vault Files code.',
+    'vault_files_corrupted': 'Vault Files data is corrupted (code was correct, but the vault file itself is damaged).',
+    'create_vault_files_code_title': 'CREATE VAULT FILES CODE',
+    'enter_vault_files_code_title': 'ENTER VAULT FILES CODE',
+    'vault_files_code_desc_create': 'This code is separate from your app unlock code. Anyone who knows your app code will NOT be able to open your photos and documents without it too.',
+    'vault_files_code_desc_enter': 'Enter your Vault Files code to view your encrypted photos and documents.',
+    'set_vault_files_code_label': 'Set Vault Files Code',
+    'vault_files_code_label': 'Vault Files Code',
+    'create_vault_button': 'CREATE VAULT',
+    'imported_skipped_toast': '{imported} imported, {skipped} skipped (max {mb}MB each).',
+    'no_contacts_yet': 'No contacts yet.',
+    'send_to_title': 'Send to...',
+    'sent_toast': 'Sent.',
+    'failed_to_send_prefix': 'Failed to send',
+    'received_from_prefix': 'Received from',
+    'sent_to_prefix': 'Sent to',
+    'stored_locally_not_sent': 'Stored locally — not sent to anyone yet',
+    'document_label': 'Document',
+    'document_stored_encrypted_desc': 'This document is stored encrypted in your Vault Files ({kb} KB). Use Export to save it back to your phone or share it.',
+    'export_button': 'Export',
+    'personal_files_empty': 'No personal files yet.\nUse the + button to take a photo or import a document.',
+    'received_files_empty': 'Nothing received yet.',
+    'sent_files_empty': 'Nothing sent yet.',
+    'tab_personal': 'Personal',
+    'tab_received': 'Received',
+    'tab_sent': 'Sent',
   },
   'PT': {
     'chats': 'Conversas',
@@ -1630,6 +1657,33 @@ Map<String, Map<String, String>> t = {
     'loading_price': 'A carregar cotação...',
     'price_label_prefix': 'Cotação',
     'confirm_send_button': 'CONFIRMAR E ENVIAR',
+    'vault_files_not_initialized': 'O Secure Vault Files não está inicializado neste dispositivo.',
+    'invalid_vault_files_code': 'Código do Secure Vault Files inválido.',
+    'vault_files_corrupted': 'Os dados do Secure Vault Files estão corrompidos (o código estava correto, mas o próprio ficheiro do cofre está danificado).',
+    'create_vault_files_code_title': 'CRIAR CÓDIGO DO VAULT FILES',
+    'enter_vault_files_code_title': 'INTRODUZIR CÓDIGO DO VAULT FILES',
+    'vault_files_code_desc_create': 'Este código é diferente do código de desbloqueio da app. Quem souber o código da app NÃO conseguirá abrir as tuas fotos e documentos sem este também.',
+    'vault_files_code_desc_enter': 'Introduz o teu código do Vault Files para veres as tuas fotos e documentos encriptados.',
+    'set_vault_files_code_label': 'Definir Código do Vault Files',
+    'vault_files_code_label': 'Código do Vault Files',
+    'create_vault_button': 'CRIAR COFRE',
+    'imported_skipped_toast': '{imported} importados, {skipped} ignorados (máx. {mb}MB cada).',
+    'no_contacts_yet': 'Ainda não tens contactos.',
+    'send_to_title': 'Enviar para...',
+    'sent_toast': 'Enviado.',
+    'failed_to_send_prefix': 'Falha ao enviar',
+    'received_from_prefix': 'Recebido de',
+    'sent_to_prefix': 'Enviado para',
+    'stored_locally_not_sent': 'Guardado localmente — ainda não enviado a ninguém',
+    'document_label': 'Documento',
+    'document_stored_encrypted_desc': 'Este documento está guardado encriptado no teu Vault Files ({kb} KB). Usa Exportar para o guardares de novo no telemóvel ou partilhares.',
+    'export_button': 'Exportar',
+    'personal_files_empty': 'Ainda não tens ficheiros pessoais.\nUsa o botão + para tirar uma foto ou importar um documento.',
+    'received_files_empty': 'Ainda não recebeste nada.',
+    'sent_files_empty': 'Ainda não enviaste nada.',
+    'tab_personal': 'Pessoal',
+    'tab_received': 'Recebidos',
+    'tab_sent': 'Enviados',
   },
   'ES': {
     'chats': 'Chats',
@@ -1764,6 +1818,33 @@ Map<String, Map<String, String>> t = {
     'loading_price': 'Cargando cotización...',
     'price_label_prefix': 'Cotización',
     'confirm_send_button': 'CONFIRMAR Y ENVIAR',
+    'vault_files_not_initialized': 'Vault Files no está inicializado en este dispositivo.',
+    'invalid_vault_files_code': 'Código de Vault Files inválido.',
+    'vault_files_corrupted': 'Los datos de Vault Files están dañados (el código era correcto, pero el propio archivo de la caja fuerte está dañado).',
+    'create_vault_files_code_title': 'CREAR CÓDIGO DE VAULT FILES',
+    'enter_vault_files_code_title': 'INTRODUCIR CÓDIGO DE VAULT FILES',
+    'vault_files_code_desc_create': 'Este código es distinto del código de desbloqueo de la app. Quien conozca el código de la app NO podrá abrir tus fotos y documentos sin este también.',
+    'vault_files_code_desc_enter': 'Introduce tu código de Vault Files para ver tus fotos y documentos cifrados.',
+    'set_vault_files_code_label': 'Establecer Código de Vault Files',
+    'vault_files_code_label': 'Código de Vault Files',
+    'create_vault_button': 'CREAR CAJA FUERTE',
+    'imported_skipped_toast': '{imported} importados, {skipped} omitidos (máx. {mb}MB cada uno).',
+    'no_contacts_yet': 'Aún no tienes contactos.',
+    'send_to_title': 'Enviar a...',
+    'sent_toast': 'Enviado.',
+    'failed_to_send_prefix': 'Error al enviar',
+    'received_from_prefix': 'Recibido de',
+    'sent_to_prefix': 'Enviado a',
+    'stored_locally_not_sent': 'Guardado localmente — aún no enviado a nadie',
+    'document_label': 'Documento',
+    'document_stored_encrypted_desc': 'Este documento está guardado cifrado en tu Vault Files ({kb} KB). Usa Exportar para guardarlo de nuevo en tu teléfono o compartirlo.',
+    'export_button': 'Exportar',
+    'personal_files_empty': 'Aún no tienes archivos personales.\nUsa el botón + para tomar una foto o importar un documento.',
+    'received_files_empty': 'Aún no has recibido nada.',
+    'sent_files_empty': 'Aún no has enviado nada.',
+    'tab_personal': 'Personal',
+    'tab_received': 'Recibidos',
+    'tab_sent': 'Enviados',
   },
   'FR': {
     'chats': 'Chats',
@@ -1898,6 +1979,33 @@ Map<String, Map<String, String>> t = {
     'loading_price': 'Chargement du cours...',
     'price_label_prefix': 'Cours',
     'confirm_send_button': 'CONFIRMER ET ENVOYER',
+    'vault_files_not_initialized': 'Vault Files n\'est pas initialisé sur cet appareil.',
+    'invalid_vault_files_code': 'Code Vault Files invalide.',
+    'vault_files_corrupted': 'Les données de Vault Files sont corrompues (le code était correct, mais le fichier du coffre lui-même est endommagé).',
+    'create_vault_files_code_title': 'CRÉER LE CODE VAULT FILES',
+    'enter_vault_files_code_title': 'SAISIR LE CODE VAULT FILES',
+    'vault_files_code_desc_create': 'Ce code est distinct du code de déverrouillage de l\'application. Quiconque connaît le code de l\'application NE pourra PAS ouvrir vos photos et documents sans celui-ci également.',
+    'vault_files_code_desc_enter': 'Saisissez votre code Vault Files pour consulter vos photos et documents chiffrés.',
+    'set_vault_files_code_label': 'Définir le Code Vault Files',
+    'vault_files_code_label': 'Code Vault Files',
+    'create_vault_button': 'CRÉER LE COFFRE',
+    'imported_skipped_toast': '{imported} importé(s), {skipped} ignoré(s) (max {mb}Mo chacun).',
+    'no_contacts_yet': 'Pas encore de contacts.',
+    'send_to_title': 'Envoyer à...',
+    'sent_toast': 'Envoyé.',
+    'failed_to_send_prefix': 'Échec de l\'envoi',
+    'received_from_prefix': 'Reçu de',
+    'sent_to_prefix': 'Envoyé à',
+    'stored_locally_not_sent': 'Stocké localement — pas encore envoyé à qui que ce soit',
+    'document_label': 'Document',
+    'document_stored_encrypted_desc': 'Ce document est stocké chiffré dans votre Vault Files ({kb} Ko). Utilisez Exporter pour le sauvegarder sur votre téléphone ou le partager.',
+    'export_button': 'Exporter',
+    'personal_files_empty': 'Pas encore de fichiers personnels.\nUtilisez le bouton + pour prendre une photo ou importer un document.',
+    'received_files_empty': 'Rien reçu pour l\'instant.',
+    'sent_files_empty': 'Rien envoyé pour l\'instant.',
+    'tab_personal': 'Personnel',
+    'tab_received': 'Reçus',
+    'tab_sent': 'Envoyés',
   },
   'DE': {
     'chats': 'Chats',
@@ -2032,6 +2140,33 @@ Map<String, Map<String, String>> t = {
     'loading_price': 'Kurs wird geladen...',
     'price_label_prefix': 'Kurs',
     'confirm_send_button': 'BESTÄTIGEN & SENDEN',
+    'vault_files_not_initialized': 'Vault Files ist auf diesem Gerät nicht initialisiert.',
+    'invalid_vault_files_code': 'Ungültiger Vault Files-Code.',
+    'vault_files_corrupted': 'Vault Files-Daten sind beschädigt (Code war korrekt, aber die Tresordatei selbst ist beschädigt).',
+    'create_vault_files_code_title': 'VAULT FILES-CODE ERSTELLEN',
+    'enter_vault_files_code_title': 'VAULT FILES-CODE EINGEBEN',
+    'vault_files_code_desc_create': 'Dieser Code ist getrennt von deinem App-Entsperrcode. Wer deinen App-Code kennt, kann deine Fotos und Dokumente OHNE diesen zusätzlichen Code nicht öffnen.',
+    'vault_files_code_desc_enter': 'Gib deinen Vault Files-Code ein, um deine verschlüsselten Fotos und Dokumente anzusehen.',
+    'set_vault_files_code_label': 'Vault Files-Code festlegen',
+    'vault_files_code_label': 'Vault Files-Code',
+    'create_vault_button': 'TRESOR ERSTELLEN',
+    'imported_skipped_toast': '{imported} importiert, {skipped} übersprungen (max. {mb}MB je Datei).',
+    'no_contacts_yet': 'Noch keine Kontakte.',
+    'send_to_title': 'Senden an...',
+    'sent_toast': 'Gesendet.',
+    'failed_to_send_prefix': 'Senden fehlgeschlagen',
+    'received_from_prefix': 'Empfangen von',
+    'sent_to_prefix': 'Gesendet an',
+    'stored_locally_not_sent': 'Lokal gespeichert — noch an niemanden gesendet',
+    'document_label': 'Dokument',
+    'document_stored_encrypted_desc': 'Dieses Dokument ist verschlüsselt in deinem Vault Files gespeichert ({kb} KB). Nutze Exportieren, um es wieder auf dein Telefon zu speichern oder zu teilen.',
+    'export_button': 'Exportieren',
+    'personal_files_empty': 'Noch keine persönlichen Dateien.\nNutze die +-Schaltfläche, um ein Foto aufzunehmen oder ein Dokument zu importieren.',
+    'received_files_empty': 'Noch nichts empfangen.',
+    'sent_files_empty': 'Noch nichts gesendet.',
+    'tab_personal': 'Persönlich',
+    'tab_received': 'Empfangen',
+    'tab_sent': 'Gesendet',
   },
   'RU': {
     'chats': 'Чаты',
@@ -2166,6 +2301,33 @@ Map<String, Map<String, String>> t = {
     'loading_price': 'Загрузка курса...',
     'price_label_prefix': 'Курс',
     'confirm_send_button': 'ПОДТВЕРДИТЬ И ОТПРАВИТЬ',
+    'vault_files_not_initialized': 'Vault Files не инициализирован на этом устройстве.',
+    'invalid_vault_files_code': 'Неверный код Vault Files.',
+    'vault_files_corrupted': 'Данные Vault Files повреждены (код был верным, но сам файл хранилища повреждён).',
+    'create_vault_files_code_title': 'СОЗДАТЬ КОД VAULT FILES',
+    'enter_vault_files_code_title': 'ВВЕДИТЕ КОД VAULT FILES',
+    'vault_files_code_desc_create': 'Этот код отличается от кода разблокировки приложения. Тот, кто знает код приложения, НЕ сможет открыть ваши фото и документы без этого кода.',
+    'vault_files_code_desc_enter': 'Введите код Vault Files, чтобы просмотреть зашифрованные фото и документы.',
+    'set_vault_files_code_label': 'Задать код Vault Files',
+    'vault_files_code_label': 'Код Vault Files',
+    'create_vault_button': 'СОЗДАТЬ ХРАНИЛИЩЕ',
+    'imported_skipped_toast': 'Импортировано: {imported}, пропущено: {skipped} (макс. {mb}МБ каждый).',
+    'no_contacts_yet': 'Пока нет контактов.',
+    'send_to_title': 'Отправить...',
+    'sent_toast': 'Отправлено.',
+    'failed_to_send_prefix': 'Не удалось отправить',
+    'received_from_prefix': 'Получено от',
+    'sent_to_prefix': 'Отправлено',
+    'stored_locally_not_sent': 'Сохранено локально — пока никому не отправлено',
+    'document_label': 'Документ',
+    'document_stored_encrypted_desc': 'Этот документ хранится зашифрованным в Vault Files ({kb} КБ). Используйте «Экспорт», чтобы сохранить его на телефон или поделиться им.',
+    'export_button': 'Экспорт',
+    'personal_files_empty': 'Пока нет личных файлов.\nИспользуйте кнопку +, чтобы сделать фото или импортировать документ.',
+    'received_files_empty': 'Пока ничего не получено.',
+    'sent_files_empty': 'Пока ничего не отправлено.',
+    'tab_personal': 'Личное',
+    'tab_received': 'Полученные',
+    'tab_sent': 'Отправленные',
   },
   'UK': {
     'chats': 'Чати',
@@ -2300,6 +2462,33 @@ Map<String, Map<String, String>> t = {
     'loading_price': 'Завантаження курсу...',
     'price_label_prefix': 'Курс',
     'confirm_send_button': 'ПІДТВЕРДИТИ Й НАДІСЛАТИ',
+    'vault_files_not_initialized': 'Vault Files не ініціалізовано на цьому пристрої.',
+    'invalid_vault_files_code': 'Невірний код Vault Files.',
+    'vault_files_corrupted': 'Дані Vault Files пошкоджені (код був правильним, але сам файл сховища пошкоджено).',
+    'create_vault_files_code_title': 'СТВОРИТИ КОД VAULT FILES',
+    'enter_vault_files_code_title': 'ВВЕДІТЬ КОД VAULT FILES',
+    'vault_files_code_desc_create': 'Цей код відрізняється від коду розблокування застосунку. Той, хто знає код застосунку, НЕ зможе відкрити ваші фото й документи без цього коду.',
+    'vault_files_code_desc_enter': 'Введіть код Vault Files, щоб переглянути зашифровані фото й документи.',
+    'set_vault_files_code_label': 'Встановити код Vault Files',
+    'vault_files_code_label': 'Код Vault Files',
+    'create_vault_button': 'СТВОРИТИ СХОВИЩЕ',
+    'imported_skipped_toast': 'Імпортовано: {imported}, пропущено: {skipped} (макс. {mb}МБ кожен).',
+    'no_contacts_yet': 'Ще немає контактів.',
+    'send_to_title': 'Надіслати...',
+    'sent_toast': 'Надіслано.',
+    'failed_to_send_prefix': 'Не вдалося надіслати',
+    'received_from_prefix': 'Отримано від',
+    'sent_to_prefix': 'Надіслано до',
+    'stored_locally_not_sent': 'Збережено локально — ще нікому не надіслано',
+    'document_label': 'Документ',
+    'document_stored_encrypted_desc': 'Цей документ зберігається зашифрованим у Vault Files ({kb} КБ). Використайте «Експорт», щоб зберегти його на телефон або поділитися ним.',
+    'export_button': 'Експорт',
+    'personal_files_empty': 'Ще немає особистих файлів.\nВикористайте кнопку +, щоб зробити фото або імпортувати документ.',
+    'received_files_empty': 'Поки що нічого не отримано.',
+    'sent_files_empty': 'Поки що нічого не надіслано.',
+    'tab_personal': 'Особисте',
+    'tab_received': 'Отримані',
+    'tab_sent': 'Надіслані',
   },
   'ZH': {
     'chats': '聊天',
@@ -2434,6 +2623,33 @@ Map<String, Map<String, String>> t = {
     'loading_price': '正在加载价格...',
     'price_label_prefix': '价格',
     'confirm_send_button': '确认并发送',
+    'vault_files_not_initialized': '此设备尚未初始化 Vault Files。',
+    'invalid_vault_files_code': 'Vault Files 代码无效。',
+    'vault_files_corrupted': 'Vault Files 数据已损坏(代码正确,但保险库文件本身已损坏)。',
+    'create_vault_files_code_title': '创建 VAULT FILES 代码',
+    'enter_vault_files_code_title': '输入 VAULT FILES 代码',
+    'vault_files_code_desc_create': '此代码与您的应用解锁代码不同。知道应用代码的人如果没有此代码,将无法打开您的照片和文档。',
+    'vault_files_code_desc_enter': '输入您的 Vault Files 代码以查看加密的照片和文档。',
+    'set_vault_files_code_label': '设置 Vault Files 代码',
+    'vault_files_code_label': 'Vault Files 代码',
+    'create_vault_button': '创建保险库',
+    'imported_skipped_toast': '已导入 {imported} 个,跳过 {skipped} 个(每个最大 {mb}MB)。',
+    'no_contacts_yet': '还没有联系人。',
+    'send_to_title': '发送给...',
+    'sent_toast': '已发送。',
+    'failed_to_send_prefix': '发送失败',
+    'received_from_prefix': '收自',
+    'sent_to_prefix': '已发送给',
+    'stored_locally_not_sent': '仅本地保存 — 尚未发送给任何人',
+    'document_label': '文档',
+    'document_stored_encrypted_desc': '此文档以加密方式保存在您的 Vault Files 中({kb} KB)。使用导出可将其保存回手机或分享。',
+    'export_button': '导出',
+    'personal_files_empty': '还没有个人文件。\n使用 + 按钮拍照或导入文档。',
+    'received_files_empty': '还没有收到任何内容。',
+    'sent_files_empty': '还没有发送任何内容。',
+    'tab_personal': '个人',
+    'tab_received': '已接收',
+    'tab_sent': '已发送',
   },
   'KO': {
     'chats': '채팅',
@@ -2568,6 +2784,33 @@ Map<String, Map<String, String>> t = {
     'loading_price': '가격 로딩 중...',
     'price_label_prefix': '가격',
     'confirm_send_button': '확인 및 전송',
+    'vault_files_not_initialized': '이 기기에서 Vault Files가 초기화되지 않았습니다.',
+    'invalid_vault_files_code': 'Vault Files 코드가 올바르지 않습니다.',
+    'vault_files_corrupted': 'Vault Files 데이터가 손상되었습니다(코드는 올바르지만 보관함 파일 자체가 손상됨).',
+    'create_vault_files_code_title': 'VAULT FILES 코드 생성',
+    'enter_vault_files_code_title': 'VAULT FILES 코드 입력',
+    'vault_files_code_desc_create': '이 코드는 앱 잠금 해제 코드와 별개입니다. 앱 코드를 아는 사람도 이 코드 없이는 사진과 문서를 열 수 없습니다.',
+    'vault_files_code_desc_enter': '암호화된 사진과 문서를 보려면 Vault Files 코드를 입력하세요.',
+    'set_vault_files_code_label': 'Vault Files 코드 설정',
+    'vault_files_code_label': 'Vault Files 코드',
+    'create_vault_button': '보관함 생성',
+    'imported_skipped_toast': '{imported}개 가져옴, {skipped}개 건너뜀(각 최대 {mb}MB).',
+    'no_contacts_yet': '아직 연락처가 없습니다.',
+    'send_to_title': '보낼 대상...',
+    'sent_toast': '전송됨.',
+    'failed_to_send_prefix': '전송 실패',
+    'received_from_prefix': '보낸 사람',
+    'sent_to_prefix': '받는 사람',
+    'stored_locally_not_sent': '로컬에 저장됨 — 아직 아무에게도 전송되지 않음',
+    'document_label': '문서',
+    'document_stored_encrypted_desc': '이 문서는 Vault Files에 암호화되어 저장되어 있습니다({kb} KB). 내보내기를 사용해 휴대폰에 다시 저장하거나 공유하세요.',
+    'export_button': '내보내기',
+    'personal_files_empty': '아직 개인 파일이 없습니다.\n+ 버튼을 사용해 사진을 찍거나 문서를 가져오세요.',
+    'received_files_empty': '아직 받은 것이 없습니다.',
+    'sent_files_empty': '아직 보낸 것이 없습니다.',
+    'tab_personal': '개인',
+    'tab_received': '받은 항목',
+    'tab_sent': '보낸 항목',
   },
   'AR': {
     'chats': 'الدردشات',
@@ -2702,6 +2945,33 @@ Map<String, Map<String, String>> t = {
     'loading_price': 'جارٍ تحميل السعر...',
     'price_label_prefix': 'السعر',
     'confirm_send_button': 'تأكيد وإرسال',
+    'vault_files_not_initialized': 'لم يتم تهيئة Vault Files على هذا الجهاز.',
+    'invalid_vault_files_code': 'رمز Vault Files غير صالح.',
+    'vault_files_corrupted': 'بيانات Vault Files تالفة (الرمز كان صحيحًا، لكن ملف الخزنة نفسه تالف).',
+    'create_vault_files_code_title': 'إنشاء رمز VAULT FILES',
+    'enter_vault_files_code_title': 'أدخل رمز VAULT FILES',
+    'vault_files_code_desc_create': 'هذا الرمز منفصل عن رمز فتح التطبيق. لن يتمكن أي شخص يعرف رمز التطبيق من فتح صورك ومستنداتك بدون هذا الرمز أيضًا.',
+    'vault_files_code_desc_enter': 'أدخل رمز Vault Files لعرض صورك ومستنداتك المشفرة.',
+    'set_vault_files_code_label': 'تعيين رمز Vault Files',
+    'vault_files_code_label': 'رمز Vault Files',
+    'create_vault_button': 'إنشاء الخزنة',
+    'imported_skipped_toast': 'تم استيراد {imported}، تم تخطي {skipped} (بحد أقصى {mb} ميغابايت لكل ملف).',
+    'no_contacts_yet': 'لا توجد جهات اتصال بعد.',
+    'send_to_title': 'إرسال إلى...',
+    'sent_toast': 'تم الإرسال.',
+    'failed_to_send_prefix': 'فشل الإرسال',
+    'received_from_prefix': 'مستلم من',
+    'sent_to_prefix': 'مرسل إلى',
+    'stored_locally_not_sent': 'محفوظ محليًا — لم يُرسل لأحد بعد',
+    'document_label': 'مستند',
+    'document_stored_encrypted_desc': 'هذا المستند محفوظ مشفرًا في Vault Files ({kb} كيلوبايت). استخدم تصدير لحفظه مرة أخرى على هاتفك أو مشاركته.',
+    'export_button': 'تصدير',
+    'personal_files_empty': 'لا توجد ملفات شخصية بعد.\nاستخدم زر + لالتقاط صورة أو استيراد مستند.',
+    'received_files_empty': 'لم يتم استلام شيء بعد.',
+    'sent_files_empty': 'لم يتم إرسال شيء بعد.',
+    'tab_personal': 'شخصي',
+    'tab_received': 'المستلمة',
+    'tab_sent': 'المرسلة',
   },
   'TR': {
     'chats': 'Sohbetler',
@@ -2836,6 +3106,33 @@ Map<String, Map<String, String>> t = {
     'loading_price': 'Fiyat yükleniyor...',
     'price_label_prefix': 'Fiyat',
     'confirm_send_button': 'ONAYLA VE GÖNDER',
+    'vault_files_not_initialized': 'Vault Files bu cihazda başlatılmadı.',
+    'invalid_vault_files_code': 'Geçersiz Vault Files kodu.',
+    'vault_files_corrupted': 'Vault Files verileri bozuk (kod doğruydu, ancak kasa dosyasının kendisi hasarlı).',
+    'create_vault_files_code_title': 'VAULT FILES KODU OLUŞTUR',
+    'enter_vault_files_code_title': 'VAULT FILES KODUNU GİRİN',
+    'vault_files_code_desc_create': 'Bu kod, uygulama kilidini açma kodunuzdan ayrıdır. Uygulama kodunu bilen biri bu kod olmadan fotoğraflarınızı ve belgelerinizi açamayacaktır.',
+    'vault_files_code_desc_enter': 'Şifrelenmiş fotoğraflarınızı ve belgelerinizi görüntülemek için Vault Files kodunuzu girin.',
+    'set_vault_files_code_label': 'Vault Files Kodunu Belirle',
+    'vault_files_code_label': 'Vault Files Kodu',
+    'create_vault_button': 'KASA OLUŞTUR',
+    'imported_skipped_toast': '{imported} içe aktarıldı, {skipped} atlandı (her biri en fazla {mb}MB).',
+    'no_contacts_yet': 'Henüz kişi yok.',
+    'send_to_title': 'Şuna gönder...',
+    'sent_toast': 'Gönderildi.',
+    'failed_to_send_prefix': 'Gönderme başarısız oldu',
+    'received_from_prefix': 'Şuradan alındı',
+    'sent_to_prefix': 'Şuna gönderildi',
+    'stored_locally_not_sent': 'Yerel olarak saklandı — henüz kimseye gönderilmedi',
+    'document_label': 'Belge',
+    'document_stored_encrypted_desc': 'Bu belge, Vault Files\'ınızda şifrelenmiş olarak saklanıyor ({kb} KB). Telefonunuza geri kaydetmek veya paylaşmak için Dışa Aktar\'ı kullanın.',
+    'export_button': 'Dışa Aktar',
+    'personal_files_empty': 'Henüz kişisel dosya yok.\nFotoğraf çekmek veya belge içe aktarmak için + düğmesini kullanın.',
+    'received_files_empty': 'Henüz bir şey alınmadı.',
+    'sent_files_empty': 'Henüz bir şey gönderilmedi.',
+    'tab_personal': 'Kişisel',
+    'tab_received': 'Alınanlar',
+    'tab_sent': 'Gönderilenler',
   },
   'IT': {
     'chats': 'Chat',
@@ -2970,6 +3267,33 @@ Map<String, Map<String, String>> t = {
     'loading_price': 'Caricamento quotazione...',
     'price_label_prefix': 'Quotazione',
     'confirm_send_button': 'CONFERMA E INVIA',
+    'vault_files_not_initialized': 'Vault Files non è inizializzato su questo dispositivo.',
+    'invalid_vault_files_code': 'Codice Vault Files non valido.',
+    'vault_files_corrupted': 'I dati di Vault Files sono danneggiati (il codice era corretto, ma il file del caveau stesso è danneggiato).',
+    'create_vault_files_code_title': 'CREA CODICE VAULT FILES',
+    'enter_vault_files_code_title': 'INSERISCI CODICE VAULT FILES',
+    'vault_files_code_desc_create': 'Questo codice è separato dal codice di sblocco dell\'app. Chi conosce il codice dell\'app NON potrà aprire le tue foto e i tuoi documenti senza anche questo codice.',
+    'vault_files_code_desc_enter': 'Inserisci il tuo codice Vault Files per visualizzare le tue foto e i tuoi documenti crittografati.',
+    'set_vault_files_code_label': 'Imposta Codice Vault Files',
+    'vault_files_code_label': 'Codice Vault Files',
+    'create_vault_button': 'CREA CAVEAU',
+    'imported_skipped_toast': '{imported} importati, {skipped} saltati (max {mb}MB ciascuno).',
+    'no_contacts_yet': 'Nessun contatto ancora.',
+    'send_to_title': 'Invia a...',
+    'sent_toast': 'Inviato.',
+    'failed_to_send_prefix': 'Invio non riuscito',
+    'received_from_prefix': 'Ricevuto da',
+    'sent_to_prefix': 'Inviato a',
+    'stored_locally_not_sent': 'Salvato localmente — non ancora inviato a nessuno',
+    'document_label': 'Documento',
+    'document_stored_encrypted_desc': 'Questo documento è salvato crittografato nel tuo Vault Files ({kb} KB). Usa Esporta per salvarlo di nuovo sul telefono o condividerlo.',
+    'export_button': 'Esporta',
+    'personal_files_empty': 'Nessun file personale ancora.\nUsa il pulsante + per scattare una foto o importare un documento.',
+    'received_files_empty': 'Ancora nulla ricevuto.',
+    'sent_files_empty': 'Ancora nulla inviato.',
+    'tab_personal': 'Personale',
+    'tab_received': 'Ricevuti',
+    'tab_sent': 'Inviati',
   },
   'JA': {
     'chats': 'チャット',
@@ -3104,6 +3428,33 @@ Map<String, Map<String, String>> t = {
     'loading_price': '価格を読み込み中...',
     'price_label_prefix': '価格',
     'confirm_send_button': '確認して送信',
+    'vault_files_not_initialized': 'この端末では Vault Files が初期化されていません。',
+    'invalid_vault_files_code': 'Vault Files コードが無効です。',
+    'vault_files_corrupted': 'Vault Files のデータが破損しています(コードは正しいですが、金庫ファイル自体が破損しています)。',
+    'create_vault_files_code_title': 'VAULT FILES コードを作成',
+    'enter_vault_files_code_title': 'VAULT FILES コードを入力',
+    'vault_files_code_desc_create': 'このコードはアプリのロック解除コードとは別のものです。アプリのコードを知っている人でも、このコードなしでは写真や書類を開くことができません。',
+    'vault_files_code_desc_enter': '暗号化された写真や書類を表示するには、Vault Files コードを入力してください。',
+    'set_vault_files_code_label': 'Vault Files コードを設定',
+    'vault_files_code_label': 'Vault Files コード',
+    'create_vault_button': '金庫を作成',
+    'imported_skipped_toast': '{imported} 件をインポート、{skipped} 件をスキップ(それぞれ最大 {mb}MB)。',
+    'no_contacts_yet': 'まだ連絡先がありません。',
+    'send_to_title': '送信先...',
+    'sent_toast': '送信しました。',
+    'failed_to_send_prefix': '送信に失敗しました',
+    'received_from_prefix': '送信元',
+    'sent_to_prefix': '送信先',
+    'stored_locally_not_sent': 'ローカルに保存済み — まだ誰にも送信されていません',
+    'document_label': '書類',
+    'document_stored_encrypted_desc': 'この書類は Vault Files に暗号化されて保存されています({kb} KB)。エクスポートを使って端末に保存し直したり、共有したりできます。',
+    'export_button': 'エクスポート',
+    'personal_files_empty': 'まだ個人ファイルがありません。\n+ ボタンを使って写真を撮るか、書類をインポートしてください。',
+    'received_files_empty': 'まだ何も受信していません。',
+    'sent_files_empty': 'まだ何も送信していません。',
+    'tab_personal': '個人',
+    'tab_received': '受信済み',
+    'tab_sent': '送信済み',
   },
   'HI': {
     'chats': 'चैट',
@@ -3238,6 +3589,33 @@ Map<String, Map<String, String>> t = {
     'loading_price': 'कीमत लोड हो रही है...',
     'price_label_prefix': 'कीमत',
     'confirm_send_button': 'पुष्टि करें और भेजें',
+    'vault_files_not_initialized': 'इस डिवाइस पर Vault Files प्रारंभ नहीं किया गया है।',
+    'invalid_vault_files_code': 'अमान्य Vault Files कोड।',
+    'vault_files_corrupted': 'Vault Files डेटा दूषित है (कोड सही था, लेकिन वॉल्ट फ़ाइल स्वयं क्षतिग्रस्त है)।',
+    'create_vault_files_code_title': 'VAULT FILES कोड बनाएं',
+    'enter_vault_files_code_title': 'VAULT FILES कोड दर्ज करें',
+    'vault_files_code_desc_create': 'यह कोड आपके ऐप अनलॉक कोड से अलग है। आपका ऐप कोड जानने वाला कोई भी व्यक्ति इस कोड के बिना आपकी तस्वीरें और दस्तावेज़ नहीं खोल पाएगा।',
+    'vault_files_code_desc_enter': 'अपनी एन्क्रिप्टेड तस्वीरें और दस्तावेज़ देखने के लिए अपना Vault Files कोड दर्ज करें।',
+    'set_vault_files_code_label': 'Vault Files कोड सेट करें',
+    'vault_files_code_label': 'Vault Files कोड',
+    'create_vault_button': 'वॉल्ट बनाएं',
+    'imported_skipped_toast': '{imported} आयात किए गए, {skipped} छोड़े गए (प्रत्येक अधिकतम {mb}MB)।',
+    'no_contacts_yet': 'अभी तक कोई संपर्क नहीं है।',
+    'send_to_title': 'इसे भेजें...',
+    'sent_toast': 'भेज दिया गया।',
+    'failed_to_send_prefix': 'भेजना विफल',
+    'received_from_prefix': 'से प्राप्त हुआ',
+    'sent_to_prefix': 'को भेजा गया',
+    'stored_locally_not_sent': 'स्थानीय रूप से संग्रहीत — अभी तक किसी को नहीं भेजा गया',
+    'document_label': 'दस्तावेज़',
+    'document_stored_encrypted_desc': 'यह दस्तावेज़ आपके Vault Files में एन्क्रिप्टेड रूप से संग्रहीत है ({kb} KB)। इसे फिर से फ़ोन में सहेजने या साझा करने के लिए एक्सपोर्ट का उपयोग करें।',
+    'export_button': 'एक्सपोर्ट',
+    'personal_files_empty': 'अभी तक कोई व्यक्तिगत फ़ाइल नहीं है।\nफ़ोटो लेने या दस्तावेज़ आयात करने के लिए + बटन का उपयोग करें।',
+    'received_files_empty': 'अभी तक कुछ प्राप्त नहीं हुआ है।',
+    'sent_files_empty': 'अभी तक कुछ भेजा नहीं गया है।',
+    'tab_personal': 'व्यक्तिगत',
+    'tab_received': 'प्राप्त',
+    'tab_sent': 'भेजे गए',
   },
   'NL': {
     'chats': 'Chats',
@@ -3372,6 +3750,33 @@ Map<String, Map<String, String>> t = {
     'loading_price': 'Prijs laden...',
     'price_label_prefix': 'Prijs',
     'confirm_send_button': 'Bevestigen en verzenden',
+    'vault_files_not_initialized': 'Vault Files is niet geïnitialiseerd op dit apparaat.',
+    'invalid_vault_files_code': 'Ongeldige Vault Files-code.',
+    'vault_files_corrupted': 'Vault Files-gegevens zijn beschadigd (code was correct, maar het kluisbestand zelf is beschadigd).',
+    'create_vault_files_code_title': 'MAAK VAULT FILES-CODE',
+    'enter_vault_files_code_title': 'VOER VAULT FILES-CODE IN',
+    'vault_files_code_desc_create': 'Deze code is anders dan je app-ontgrendelingscode. Iemand die je app-code kent, kan je foto\'s en documenten NIET openen zonder deze code.',
+    'vault_files_code_desc_enter': 'Voer je Vault Files-code in om je versleutelde foto\'s en documenten te bekijken.',
+    'set_vault_files_code_label': 'Stel Vault Files-code in',
+    'vault_files_code_label': 'Vault Files-code',
+    'create_vault_button': 'KLUIS AANMAKEN',
+    'imported_skipped_toast': '{imported} geïmporteerd, {skipped} overgeslagen (max {mb}MB per stuk).',
+    'no_contacts_yet': 'Nog geen contacten.',
+    'send_to_title': 'Verzenden naar...',
+    'sent_toast': 'Verzonden.',
+    'failed_to_send_prefix': 'Verzenden mislukt',
+    'received_from_prefix': 'Ontvangen van',
+    'sent_to_prefix': 'Verzonden naar',
+    'stored_locally_not_sent': 'Lokaal opgeslagen — nog naar niemand verzonden',
+    'document_label': 'Document',
+    'document_stored_encrypted_desc': 'Dit document is versleuteld opgeslagen in je Vault Files ({kb} KB). Gebruik Exporteren om het weer op je telefoon op te slaan of te delen.',
+    'export_button': 'Exporteren',
+    'personal_files_empty': 'Nog geen persoonlijke bestanden.\nGebruik de +-knop om een foto te maken of een document te importeren.',
+    'received_files_empty': 'Nog niets ontvangen.',
+    'sent_files_empty': 'Nog niets verzonden.',
+    'tab_personal': 'Persoonlijk',
+    'tab_received': 'Ontvangen',
+    'tab_sent': 'Verzonden',
   },
   'PL': {
     'chats': 'Czaty',
@@ -3506,6 +3911,33 @@ Map<String, Map<String, String>> t = {
     'loading_price': 'Ładowanie ceny...',
     'price_label_prefix': 'Cena',
     'confirm_send_button': 'Potwierdź i wyślij',
+    'vault_files_not_initialized': 'Vault Files nie został zainicjowany na tym urządzeniu.',
+    'invalid_vault_files_code': 'Nieprawidłowy kod Vault Files.',
+    'vault_files_corrupted': 'Dane Vault Files są uszkodzone (kod był poprawny, ale sam plik skarbca jest uszkodzony).',
+    'create_vault_files_code_title': 'UTWÓRZ KOD VAULT FILES',
+    'enter_vault_files_code_title': 'WPROWADŹ KOD VAULT FILES',
+    'vault_files_code_desc_create': 'Ten kod różni się od kodu odblokowania aplikacji. Osoba znająca kod aplikacji NIE będzie mogła otworzyć Twoich zdjęć i dokumentów bez tego kodu.',
+    'vault_files_code_desc_enter': 'Wprowadź kod Vault Files, aby wyświetlić zaszyfrowane zdjęcia i dokumenty.',
+    'set_vault_files_code_label': 'Ustaw kod Vault Files',
+    'vault_files_code_label': 'Kod Vault Files',
+    'create_vault_button': 'UTWÓRZ SKARBIEC',
+    'imported_skipped_toast': 'Zaimportowano {imported}, pominięto {skipped} (maks. {mb}MB każdy).',
+    'no_contacts_yet': 'Brak kontaktów.',
+    'send_to_title': 'Wyślij do...',
+    'sent_toast': 'Wysłano.',
+    'failed_to_send_prefix': 'Wysyłanie nie powiodło się',
+    'received_from_prefix': 'Otrzymano od',
+    'sent_to_prefix': 'Wysłano do',
+    'stored_locally_not_sent': 'Zapisano lokalnie — jeszcze nikomu nie wysłano',
+    'document_label': 'Dokument',
+    'document_stored_encrypted_desc': 'Ten dokument jest przechowywany zaszyfrowany w Vault Files ({kb} KB). Użyj Eksportuj, aby zapisać go z powrotem na telefonie lub udostępnić.',
+    'export_button': 'Eksportuj',
+    'personal_files_empty': 'Brak plików osobistych.\nUżyj przycisku +, aby zrobić zdjęcie lub zaimportować dokument.',
+    'received_files_empty': 'Nic jeszcze nie otrzymano.',
+    'sent_files_empty': 'Nic jeszcze nie wysłano.',
+    'tab_personal': 'Osobiste',
+    'tab_received': 'Otrzymane',
+    'tab_sent': 'Wysłane',
   },
 };
 
@@ -7304,7 +7736,7 @@ Widget build(BuildContext context) {
                 InkWell(
                   onTap: () {
                     Navigator.of(context).push(
-                      MaterialPageRoute(builder: (context) => const VaultFilesGateScreen()),
+                      MaterialPageRoute(builder: (context) => VaultFilesGateScreen(local: local)),
                     );
                   },
                   borderRadius: BorderRadius.circular(12),
@@ -9106,7 +9538,8 @@ class _LoginScreenState extends State<LoginScreen> {
 // SECURE VAULT FILES - ecrã de entrada (código próprio, separado do da app)
 // ----------------------------------------------------
 class VaultFilesGateScreen extends StatefulWidget {
-  const VaultFilesGateScreen({super.key});
+  final Map<String, String> local;
+  const VaultFilesGateScreen({super.key, required this.local});
 
   @override
   State<VaultFilesGateScreen> createState() => _VaultFilesGateScreenState();
@@ -9132,7 +9565,7 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
 
     if (firstTime && _passphraseScore(code) < 1) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Code is too weak: use at least 10 characters and avoid repeated or sequential patterns.')),
+        SnackBar(content: Text(widget.local['crypto_code_too_weak']!)),
       );
       return;
     }
@@ -9141,7 +9574,7 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
     setState(() => _isProcessing = true);
     try {
       final salt = firstTime ? await VaultFilesKey.createSalt() : await VaultFilesKey.getSalt();
-      if (salt == null) throw Exception('Vault Files not initialized on this device.');
+      if (salt == null) throw Exception(widget.local['vault_files_not_initialized']!);
 
       final derivedKey = await PadlockVaultKey.deriveKey(code, salt);
 
@@ -9154,7 +9587,7 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
       } else {
         final validKey = await PadlockVaultKey.verifyKeyHash('padlock_vault_files_keyhash', derivedKey);
         if (!validKey) {
-          throw Exception('Invalid Vault Files code.');
+          throw Exception(widget.local['invalid_vault_files_code']!);
         }
       }
 
@@ -9168,7 +9601,7 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
       if (firstTime) {
         await filesBox.put('_vault_canary', 'padlock_ok');
       } else if (canary != 'padlock_ok') {
-        throw Exception('Vault Files data is corrupted (code was correct, but the vault file itself is damaged).');
+        throw Exception(widget.local['vault_files_corrupted']!);
       }
 
       await VaultFilesStore.migratePending(filesBox);
@@ -9176,7 +9609,7 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const VaultFilesHomeScreen()),
+          MaterialPageRoute(builder: (context) => VaultFilesHomeScreen(local: widget.local)),
         );
       }
     } catch (e) {
@@ -9209,7 +9642,7 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: const Text('Secure Vault Files', style: TextStyle(color: Colors.lightBlueAccent)),
+        title: Text((widget.local['secure_vault_files_short'] ?? 'Secure Vault Files').replaceAll('\n', ' '), style: const TextStyle(color: Colors.lightBlueAccent)),
         iconTheme: const IconThemeData(color: Colors.lightBlueAccent),
         elevation: 8,
         shadowColor: Colors.black,
@@ -9240,15 +9673,15 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
                 const Icon(Icons.folder_copy_rounded, color: Colors.lightBlueAccent, size: 60),
                 const SizedBox(height: 20),
                 Text(
-                  firstTime ? 'CREATE VAULT FILES CODE' : 'ENTER VAULT FILES CODE',
+                  firstTime ? widget.local['create_vault_files_code_title']! : widget.local['enter_vault_files_code_title']!,
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.2),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   firstTime
-                      ? 'This code is separate from your app unlock code. Anyone who knows your app code will NOT be able to open your photos and documents without it too.'
-                      : 'Enter your Vault Files code to view your encrypted photos and documents.',
+                      ? widget.local['vault_files_code_desc_create']!
+                      : widget.local['vault_files_code_desc_enter']!,
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey.shade400, fontSize: 12, height: 1.3),
                 ),
@@ -9259,7 +9692,7 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
                   style: const TextStyle(color: Colors.white),
                   onSubmitted: (_) => _isProcessing ? null : _submit(),
                   decoration: InputDecoration(
-                    labelText: firstTime ? 'Set Vault Files Code' : 'Vault Files Code',
+                    labelText: firstTime ? widget.local['set_vault_files_code_label']! : widget.local['vault_files_code_label']!,
                     labelStyle: const TextStyle(color: Colors.grey),
                     enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
                     focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.lightBlueAccent), borderRadius: BorderRadius.circular(8)),
@@ -9283,7 +9716,7 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
                     onPressed: _isProcessing ? null : _submit,
                     child: _isProcessing
                         ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black))
-                        : Text(firstTime ? 'CREATE VAULT' : 'UNLOCK', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        : Text(firstTime ? widget.local['create_vault_button']! : widget.local['unlock_button']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                   ),
                 ),
               ],
@@ -9299,7 +9732,8 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
 // SECURE VAULT FILES - lista de fotos/documentos
 // ----------------------------------------------------
 class VaultFilesHomeScreen extends StatefulWidget {
-  const VaultFilesHomeScreen({super.key});
+  final Map<String, String> local;
+  const VaultFilesHomeScreen({super.key, required this.local});
 
   @override
   State<VaultFilesHomeScreen> createState() => _VaultFilesHomeScreenState();
@@ -9409,9 +9843,11 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
     }
     _refresh();
     if (mounted && skipped > 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$imported imported, $skipped skipped (max ${kMaxVaultFileBytes ~/ (1024 * 1024)}MB each).')),
-      );
+      final msg = (widget.local['imported_skipped_toast'] ?? '{imported} imported, {skipped} skipped (max {mb}MB each).')
+          .replaceAll('{imported}', '$imported')
+          .replaceAll('{skipped}', '$skipped')
+          .replaceAll('{mb}', '${kMaxVaultFileBytes ~/ (1024 * 1024)}');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
 
@@ -9462,14 +9898,15 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: const Color(0xFF151515),
-          title: Text(entry['fileName'] ?? 'Document', style: const TextStyle(color: Colors.white)),
+          title: Text(entry['fileName'] ?? widget.local['document_label']!, style: const TextStyle(color: Colors.white)),
           content: Text(
-            'This document is stored encrypted in your Vault Files (${(bytes.length / 1024).toStringAsFixed(1)} KB). Use Export to save it back to your phone or share it.',
+            (widget.local['document_stored_encrypted_desc'] ?? 'This document is stored encrypted in your Vault Files ({kb} KB). Use Export to save it back to your phone or share it.')
+                .replaceAll('{kb}', (bytes.length / 1024).toStringAsFixed(1)),
             style: const TextStyle(color: Colors.white70),
           ),
           actions: [
-            TextButton(onPressed: () => _exportEntry(entry, bytes), child: const Text('Export', style: TextStyle(color: Colors.greenAccent))),
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close', style: TextStyle(color: Colors.lightBlueAccent))),
+            TextButton(onPressed: () => _exportEntry(entry, bytes), child: Text(widget.local['export_button']!, style: const TextStyle(color: Colors.greenAccent))),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(widget.local['close_button']!, style: const TextStyle(color: Colors.lightBlueAccent))),
           ],
         ),
       );
@@ -9480,7 +9917,7 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
     final contactsStr = Hive.box('padlock_vault').get('contacts');
     final List contacts = contactsStr != null ? jsonDecode(contactsStr) : [];
     if (contacts.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No contacts yet.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(widget.local['no_contacts_yet']!)));
       return;
     }
     final selected = await showDialog<String>(
@@ -9502,7 +9939,7 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Send to...', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              Text(widget.local['send_to_title']!, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 12),
               SizedBox(
                 width: double.maxFinite,
@@ -9548,9 +9985,9 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
         fileName: entry['fileName'] ?? 'file',
         fileKind: entry['fileKind'] ?? 'document',
       );
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Sent.')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(widget.local['sent_toast']!)));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${widget.local['failed_to_send_prefix']}: $e')));
     } finally {
       if (mounted) setState(() => _sendingIds.remove(entryId));
     }
@@ -9576,10 +10013,10 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
         final direction = entry['direction'];
         final peer = (entry['peerId'] ?? '').toString();
         final subtitle = direction == 'received'
-            ? 'Received from $peer'
+            ? '${widget.local['received_from_prefix']} $peer'
             : direction == 'sent'
-                ? 'Sent to $peer'
-                : 'Stored locally — not sent to anyone yet';
+                ? '${widget.local['sent_to_prefix']} $peer'
+                : widget.local['stored_locally_not_sent']!;
         // Botões redondos com o mesmo verde transacional usado no resto da
         // app (em vez do cinzento quase preto de antes), e texto do
         // subtítulo em branco-pérola em vez de cinzento.
@@ -9633,7 +10070,7 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: const Text('Secure Vault Files', style: TextStyle(color: Colors.lightBlueAccent)),
+        title: Text((widget.local['secure_vault_files_short'] ?? 'Secure Vault Files').replaceAll('\n', ' '), style: const TextStyle(color: Colors.lightBlueAccent)),
         iconTheme: const IconThemeData(color: Colors.lightBlueAccent),
         elevation: 8,
         shadowColor: Colors.black,
@@ -9654,10 +10091,10 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
           indicatorColor: Colors.lightBlueAccent,
           labelColor: Colors.lightBlueAccent,
           unselectedLabelColor: Colors.grey,
-          tabs: const [
-            Tab(text: 'Personal'),
-            Tab(text: 'Received'),
-            Tab(text: 'Sent'),
+          tabs: [
+            Tab(text: widget.local['tab_personal']!),
+            Tab(text: widget.local['tab_received']!),
+            Tab(text: widget.local['tab_sent']!),
           ],
         ),
       ),
@@ -9672,9 +10109,9 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
         child: TabBarView(
           controller: _tabController,
           children: [
-            _buildList(_personalEntries, 'No personal files yet.\nUse the + button to take a photo or import a document.'),
-            _buildList(_receivedEntries, 'Nothing received yet.'),
-            _buildList(_sentEntries, 'Nothing sent yet.'),
+            _buildList(_personalEntries, widget.local['personal_files_empty']!),
+            _buildList(_receivedEntries, widget.local['received_files_empty']!),
+            _buildList(_sentEntries, widget.local['sent_files_empty']!),
           ],
         ),
       ),
@@ -9849,7 +10286,7 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: Text(widget.local['secure_crypto_vault_short'] ?? 'Secure Crypto Vault', style: const TextStyle(color: Colors.greenAccent)),
+        title: Text((widget.local['secure_crypto_vault_short'] ?? 'Secure Crypto Vault').replaceAll('\n', ' '), style: const TextStyle(color: Colors.greenAccent)),
         iconTheme: const IconThemeData(color: Colors.greenAccent),
         elevation: 8,
         shadowColor: Colors.black,
@@ -10218,7 +10655,7 @@ class _CryptoVaultHomeScreenState extends State<CryptoVaultHomeScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: Text(widget.local['secure_crypto_vault_short'] ?? 'Secure Crypto Vault', style: const TextStyle(color: Colors.greenAccent)),
+        title: Text((widget.local['secure_crypto_vault_short'] ?? 'Secure Crypto Vault').replaceAll('\n', ' '), style: const TextStyle(color: Colors.greenAccent)),
         iconTheme: const IconThemeData(color: Colors.greenAccent),
         elevation: 8,
         shadowColor: Colors.black,
