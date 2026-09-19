@@ -14,6 +14,8 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:web_socket_channel/io.dart';
+import 'pinned_roots.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
@@ -148,7 +150,7 @@ static final List<dynamic> earlyCandidates = [];
     if (channel != null) return;
 
     try {
-      final ch = WebSocketChannel.connect(Uri.parse(kServerUrl));
+      final ch = openPinnedChannel();
       channel = ch;
       _nonce = null;
       _nonceWaiter = null;
@@ -203,7 +205,7 @@ static final List<dynamic> earlyCandidates = [];
     WebSocketChannel? ch;
     StreamSubscription? sub;
     try {
-      ch = WebSocketChannel.connect(Uri.parse(kServerUrl));
+      ch = openPinnedChannel();
       final nonceC = Completer<String>();
       final regC = Completer<void>();
       sub = ch.stream.listen((data) {
@@ -230,6 +232,17 @@ static final List<dynamic> earlyCandidates = [];
 }
 
 const String kServerUrl = 'wss://servidor-padlock.onrender.com';
+
+// Abre a ligação ao servidor SÓ se o certificado terminar numa das raízes
+// fixadas (ver pinned_roots.dart) - protege contra CAs falsas/comprometidas.
+WebSocketChannel openPinnedChannel() {
+  final context = SecurityContext(withTrustedRoots: false)
+    ..setTrustedCertificatesBytes(utf8.encode(kPinnedRootsPem));
+  return IOWebSocketChannel.connect(
+    Uri.parse(kServerUrl),
+    customClient: HttpClient(context: context),
+  );
+}
 
 // Registo de depuração: em produção (release) não escreve NADA no log do
 // telemóvel - antes, cada pacote recebido (remetente, destino, tamanhos) ia
@@ -1506,6 +1519,31 @@ Future<void> sendEncryptedVoice({
   }));
 }
 
+// Enchimento (padding) das mensagens de texto: o texto é enchido até a um
+// tamanho "de escalão" (256, 512... bytes) ANTES de cifrar, por isso quem só
+// vê o tráfego (o servidor, a rede) não consegue distinguir "ok" de uma frase
+// de 200 letras - só vê o escalão. Formato: texto || 0x80 || zeros.
+Uint8List padMessage(String text) {
+  final bytes = utf8.encode(text);
+  final n = bytes.length + 1;
+  final target = n <= 256 ? 256 : (n <= 2048 ? ((n + 255) ~/ 256) * 256 : ((n + 1023) ~/ 1024) * 1024);
+  final out = Uint8List(target);
+  out.setAll(0, bytes);
+  out[bytes.length] = 0x80;
+  return out;
+}
+
+String unpadMessage(List<int> padded) {
+  int end = padded.length;
+  while (end > 0 && padded[end - 1] == 0) {
+    end--;
+  }
+  if (end == 0 || padded[end - 1] != 0x80) {
+    throw const FormatException('Enchimento inválido');
+  }
+  return utf8.decode(padded.sublist(0, end - 1));
+}
+
 Future<String> decryptSecureMessage(String peerId, Map<String, dynamic> data) async {
   final payloadParts = data['payload'].toString().split(':');
   final chainIndex = data['chainIndex'] as int? ?? 0;
@@ -1521,7 +1559,7 @@ Future<String> decryptSecureMessage(String peerId, Map<String, dynamic> data) as
     final iv = enc.IV.fromBase64(payloadParts[0]);
     final encryptedData = enc.Encrypted.fromBase64(payloadParts[1]);
     final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
-    return encrypter.decrypt(encryptedData, iv: iv);
+    return unpadMessage(encrypter.decryptBytes(encryptedData, iv: iv));
   } catch (e) {
     dlog('Erro ao decifrar: $e');
     return '[Message not decrypted]';
@@ -6009,7 +6047,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
                   final iv = enc.IV.fromBase64(payloadParts[0]);
                   final encryptedData = enc.Encrypted.fromBase64(payloadParts[1]);
                   final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
-                  decryptedText = encrypter.decrypt(encryptedData, iv: iv);
+                  decryptedText = unpadMessage(encrypter.decryptBytes(encryptedData, iv: iv));
                 }
               }
             } catch (e) {
@@ -8054,7 +8092,7 @@ Future<Map<String, String>> _encryptAES256(String plainText) async {
     final key = enc.Key(Uint8List.fromList(result['key'] as List<int>));
     final iv = enc.IV.fromSecureRandom(16);
     final encrypter = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
-    final encrypted = encrypter.encrypt(plainText, iv: iv);
+    final encrypted = encrypter.encryptBytes(padMessage(plainText), iv: iv);
     return {
       'payload': '${iv.base64}:${encrypted.base64}',
       'chainIndex': (result['index'] as int).toString(),

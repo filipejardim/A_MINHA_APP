@@ -5,11 +5,13 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:cryptography/cryptography.dart' as crypto;
+import 'package:encrypt/encrypt.dart' as enc;
 
 import 'package:a_minha_app/main.dart';
 
 void main() {
   group('controlo e chamadas', controlTests);
+  group('enchimento', paddingTests);
   late Directory dir;
 
   setUp(() async {
@@ -179,5 +181,28 @@ void controlTests() {
     expect(await check(await callSigMessage('offer', idA, idB, 1000, 'v=0 sdp-original', isVideo: true)), isFalse);
     expect(await check(await callSigMessage('offer', idB, idA, 1000, 'v=0 sdp-original', isVideo: false)), isFalse);
     expect(await check(await callSigMessage('answer', idA, idB, 1000, 'v=0 sdp-original', isVideo: false)), isFalse);
+  });
+}
+
+void paddingTests() {
+  test('Enchimento: mensagens curtas ficam todas no mesmo tamanho e recuperam-se iguais', () {
+    for (final t in ['a', 'ok', 'olá! 😀 tudo bem?', 'x' * 200]) {
+      final p = padMessage(t);
+      expect(p.length, 256);
+      expect(unpadMessage(p), t);
+    }
+    expect(padMessage('y' * 300).length, 512);
+    expect(padMessage('y' * 3000).length, 3072);
+    expect(unpadMessage(padMessage('')), '');
+  });
+
+  test('Enchimento: cifra AES-GCM completa (cifrar + decifrar) devolve o texto', () {
+    final key = enc.Key(Uint8List.fromList(List<int>.generate(32, (i) => i)));
+    final iv = enc.IV.fromSecureRandom(16);
+    final e = enc.Encrypter(enc.AES(key, mode: enc.AESMode.gcm));
+    final c1 = e.encryptBytes(padMessage('hi'), iv: iv);
+    final c2 = e.encryptBytes(padMessage('uma frase bem maior que o hi'), iv: iv);
+    expect(c1.bytes.length, c2.bytes.length); // o tamanho já não revela o comprimento
+    expect(unpadMessage(e.decryptBytes(c1, iv: iv)), 'hi');
   });
 }
