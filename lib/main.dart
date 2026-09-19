@@ -494,6 +494,9 @@ class PadlockVaultKey {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(hashPrefsKey);
     await prefs.remove('${hashPrefsKey}_kdfv');
+    try {
+      await _devStorage.delete(key: 'padlock_devsecret_$hashPrefsKey');
+    } catch (_) {}
   }
 
   // Versões do formato do cofre. v1 = o formato antigo (Argon2id 19 MiB +
@@ -502,7 +505,7 @@ class PadlockVaultKey {
   // (cifra AUTENTICADA: qualquer adulteração do ficheiro no disco é
   // detetada). Cofres NOVOS são sempre v2.
   static const int kdfLegacy = 1;
-  static const int kdfCurrent = 2;
+  static const int kdfCurrent = 3;
 
   static Future<int> kdfVersion(String hashPrefsKey) async {
     final prefs = await SharedPreferences.getInstance();
@@ -514,12 +517,36 @@ class PadlockVaultKey {
   static Future<({Uint8List key, int version})> deriveFor(
       String hashPrefsKey, String passphrase, Uint8List salt, {required bool creating}) async {
     final version = creating ? kdfCurrent : await kdfVersion(hashPrefsKey);
-    final key = await deriveKey(passphrase, salt, version: version);
+    var key = await deriveKey(passphrase, salt, version: version);
+    if (version >= 3) {
+      // v3: a chave do cofre depende TAMBÉM de um segredo guardado no Keystore
+      // do Android deste telemóvel (não sai do aparelho). Quem copiar os
+      // ficheiros do cofre para um computador não consegue tentar frases
+      // offline - falta-lhe o segredo do telemóvel.
+      final dev = await _deviceSecret(hashPrefsKey, create: creating);
+      final mac = await crypto.Hmac.sha256().calculateMac(key, secretKey: crypto.SecretKey(dev));
+      key = Uint8List.fromList(mac.bytes);
+    }
     return (key: key, version: version);
   }
 
+  static const FlutterSecureStorage _devStorage = FlutterSecureStorage();
+
+  static Future<Uint8List> _deviceSecret(String hashPrefsKey, {required bool create}) async {
+    final k = 'padlock_devsecret_$hashPrefsKey';
+    final existing = await _devStorage.read(key: k);
+    if (existing != null && existing.isNotEmpty) return base64Decode(existing);
+    if (!create) {
+      throw Exception('A chave deste cofre não está no armazenamento seguro deste telemóvel (foi apagada ou o cofre veio de outro aparelho).');
+    }
+    final r = Random.secure();
+    final secret = Uint8List.fromList(List<int>.generate(32, (_) => r.nextInt(256)));
+    await _devStorage.write(key: k, value: base64Encode(secret));
+    return secret;
+  }
+
   static HiveCipher cipherFor(Uint8List key, int version) =>
-      version >= kdfCurrent ? AesGcmHiveCipher(key) : HiveAesCipher(key);
+      version >= 2 ? AesGcmHiveCipher(key) : HiveAesCipher(key);
 
   static Future<Uint8List> _argon(String passphrase, Uint8List salt, int memory, int iterations) async {
     final algorithm = crypto.Argon2id(
@@ -533,7 +560,7 @@ class PadlockVaultKey {
   }
 
   static Future<Uint8List> deriveKey(String passphrase, Uint8List salt, {int version = 1}) async {
-    final int memory = version >= kdfCurrent ? 65536 : 19456; // KiB: 64 MiB (v2) / ~19 MiB (v1)
+    final int memory = version >= 2 ? 65536 : 19456; // KiB: 64 MiB (v2) / ~19 MiB (v1)
     final int iterations = 3;
     // Corre num isolate à parte: com 64 MiB o cálculo demora alguns segundos
     // e não pode congelar o ecrã.
@@ -545,8 +572,8 @@ class PadlockVaultKey {
   }
 }
 
-// Limite de tentativas: depois de 5 falhas seguidas, espera crescente (30s,
-// 60s, 120s... até 1h). Trava adivinhar o código no próprio telemóvel; o que
+// Limite de tentativas: depois de 5 falhas seguidas, espera crescente (2 min,
+// 4, 8, 16... até 6h). Trava adivinhar o código no próprio telemóvel; o que
 // protege contra um atacante com uma CÓPIA do cofre é o Argon2id + frase forte.
 class PadlockThrottle {
   static Future<int> secondsLeft(String name) async {
@@ -561,7 +588,7 @@ class PadlockThrottle {
     final fails = (prefs.getInt('throttle_${name}_fails') ?? 0) + 1;
     await prefs.setInt('throttle_${name}_fails', fails);
     if (fails >= 5) {
-      final seconds = min(3600, 30 * pow(2, fails - 5).toInt());
+      final seconds = min(21600, 120 * pow(2, fails - 5).toInt());
       await prefs.setInt('throttle_${name}_until', DateTime.now().millisecondsSinceEpoch + seconds * 1000);
     }
   }
@@ -2177,6 +2204,10 @@ Map<String, Map<String, String>> t = {
     'add_button': 'Add',
     'too_many_attempts': 'Too many attempts. Try again in {s} seconds.',
     'invalid_privacy_id': 'Invalid Privacy ID.',
+    'login_attempts_notice': 'You have 5 attempts. After that you must wait 2 minutes, and the wait doubles with every extra wrong attempt.',
+    'no_recovery_warning': '⚠ There is NO password recovery. Write your key on paper and keep it somewhere safe, and double-check what you type. If you forget it, ALL data is lost forever.',
+    'confirm_key_label': 'Confirm Decryption Key',
+    'keys_do_not_match': 'The two keys do not match.',
   },
   'PT': {
     'chats': 'Conversas',
@@ -2414,6 +2445,10 @@ Map<String, Map<String, String>> t = {
     'add_button': 'Adicionar',
     'too_many_attempts': 'Demasiadas tentativas. Tenta novamente daqui a {s} segundos.',
     'invalid_privacy_id': 'ID de Privacidade inválido.',
+    'login_attempts_notice': 'Tens 5 tentativas. Depois tens de esperar 2 minutos, e a espera duplica a cada tentativa errada seguinte.',
+    'no_recovery_warning': '⚠ NÃO existe recuperação da palavra-passe. Escreve a tua chave num papel e guarda-a num sítio seguro, e confirma o que escreves. Se a esqueceres, TODOS os dados perdem-se para sempre.',
+    'confirm_key_label': 'Confirmar Chave de Encriptação',
+    'keys_do_not_match': 'As duas chaves não coincidem.',
   },
   'ES': {
     'chats': 'Chats',
@@ -2651,6 +2686,10 @@ Map<String, Map<String, String>> t = {
     'add_button': 'Añadir',
     'too_many_attempts': 'Demasiados intentos. Inténtalo de nuevo en {s} segundos.',
     'invalid_privacy_id': 'ID de Privacidad no válido.',
+    'login_attempts_notice': 'Tienes 5 intentos. Después debes esperar 2 minutos, y la espera se duplica con cada intento fallido adicional.',
+    'no_recovery_warning': '⚠ NO existe recuperación de la contraseña. Escribe tu clave en papel y guárdala en un lugar seguro, y comprueba lo que escribes. Si la olvidas, TODOS los datos se pierden para siempre.',
+    'confirm_key_label': 'Confirmar Clave de Descifrado',
+    'keys_do_not_match': 'Las dos claves no coinciden.',
   },
   'FR': {
     'chats': 'Chats',
@@ -2888,6 +2927,10 @@ Map<String, Map<String, String>> t = {
     'add_button': 'Ajouter',
     'too_many_attempts': 'Trop de tentatives. Réessayez dans {s} secondes.',
     'invalid_privacy_id': 'ID de Confidentialité invalide.',
+    'login_attempts_notice': 'Vous avez 5 essais. Ensuite, vous devez attendre 2 minutes, et l\'attente double à chaque nouvel échec.',
+    'no_recovery_warning': '⚠ Il n\'existe AUCUNE récupération du mot de passe. Notez votre clé sur papier, gardez-la en lieu sûr et vérifiez ce que vous saisissez. Si vous l\'oubliez, TOUTES les données sont perdues pour toujours.',
+    'confirm_key_label': 'Confirmer la Clé de Déchiffrement',
+    'keys_do_not_match': 'Les deux clés ne correspondent pas.',
   },
   'DE': {
     'chats': 'Chats',
@@ -3125,6 +3168,10 @@ Map<String, Map<String, String>> t = {
     'add_button': 'Hinzufügen',
     'too_many_attempts': 'Zu viele Versuche. Versuche es in {s} Sekunden erneut.',
     'invalid_privacy_id': 'Ungültige Datenschutz-ID.',
+    'login_attempts_notice': 'Du hast 5 Versuche. Danach musst du 2 Minuten warten, und die Wartezeit verdoppelt sich bei jedem weiteren Fehlversuch.',
+    'no_recovery_warning': '⚠ Es gibt KEINE Passwort-Wiederherstellung. Schreibe deinen Schlüssel auf Papier, bewahre ihn sicher auf und prüfe deine Eingabe. Wenn du ihn vergisst, sind ALLE Daten für immer verloren.',
+    'confirm_key_label': 'Entschlüsselungsschlüssel bestätigen',
+    'keys_do_not_match': 'Die beiden Schlüssel stimmen nicht überein.',
   },
   'RU': {
     'chats': 'Чаты',
@@ -3362,6 +3409,10 @@ Map<String, Map<String, String>> t = {
     'add_button': 'Добавить',
     'too_many_attempts': 'Слишком много попыток. Повторите через {s} с.',
     'invalid_privacy_id': 'Неверный ID конфиденциальности.',
+    'login_attempts_notice': 'У вас 5 попыток. Затем нужно подождать 2 минуты, а время ожидания удваивается после каждой следующей неверной попытки.',
+    'no_recovery_warning': '⚠ Восстановления пароля НЕТ. Запишите ключ на бумаге, храните в надёжном месте и проверьте введённое. Если вы его забудете, ВСЕ данные будут потеряны навсегда.',
+    'confirm_key_label': 'Подтвердите ключ расшифровки',
+    'keys_do_not_match': 'Ключи не совпадают.',
   },
   'UK': {
     'chats': 'Чати',
@@ -3599,6 +3650,10 @@ Map<String, Map<String, String>> t = {
     'add_button': 'Додати',
     'too_many_attempts': 'Забагато спроб. Спробуйте ще раз за {s} с.',
     'invalid_privacy_id': 'Невірний ID конфіденційності.',
+    'login_attempts_notice': 'У вас 5 спроб. Потім потрібно зачекати 2 хвилини, а час очікування подвоюється після кожної наступної невдалої спроби.',
+    'no_recovery_warning': '⚠ Відновлення пароля НЕМАЄ. Запишіть ключ на папері, зберігайте в надійному місці та перевірте введене. Якщо ви його забудете, ВСІ дані буде втрачено назавжди.',
+    'confirm_key_label': 'Підтвердьте ключ розшифрування',
+    'keys_do_not_match': 'Ключі не збігаються.',
   },
   'ZH': {
     'chats': '聊天',
@@ -3836,6 +3891,10 @@ Map<String, Map<String, String>> t = {
     'add_button': '添加',
     'too_many_attempts': '尝试次数过多,请在 {s} 秒后重试。',
     'invalid_privacy_id': '隐私 ID 无效。',
+    'login_attempts_notice': '您有 5 次尝试机会。之后必须等待 2 分钟,每多错误一次,等待时间就翻倍。',
+    'no_recovery_warning': '⚠ 没有密码找回功能。请把密钥写在纸上并妥善保管,同时仔细核对您输入的内容。一旦忘记,所有数据将永远丢失。',
+    'confirm_key_label': '确认解密密钥',
+    'keys_do_not_match': '两次输入的密钥不一致。',
   },
   'KO': {
     'chats': '채팅',
@@ -4073,6 +4132,10 @@ Map<String, Map<String, String>> t = {
     'add_button': '추가',
     'too_many_attempts': '시도 횟수가 너무 많습니다. {s}초 후에 다시 시도하세요.',
     'invalid_privacy_id': '잘못된 개인정보 ID입니다.',
+    'login_attempts_notice': '5번의 시도가 가능합니다. 그 이후에는 2분을 기다려야 하며, 틀릴 때마다 대기 시간이 두 배로 늘어납니다.',
+    'no_recovery_warning': '⚠ 비밀번호 복구 기능은 없습니다. 키를 종이에 적어 안전한 곳에 보관하고, 입력한 내용을 다시 확인하세요. 잊어버리면 모든 데이터가 영구히 사라집니다.',
+    'confirm_key_label': '암호 해독 키 확인',
+    'keys_do_not_match': '두 키가 일치하지 않습니다.',
   },
   'AR': {
     'chats': 'الدردشات',
@@ -4310,6 +4373,10 @@ Map<String, Map<String, String>> t = {
     'add_button': 'إضافة',
     'too_many_attempts': 'محاولات كثيرة جدًا. حاول مرة أخرى بعد {s} ثانية.',
     'invalid_privacy_id': 'معرّف الخصوصية غير صالح.',
+    'login_attempts_notice': 'لديك 5 محاولات. بعدها عليك الانتظار دقيقتين، ويتضاعف الانتظار مع كل محاولة خاطئة إضافية.',
+    'no_recovery_warning': '⚠ لا توجد استعادة لكلمة المرور. اكتب مفتاحك على ورقة واحتفظ به في مكان آمن وتحقق مما تكتبه. إذا نسيته فستُفقد جميع البيانات إلى الأبد.',
+    'confirm_key_label': 'تأكيد مفتاح فك التشفير',
+    'keys_do_not_match': 'المفتاحان غير متطابقين.',
   },
   'TR': {
     'chats': 'Sohbetler',
@@ -4547,6 +4614,10 @@ Map<String, Map<String, String>> t = {
     'add_button': 'Ekle',
     'too_many_attempts': 'Çok fazla deneme. {s} saniye sonra tekrar deneyin.',
     'invalid_privacy_id': 'Geçersiz Gizlilik Kimliği.',
+    'login_attempts_notice': '5 deneme hakkınız var. Sonrasında 2 dakika beklemeniz gerekir ve her yanlış denemede bekleme süresi iki katına çıkar.',
+    'no_recovery_warning': '⚠ Parola kurtarma YOKTUR. Anahtarınızı bir kağıda yazıp güvenli bir yerde saklayın ve yazdığınızı kontrol edin. Unutursanız TÜM veriler sonsuza dek kaybolur.',
+    'confirm_key_label': 'Şifre Çözme Anahtarını Onayla',
+    'keys_do_not_match': 'İki anahtar eşleşmiyor.',
   },
   'IT': {
     'chats': 'Chat',
@@ -4784,6 +4855,10 @@ Map<String, Map<String, String>> t = {
     'add_button': 'Aggiungi',
     'too_many_attempts': 'Troppi tentativi. Riprova tra {s} secondi.',
     'invalid_privacy_id': 'ID Privacy non valido.',
+    'login_attempts_notice': 'Hai 5 tentativi. Poi devi attendere 2 minuti, e l\'attesa raddoppia a ogni ulteriore tentativo errato.',
+    'no_recovery_warning': '⚠ NON esiste alcun recupero della password. Scrivi la chiave su carta, conservala in un posto sicuro e ricontrolla ciò che digiti. Se la dimentichi, TUTTI i dati andranno persi per sempre.',
+    'confirm_key_label': 'Conferma Chiave di Decrittazione',
+    'keys_do_not_match': 'Le due chiavi non coincidono.',
   },
   'JA': {
     'chats': 'チャット',
@@ -5021,6 +5096,10 @@ Map<String, Map<String, String>> t = {
     'add_button': '追加',
     'too_many_attempts': '試行回数が多すぎます。{s}秒後にもう一度お試しください。',
     'invalid_privacy_id': 'プライバシーIDが無効です。',
+    'login_attempts_notice': '試行は5回までです。その後は2分待つ必要があり、失敗するたびに待ち時間が2倍になります。',
+    'no_recovery_warning': '⚠ パスワードの復元機能はありません。キーを紙に書いて安全な場所に保管し、入力内容をよく確認してください。忘れるとすべてのデータが永久に失われます。',
+    'confirm_key_label': '復号鍵を確認',
+    'keys_do_not_match': '2つのキーが一致しません。',
   },
   'HI': {
     'chats': 'चैट',
@@ -5258,6 +5337,10 @@ Map<String, Map<String, String>> t = {
     'add_button': 'जोड़ें',
     'too_many_attempts': 'बहुत अधिक प्रयास। {s} सेकंड बाद पुनः प्रयास करें।',
     'invalid_privacy_id': 'अमान्य गोपनीयता ID।',
+    'login_attempts_notice': 'आपके पास 5 प्रयास हैं। उसके बाद आपको 2 मिनट प्रतीक्षा करनी होगी, और हर अतिरिक्त गलत प्रयास पर प्रतीक्षा दोगुनी हो जाएगी।',
+    'no_recovery_warning': '⚠ पासवर्ड रिकवरी की कोई सुविधा नहीं है। अपनी कुंजी कागज़ पर लिखकर सुरक्षित जगह रखें और जो टाइप कर रहे हैं उसे दोबारा जाँचें। यदि आप इसे भूल गए, तो सारा डेटा हमेशा के लिए खो जाएगा।',
+    'confirm_key_label': 'डिक्रिप्शन कुंजी की पुष्टि करें',
+    'keys_do_not_match': 'दोनों कुंजियाँ मेल नहीं खातीं।',
   },
   'NL': {
     'chats': 'Chats',
@@ -5495,6 +5578,10 @@ Map<String, Map<String, String>> t = {
     'add_button': 'Toevoegen',
     'too_many_attempts': 'Te veel pogingen. Probeer het over {s} seconden opnieuw.',
     'invalid_privacy_id': 'Ongeldige privacy-ID.',
+    'login_attempts_notice': 'Je hebt 5 pogingen. Daarna moet je 2 minuten wachten, en de wachttijd verdubbelt bij elke extra foute poging.',
+    'no_recovery_warning': '⚠ Er is GEEN wachtwoordherstel. Schrijf je sleutel op papier, bewaar hem veilig en controleer wat je typt. Vergeet je hem, dan is ALLE data voorgoed verloren.',
+    'confirm_key_label': 'Decoderingssleutel bevestigen',
+    'keys_do_not_match': 'De twee sleutels komen niet overeen.',
   },
   'PL': {
     'chats': 'Czaty',
@@ -5732,6 +5819,10 @@ Map<String, Map<String, String>> t = {
     'add_button': 'Dodaj',
     'too_many_attempts': 'Zbyt wiele prób. Spróbuj ponownie za {s} s.',
     'invalid_privacy_id': 'Nieprawidłowe ID prywatności.',
+    'login_attempts_notice': 'Masz 5 prób. Potem musisz odczekać 2 minuty, a czas oczekiwania podwaja się przy każdej kolejnej błędnej próbie.',
+    'no_recovery_warning': '⚠ NIE MA odzyskiwania hasła. Zapisz klucz na papierze, przechowuj go w bezpiecznym miejscu i sprawdź, co wpisujesz. Jeśli go zapomnisz, WSZYSTKIE dane przepadną na zawsze.',
+    'confirm_key_label': 'Potwierdź Klucz Deszyfrowania',
+    'keys_do_not_match': 'Oba klucze nie są zgodne.',
   },
 };
 
@@ -6234,7 +6325,11 @@ final int msgTimestamp = data['timestamp'] ?? 0;
         
         // Salva a base de dados limpa no cofre Hive
         try {
-          Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
+          Hive.box('padlock_vault').put('chats', jsonEncode(_chats)).then((_) {
+            try {
+              Hive.box('padlock_vault').compact();
+            } catch (_) {}
+          });
         } catch (e) {
           dlog('Erro ao atualizar cofre após delete: $e');
         }
@@ -6392,7 +6487,14 @@ final int msgTimestamp = data['timestamp'] ?? 0;
     }
     if (changedAny) {
       if (mounted) setState(() {});
-      Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
+      // Depois de apagar, compacta o ficheiro para a versão antiga (com as
+      // mensagens já expiradas) deixar de existir no disco - o que sobra lá
+      // é só texto cifrado, sem a chave não diz nada.
+      Hive.box('padlock_vault').put('chats', jsonEncode(_chats)).then((_) {
+        try {
+          Hive.box('padlock_vault').compact();
+        } catch (_) {}
+      });
     }
   }
 
@@ -7971,6 +8073,11 @@ void _checkExpiredMessages() {
     // Só atualiza o ecrã e a base de dados se tiver efetivamente destruído alguma coisa
     if (apagouAlgumaCoisa) {
       widget.onUpdate();
+      Future.delayed(const Duration(seconds: 1), () {
+        try {
+          Hive.box('padlock_vault').compact();
+        } catch (_) {}
+      });
    final vault = Hive.box('padlock_vault');
       final String? chatsJson = vault.get('chats');
       if (chatsJson != null) {
@@ -11038,6 +11145,7 @@ int _passphraseScore(String s) {
 
 class _SetupScreenState extends State<SetupScreen> {
   final TextEditingController _keyController = TextEditingController();
+  final TextEditingController _confirmController = TextEditingController();
   bool _obscureText = true;
   bool _isProcessing = false;
   int _strengthScore = 0;
@@ -11056,6 +11164,12 @@ class _SetupScreenState extends State<SetupScreen> {
     if (_passphraseScore(key) < 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_local['setup_code_too_weak']!)),
+      );
+      return;
+    }
+    if (_confirmController.text.trim() != key) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_local['keys_do_not_match']!)),
       );
       return;
     }
@@ -11171,7 +11285,17 @@ body: Container(
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: Colors.grey, fontSize: 11, height: 1.3),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
+                ),
+                child: Text(_local['no_recovery_warning']!, style: const TextStyle(color: Colors.amber, fontSize: 11, height: 1.35)),
+              ),
+              const SizedBox(height: 22),
               TextField(
                 controller: _keyController,
                 obscureText: _obscureText,
@@ -11199,6 +11323,19 @@ body: Container(
     });
   },
 ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _confirmController,
+                obscureText: _obscureText,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: _local['confirm_key_label'],
+                  labelStyle: const TextStyle(color: Colors.grey),
+                  enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.grey), borderRadius: BorderRadius.circular(8)),
+                  focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.greenAccent), borderRadius: BorderRadius.circular(8)),
+                  prefixIcon: const Icon(Icons.key, color: Colors.greenAccent),
                 ),
               ),
               if (_keyController.text.isNotEmpty) ...[
@@ -11529,7 +11666,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                 ),
               ),
-              const SizedBox(height: 36),
+              const SizedBox(height: 14),
+              Text(
+                _local['login_attempts_notice']!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.amber, fontSize: 10.5, height: 1.35),
+              ),
+              const SizedBox(height: 30),
 
               // Texto Informativo do Rodapé (Formatado para telemóvel)
               Padding(
@@ -11713,7 +11856,13 @@ class _VaultFilesGateScreenState extends State<VaultFilesGateScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey.shade400, fontSize: 12, height: 1.3),
                 ),
-                const SizedBox(height: 28),
+                const SizedBox(height: 12),
+                Text(
+                  firstTime ? widget.local['no_recovery_warning']! : widget.local['login_attempts_notice']!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.amber, fontSize: 10.5, height: 1.35),
+                ),
+                const SizedBox(height: 18),
                 TextField(
                   controller: _codeController,
                   obscureText: _obscureText,
@@ -12415,7 +12564,13 @@ class _CryptoVaultGateScreenState extends State<CryptoVaultGateScreen> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
+                Text(
+                  firstTime ? widget.local['no_recovery_warning']! : widget.local['login_attempts_notice']!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.amber, fontSize: 10.5, height: 1.35),
+                ),
+                const SizedBox(height: 16),
                 TextField(
                   controller: _codeController,
                   obscureText: _obscureText,
