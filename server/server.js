@@ -24,12 +24,14 @@ const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
 
 // ---------------------------------------------------------------- Firebase
-let admin = null;
+// API modular (funciona em todas as versões recentes do firebase-admin; a forma
+// antiga "admin.credential" foi removida nas versões novas).
+let admin = null; // "admin" passa a ser só o mensageiro FCM (ou null)
 if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-    admin = require('firebase-admin');
-    admin.initializeApp({
-        credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)),
-    });
+    const { initializeApp, cert } = require('firebase-admin/app');
+    const { getMessaging } = require('firebase-admin/messaging');
+    initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) });
+    admin = { messaging: () => getMessaging() };
 }
 
 // ------------------------------------------------------------- Configuração
