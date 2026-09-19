@@ -233,6 +233,29 @@ static final List<dynamic> earlyCandidates = [];
 
 const String kServerUrl = 'wss://servidor-padlock.onrender.com';
 
+// Apaga as cópias temporárias que o seletor de fotos/ficheiros deixa na cache
+// da app (a foto tirada, a versão reduzida, o ficheiro importado). Sem isto,
+// alguém a analisar o telemóvel podia encontrar fotos/documentos EM CLARO
+// fora do cofre, mesmo depois de os enviares/guardares.
+Future<void> wipePickerCache() async {
+  try {
+    final tmp = await getTemporaryDirectory();
+    if (await tmp.exists()) {
+      await for (final e in tmp.list()) {
+        final name = e.path.split(RegExp(r'[\\/]')).last.toLowerCase();
+        if (name.startsWith('image_picker') || name.startsWith('scaled_') || name == 'file_picker' || name.startsWith('padlock_voice_')) {
+          try {
+            await e.delete(recursive: true);
+          } catch (_) {}
+        }
+      }
+    }
+    try {
+      await FilePicker.platform.clearTemporaryFiles();
+    } catch (_) {}
+  } catch (_) {}
+}
+
 // Abre a ligação ao servidor SÓ se o certificado terminar numa das raízes
 // fixadas (ver pinned_roots.dart) - protege contra CAs falsas/comprometidas.
 WebSocketChannel openPinnedChannel() {
@@ -5785,7 +5808,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
     // aberta, ficava visível para sempre depois do temporizador chegar a "0s".
     _destructTimer = Timer.periodic(const Duration(seconds: 15), (_) => _purgeExpiredMessages());
 // Gatilho Inteligente de Arranque: Espera o canal abrir e só depois pede as mensagens pendentes
-    Timer.periodic(const Duration(milliseconds: 300), (timer) {
+    _regTimer?.cancel();
+    _regTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
       if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
        PadlockNetwork.registerMain(fcmToken: Hive.box('padlock_vault').get('my_fcm_token'));
         timer.cancel(); // Mensagens pedidas com sucesso, desliga o motor de busca
@@ -6328,6 +6352,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
     // decifrava -> "Message not decrypted") e o fantasma ainda gravava
     // listas antigas por cima do cofre.
     _hubSubscription?.cancel();
+    _regTimer?.cancel();
     _statusTimer?.cancel();
     _destructTimer?.cancel();
     _inactivityTimer?.cancel();
@@ -6335,6 +6360,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
   }
 
   StreamSubscription? _hubSubscription;
+  Timer? _regTimer;
   DateTime? _pausedAt;
   Timer? _statusTimer; // O nosso Radar de Estado Online
   Timer? _inactivityTimer;
@@ -6409,7 +6435,8 @@ final int msgTimestamp = data['timestamp'] ?? 0;
       PadlockNetwork.connect();
 
       // 3. Registo Inteligente: Tenta registar mal deteta que o canal está vivo
-    Timer.periodic(const Duration(milliseconds: 300), (timer) {
+    _regTimer?.cancel();
+    _regTimer = Timer.periodic(const Duration(milliseconds: 300), (timer) {
       if (_myPrivacyId.isNotEmpty && PadlockNetwork.channel != null) {
         PadlockNetwork.registerMain(fcmToken: Hive.box('padlock_vault').get('my_fcm_token'));
         timer.cancel(); // Registo feito, mata o temporizador para não gastar bateria
@@ -6500,39 +6527,60 @@ Future<void> _logout() async {
     if (PadlockNetwork.isPerformingAutoLock) return;
     PadlockNetwork.isPerformingAutoLock = true;
     // Se ainda houver uma chamada ligada (ou minimizada em bolha), fecha-a
-    // primeiro - sem isto, a chamada continuava ativa em segundo plano
-    // mesmo depois de "sair" do cofre, o que não faz sentido nenhum de
-    // segurança (o cofre está trancado, mas a chamada encriptada continua).
+    // primeiro - a chamada não pode continuar depois de trancares o cofre.
     PadlockCallOverlay.hide();
-    final vault = Hive.box('padlock_vault');
-    vault.put('chats', jsonEncode(_chats));
+
+    final Box? vault = Hive.isBoxOpen('padlock_vault') ? Hive.box('padlock_vault') : null;
+    // Grava o estado ANTES de sair (o disco é fechado mais abaixo).
     try {
-      // Nunca deve travar a app à espera do disco - nalguns telemóveis
-      // (relatado num Xiaomi) o botão parecia "não fazer nada", obrigando a
-      // forçar o fecho da app. Com um limite de tempo, o pior caso passa a
-      // ser "sair sem gravar os últimos segundos", nunca "ficar preso".
-      await vault.flush().timeout(const Duration(seconds: 5));
-      // Fecha mesmo o cofre - sem isto, Hive.openBox no LoginScreen devolveria
-      // a mesma instância já aberta em memória e aceitaria QUALQUER frase,
-      // sem voltar a validar a chave derivada de Argon2id.
-      await vault.close().timeout(const Duration(seconds: 5));
+      vault?.put('chats', jsonEncode(_chats));
     } catch (e) {
-      dlog('Aviso: logout não conseguiu fechar o cofre a tempo: $e');
+      dlog('Aviso: não gravou os chats ao sair: $e');
     }
 
     PadlockNetwork.disconnect();
     PadlockNetwork.isUnlocked = false;
+    // Os outros dois cofres (ficheiros e carteira) trancam-se também: ficavam
+    // destrancados até 5 min depois de sair.
+    VaultFilesKey.lock();
+    CryptoWalletKey.lock();
+
     if (!mounted) {
       PadlockNetwork.isPerformingAutoLock = false;
       return;
     }
-    Navigator.of(context).pushReplacement(
+    // Vai PRIMEIRO para o login (o ecrã responde logo) e remove TODAS as rotas
+    // por baixo. Antes usava pushReplacement: se estivesses dentro de uma
+    // conversa (ou de outro ecrã), só essa rota era substituída e o ecrã
+    // principal ficava vivo por baixo - com os seus temporizadores e escutas -
+    // e ao entrar de novo ficavam DOIS ecrãs principais (mensagens
+    // duplicadas, "not decrypted", logout que já não respondia).
+    Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (context) => const LoginScreen()),
+      (route) => false,
     );
-    // A flag é estática (sobrevive ao ecrã): se ficasse a true, o PRÓXIMO
-    // logout na mesma sessão da app voltava logo a cima ("já estou a
-    // bloquear") e não fazia nada - o botão ficava a carregar para sempre.
-    Future.delayed(const Duration(seconds: 2), () => PadlockNetwork.isPerformingAutoLock = false);
+
+    // Só depois de os ecrãs antigos terem sido destruídos é que se fecham os
+    // ficheiros do cofre (com limite de tempo: nunca pode ficar preso).
+    try {
+      await Future.delayed(const Duration(milliseconds: 700));
+      if (vault != null && vault.isOpen) {
+        await vault.flush().timeout(const Duration(seconds: 5));
+        // Fecha mesmo o cofre - sem isto, Hive.openBox no LoginScreen devolveria
+        // a mesma instância já aberta em memória e aceitaria QUALQUER frase.
+        await vault.close().timeout(const Duration(seconds: 5));
+      }
+      for (final name in const ['padlock_vault_files', 'padlock_crypto_vault']) {
+        if (Hive.isBoxOpen(name)) {
+          await Hive.box(name).close().timeout(const Duration(seconds: 5));
+        }
+      }
+    } catch (e) {
+      dlog('Aviso: logout não conseguiu fechar o cofre a tempo: $e');
+    }
+    // A flag é estática (sobrevive ao ecrã): tem de voltar a false, senão o
+    // PRÓXIMO logout não fazia nada.
+    PadlockNetwork.isPerformingAutoLock = false;
   }
  // Função acionada pela rede P2P quando chega um pedido de nova conexão
   void mostrarPedidoDeConexao(String incomingId, String? senderPubKey, String authPubB64) {
@@ -8111,6 +8159,7 @@ Future<void> _sendPhotoFromChat() async {
     // Apaga o ficheiro temporário assim que os bytes estão em memória - a
     // foto nunca fica guardada em claro no telemóvel, nem toca a galeria.
     try { await File(photo.path).delete(); } catch (_) {}
+    await wipePickerCache();
 
     try {
       await sendEncryptedFile(targetId: targetId, fileBytes: bytes, fileName: 'photo.jpg', fileKind: 'photo');
@@ -8743,6 +8792,8 @@ flexibleSpace: Container(
                       // fica como estava.
                       enableSuggestions: false,
                       autocorrect: false,
+                      // Teclado "incógnito": não aprende nem guarda o que escreves.
+                      enableIMEPersonalizedLearning: false,
                       minLines: 1, // Começa com 1 linha
                       maxLines: 5, // Cresce até 5 linhas para baixo
                       keyboardType: TextInputType.multiline, // Permite quebras de linha
@@ -11781,6 +11832,7 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
     if (photo == null) return;
     final bytes = await photo.readAsBytes();
     try { await File(photo.path).delete(); } catch (_) {}
+    await wipePickerCache();
     await VaultFilesStore.storeSent(peerId: '', fileName: 'photo.jpg', fileKind: 'photo', fileBytes: bytes, direction: 'local');
     _refresh();
   }
@@ -11818,6 +11870,7 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
       await VaultFilesStore.storeSent(peerId: '', fileName: file.name, fileKind: fileKind, fileBytes: bytes, direction: 'local');
       imported++;
     }
+    await wipePickerCache();
     _refresh();
     if (mounted && skipped > 0) {
       final msg = (widget.local['imported_skipped_toast'] ?? '{imported} imported, {skipped} skipped (max {mb}MB each).')
