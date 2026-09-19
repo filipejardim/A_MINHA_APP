@@ -77,8 +77,11 @@ void main() {
         'dh': '',
         'timestamp': 1,
       });
-      a.ws.add(jsonEncode({'type': 'sealed', 'targetId': idB, 'ak': base64Encode(akB), 'blob': blob}));
-      await Future.delayed(const Duration(milliseconds: 400));
+      a.ws.add(jsonEncode({'type': 'sealed', 'targetId': idB, 'ak': base64Encode(akB), 'blob': blob, 'mid': 'm1'}));
+      a.ws.add(jsonEncode({'type': 'sealed', 'targetId': idB, 'ak': base64Encode(List<int>.filled(32, 1)), 'blob': blob, 'mid': 'm2'}));
+      await Future.delayed(const Duration(milliseconds: 500));
+      expect(a.msgs.any((m) => m['type'] == 'sealed_ack' && m['mid'] == 'm1' && m['ok'] == true), isTrue); // entregue -> confirmado
+      expect(a.msgs.any((m) => m['type'] == 'sealed_ack' && m['mid'] == 'm2' && m['ok'] == false), isTrue); // chave errada -> recusado
 
       final got = b.msgs.where((m) => m['type'] == 'sealed').toList();
       expect(got.length, 1);

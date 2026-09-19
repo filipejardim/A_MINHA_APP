@@ -118,13 +118,14 @@ static final List<dynamic> earlyCandidates = [];
   // servidor vê apenas "isto é para X" - não vê quem enviou, nem o tipo.
   static WebSocketChannel? anonChannel;
   static DateTime _anonLastUse = DateTime.fromMillisecondsSinceEpoch(0);
+  static final Map<String, Completer<bool>> _pendingAcks = {};
   static Future<void> _sealedChain = Future.value();
 
   static void _ensureAnon() {
     final now = DateTime.now();
     // Uma ligação parada há mais de 20s pode ter morrido sem aviso: abre-se
     // uma nova (evita mensagens perdidas numa ligação "zombie").
-    if (anonChannel != null && (anonChannel!.closeCode != null || now.difference(_anonLastUse) > const Duration(seconds: 20))) {
+    if (anonChannel != null && (anonChannel!.closeCode != null || now.difference(_anonLastUse) > const Duration(seconds: 45))) {
       try {
         anonChannel!.sink.close();
       } catch (_) {}
@@ -135,7 +136,14 @@ static final List<dynamic> earlyCandidates = [];
     final ch = openPinnedChannel();
     anonChannel = ch;
     ch.stream.listen(
-      (_) {},
+      (data) {
+        if (data is String && data.startsWith('{"type":"sealed_ack"')) {
+          try {
+            final m = jsonDecode(data);
+            _pendingAcks.remove(m['mid'])?.complete(m['ok'] == true);
+          } catch (_) {}
+        }
+      },
       onDone: () { if (anonChannel == ch) anonChannel = null; },
       onError: (_) { if (anonChannel == ch) anonChannel = null; },
     );
@@ -152,8 +160,16 @@ static final List<dynamic> earlyCandidates = [];
       if (ctrl is! String || ak is! String || myId is! String) return false;
       final blob = await PadlockSeal.seal(ctrl, {...packet, 'senderId': myId, 'targetId': peerId});
       _ensureAnon();
-      anonChannel!.sink.add(jsonEncode({'type': 'sealed', 'targetId': peerId, 'ak': ak, 'blob': blob}));
-      return true;
+      final r = Random.secure();
+      final mid = List<int>.generate(12, (_) => r.nextInt(256)).map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+      final ackC = Completer<bool>();
+      _pendingAcks[mid] = ackC;
+      anonChannel!.sink.add(jsonEncode({'type': 'sealed', 'targetId': peerId, 'ak': ak, 'blob': blob, 'mid': mid}));
+      // Só devolve true se o servidor CONFIRMAR que entregou ou guardou o pacote.
+      return await ackC.future.timeout(const Duration(seconds: 8), onTimeout: () {
+        _pendingAcks.remove(mid);
+        return false;
+      });
     } catch (e) {
       dlog('Erro ao enviar pacote selado: $e');
       return false;
@@ -1476,6 +1492,13 @@ class PadlockRatchet {
     await vault.delete('their_ak_$peerId');
   }
 }
+// Ponte para o ecrã principal registar no chat um ficheiro/foto enviado a partir
+// do Secure Vault Files (antes o envio dava "Sent." mas não deixava rasto
+// nenhum na conversa, e parecia que nada tinha sido enviado).
+class PadlockChatBus {
+  static void Function(String peerId, String text, String preview)? onFileSent;
+}
+
 // Envelope selado: AES-256-GCM com uma chave própria de cada par de contactos
 // (derivada do segredo do handshake). Quem recebe experimenta a chave de cada
 // contacto até uma abrir - assim sabe quem enviou SEM o servidor saber.
@@ -2359,6 +2382,9 @@ Map<String, Map<String, String>> t = {
     'keys_do_not_match': 'The two keys do not match.',
     'hide_ip_calls_title': 'Protect my IP in calls',
     'hide_ip_calls_desc': 'Calls go through a relay server, so the other person never sees your IP address. Uses a bit more data.',
+    'encrypted_file_sent_message': '📎 Encrypted file sent — view in Secure Vault Files',
+    'file_chat_preview': '📎 File',
+    'encrypted_file_received': 'Encrypted file received — open Secure Vault Files',
   },
   'PT': {
     'chats': 'Conversas',
@@ -2602,6 +2628,9 @@ Map<String, Map<String, String>> t = {
     'keys_do_not_match': 'As duas chaves não coincidem.',
     'hide_ip_calls_title': 'Proteger o meu IP nas chamadas',
     'hide_ip_calls_desc': 'As chamadas passam por um servidor de relay, por isso a outra pessoa nunca vê o teu endereço IP. Gasta um pouco mais de dados.',
+    'encrypted_file_sent_message': '📎 Ficheiro encriptado enviado — vê no Secure Vault Files',
+    'file_chat_preview': '📎 Ficheiro',
+    'encrypted_file_received': 'Ficheiro encriptado recebido — abre o Secure Vault Files',
   },
   'ES': {
     'chats': 'Chats',
@@ -2845,6 +2874,9 @@ Map<String, Map<String, String>> t = {
     'keys_do_not_match': 'Las dos claves no coinciden.',
     'hide_ip_calls_title': 'Proteger mi IP en las llamadas',
     'hide_ip_calls_desc': 'Las llamadas pasan por un servidor de retransmisión, así la otra persona nunca ve tu dirección IP. Usa algo más de datos.',
+    'encrypted_file_sent_message': '📎 Archivo cifrado enviado — ver en Secure Vault Files',
+    'file_chat_preview': '📎 Archivo',
+    'encrypted_file_received': 'Archivo cifrado recibido — abre Secure Vault Files',
   },
   'FR': {
     'chats': 'Chats',
@@ -3088,6 +3120,9 @@ Map<String, Map<String, String>> t = {
     'keys_do_not_match': 'Les deux clés ne correspondent pas.',
     'hide_ip_calls_title': 'Protéger mon IP pendant les appels',
     'hide_ip_calls_desc': 'Les appels passent par un serveur relais : l\'autre personne ne voit jamais votre adresse IP. Consomme un peu plus de données.',
+    'encrypted_file_sent_message': '📎 Fichier chiffré envoyé — voir dans Secure Vault Files',
+    'file_chat_preview': '📎 Fichier',
+    'encrypted_file_received': 'Fichier chiffré reçu — ouvrez Secure Vault Files',
   },
   'DE': {
     'chats': 'Chats',
@@ -3331,6 +3366,9 @@ Map<String, Map<String, String>> t = {
     'keys_do_not_match': 'Die beiden Schlüssel stimmen nicht überein.',
     'hide_ip_calls_title': 'Meine IP in Anrufen schützen',
     'hide_ip_calls_desc': 'Anrufe laufen über einen Relay-Server, sodass die andere Person nie deine IP-Adresse sieht. Verbraucht etwas mehr Daten.',
+    'encrypted_file_sent_message': '📎 Verschlüsselte Datei gesendet — in Secure Vault Files ansehen',
+    'file_chat_preview': '📎 Datei',
+    'encrypted_file_received': 'Verschlüsselte Datei empfangen — öffne Secure Vault Files',
   },
   'RU': {
     'chats': 'Чаты',
@@ -3574,6 +3612,9 @@ Map<String, Map<String, String>> t = {
     'keys_do_not_match': 'Ключи не совпадают.',
     'hide_ip_calls_title': 'Защитить мой IP в звонках',
     'hide_ip_calls_desc': 'Звонки идут через ретранслятор, поэтому собеседник никогда не видит ваш IP-адрес. Расходуется немного больше трафика.',
+    'encrypted_file_sent_message': '📎 Зашифрованный файл отправлен — смотрите в Secure Vault Files',
+    'file_chat_preview': '📎 Файл',
+    'encrypted_file_received': 'Получен зашифрованный файл — откройте Secure Vault Files',
   },
   'UK': {
     'chats': 'Чати',
@@ -3817,6 +3858,9 @@ Map<String, Map<String, String>> t = {
     'keys_do_not_match': 'Ключі не збігаються.',
     'hide_ip_calls_title': 'Захистити мою IP у дзвінках',
     'hide_ip_calls_desc': 'Дзвінки йдуть через ретранслятор, тож співрозмовник ніколи не бачить вашу IP-адресу. Витрачається трохи більше трафіку.',
+    'encrypted_file_sent_message': '📎 Зашифрований файл надіслано — перегляньте в Secure Vault Files',
+    'file_chat_preview': '📎 Файл',
+    'encrypted_file_received': 'Отримано зашифрований файл — відкрийте Secure Vault Files',
   },
   'ZH': {
     'chats': '聊天',
@@ -4060,6 +4104,9 @@ Map<String, Map<String, String>> t = {
     'keys_do_not_match': '两次输入的密钥不一致。',
     'hide_ip_calls_title': '在通话中保护我的 IP',
     'hide_ip_calls_desc': '通话通过中继服务器转发,对方永远看不到您的 IP 地址。会多用一点流量。',
+    'encrypted_file_sent_message': '📎 已发送加密文件 — 在 Secure Vault Files 中查看',
+    'file_chat_preview': '📎 文件',
+    'encrypted_file_received': '收到加密文件 — 请打开 Secure Vault Files',
   },
   'KO': {
     'chats': '채팅',
@@ -4303,6 +4350,9 @@ Map<String, Map<String, String>> t = {
     'keys_do_not_match': '두 키가 일치하지 않습니다.',
     'hide_ip_calls_title': '통화에서 내 IP 보호',
     'hide_ip_calls_desc': '통화가 중계 서버를 거치므로 상대방은 내 IP 주소를 볼 수 없습니다. 데이터를 조금 더 사용합니다.',
+    'encrypted_file_sent_message': '📎 암호화된 파일 전송됨 — Secure Vault Files에서 확인하세요',
+    'file_chat_preview': '📎 파일',
+    'encrypted_file_received': '암호화된 파일을 받았습니다 — Secure Vault Files를 여세요',
   },
   'AR': {
     'chats': 'الدردشات',
@@ -4546,6 +4596,9 @@ Map<String, Map<String, String>> t = {
     'keys_do_not_match': 'المفتاحان غير متطابقين.',
     'hide_ip_calls_title': 'حماية عنوان IP الخاص بي في المكالمات',
     'hide_ip_calls_desc': 'تمر المكالمات عبر خادم وسيط، لذلك لا يرى الطرف الآخر عنوان IP الخاص بك أبدًا. يستهلك بيانات أكثر قليلًا.',
+    'encrypted_file_sent_message': '📎 تم إرسال ملف مشفر — شاهده في Secure Vault Files',
+    'file_chat_preview': '📎 ملف',
+    'encrypted_file_received': 'تم استلام ملف مشفر — افتح Secure Vault Files',
   },
   'TR': {
     'chats': 'Sohbetler',
@@ -4789,6 +4842,9 @@ Map<String, Map<String, String>> t = {
     'keys_do_not_match': 'İki anahtar eşleşmiyor.',
     'hide_ip_calls_title': 'Aramalarda IP\'mi koru',
     'hide_ip_calls_desc': 'Aramalar bir aktarma sunucusundan geçer, böylece karşı taraf IP adresinizi asla görmez. Biraz daha fazla veri kullanır.',
+    'encrypted_file_sent_message': '📎 Şifreli dosya gönderildi — Secure Vault Files\'ta görüntüleyin',
+    'file_chat_preview': '📎 Dosya',
+    'encrypted_file_received': 'Şifreli dosya alındı — Secure Vault Files\'ı açın',
   },
   'IT': {
     'chats': 'Chat',
@@ -5032,6 +5088,9 @@ Map<String, Map<String, String>> t = {
     'keys_do_not_match': 'Le due chiavi non coincidono.',
     'hide_ip_calls_title': 'Proteggi il mio IP nelle chiamate',
     'hide_ip_calls_desc': 'Le chiamate passano da un server di inoltro, così l\'altra persona non vede mai il tuo indirizzo IP. Usa un po\' più di dati.',
+    'encrypted_file_sent_message': '📎 File crittografato inviato — visualizzalo in Secure Vault Files',
+    'file_chat_preview': '📎 File',
+    'encrypted_file_received': 'File crittografato ricevuto — apri Secure Vault Files',
   },
   'JA': {
     'chats': 'チャット',
@@ -5275,6 +5334,9 @@ Map<String, Map<String, String>> t = {
     'keys_do_not_match': '2つのキーが一致しません。',
     'hide_ip_calls_title': '通話でIPアドレスを保護',
     'hide_ip_calls_desc': '通話は中継サーバーを経由するため、相手にIPアドレスが知られることはありません。データ使用量が少し増えます。',
+    'encrypted_file_sent_message': '📎 暗号化されたファイルを送信しました — Secure Vault Files で確認してください',
+    'file_chat_preview': '📎 ファイル',
+    'encrypted_file_received': '暗号化されたファイルを受信しました — Secure Vault Files を開いてください',
   },
   'HI': {
     'chats': 'चैट',
@@ -5518,6 +5580,9 @@ Map<String, Map<String, String>> t = {
     'keys_do_not_match': 'दोनों कुंजियाँ मेल नहीं खातीं।',
     'hide_ip_calls_title': 'कॉल में मेरा IP सुरक्षित रखें',
     'hide_ip_calls_desc': 'कॉल एक रिले सर्वर से होकर जाती हैं, इसलिए दूसरा व्यक्ति आपका IP पता कभी नहीं देखता। थोड़ा अधिक डेटा लगता है।',
+    'encrypted_file_sent_message': '📎 एन्क्रिप्टेड फ़ाइल भेजी गई — Secure Vault Files में देखें',
+    'file_chat_preview': '📎 फ़ाइल',
+    'encrypted_file_received': 'एन्क्रिप्टेड फ़ाइल प्राप्त हुई — Secure Vault Files खोलें',
   },
   'NL': {
     'chats': 'Chats',
@@ -5761,6 +5826,9 @@ Map<String, Map<String, String>> t = {
     'keys_do_not_match': 'De twee sleutels komen niet overeen.',
     'hide_ip_calls_title': 'Mijn IP beschermen in gesprekken',
     'hide_ip_calls_desc': 'Gesprekken lopen via een relayserver, zodat de ander nooit je IP-adres ziet. Gebruikt iets meer data.',
+    'encrypted_file_sent_message': '📎 Versleuteld bestand verzonden — bekijk in Secure Vault Files',
+    'file_chat_preview': '📎 Bestand',
+    'encrypted_file_received': 'Versleuteld bestand ontvangen — open Secure Vault Files',
   },
   'PL': {
     'chats': 'Czaty',
@@ -6004,6 +6072,9 @@ Map<String, Map<String, String>> t = {
     'keys_do_not_match': 'Oba klucze nie są zgodne.',
     'hide_ip_calls_title': 'Chroń mój adres IP w rozmowach',
     'hide_ip_calls_desc': 'Rozmowy przechodzą przez serwer przekaźnikowy, więc druga osoba nigdy nie widzi twojego adresu IP. Zużywa nieco więcej danych.',
+    'encrypted_file_sent_message': '📎 Wysłano zaszyfrowany plik — zobacz w Secure Vault Files',
+    'file_chat_preview': '📎 Plik',
+    'encrypted_file_received': 'Otrzymano zaszyfrowany plik — otwórz Secure Vault Files',
   },
 };
 
@@ -6066,6 +6137,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
   void initState() {
     super.initState();
     _currentLang = widget.currentLanguage;
+    PadlockChatBus.onFileSent = _recordSentFile;
 
     PadlockNetwork.connect();
     WidgetsBinding.instance.addObserver(this);
@@ -6430,7 +6502,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
               final chat = _chats[chatIdx];
               chat['messages'] ??= <Map<String, dynamic>>[];
               chat['messages'].add({
-                'text': '$icon Encrypted file received — open Secure Vault Files',
+                'text': '$icon ${(t[_currentLang] ?? t['EN']!)['encrypted_file_received']}',
                 'isMe': false,
                 'status': 'delivered',
                 'timestamp': data['timestamp'],
@@ -6438,6 +6510,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
               chat['unread'] = (chat['unread'] ?? 0) + 1;
             });
             Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
+            showNotification('New Message', 'You have received an encrypted file.');
           }
           else if (data['type'] == 'secure_voice') {
             if (data['senderId'] == Hive.box('padlock_vault').get('user_privacy_id')) return;
@@ -6633,6 +6706,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
     // decifrava -> "Message not decrypted") e o fantasma ainda gravava
     // listas antigas por cima do cofre.
     _hubSubscription?.cancel();
+    PadlockChatBus.onFileSent = null;
     _regTimer?.cancel();
     _statusTimer?.cancel();
     _destructTimer?.cancel();
@@ -6811,6 +6885,32 @@ Future<void> _generateNewId() async {
   }
   PadlockNetwork.registerMain(fcmToken: vault.get('my_fcm_token'));
 }
+void _recordSentFile(String peerId, String text, String preview) {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    int idx = _chats.indexWhere((c) => c['id'] == peerId);
+    if (idx == -1) {
+      final contact = _contacts.firstWhere((c) => c['id'] == peerId, orElse: () => <String, String>{});
+      _chats.insert(0, {
+        'name': contact['name'] ?? peerId,
+        'id': peerId,
+        'msg': '',
+        'time': '',
+        'unread': 0,
+        'messages': [],
+      });
+      idx = 0;
+    }
+    final chat = _chats[idx];
+    chat['messages'] ??= <Map<String, dynamic>>[];
+    (chat['messages'] as List).add({'text': text, 'isMe': true, 'status': 'sent', 'timestamp': now});
+    chat['msg'] = preview;
+    chat['time'] = (t[_currentLang] ?? t['EN']!)['just_now']!;
+    if (mounted) setState(() {});
+    try {
+      Hive.box('padlock_vault').put('chats', jsonEncode(_chats));
+    } catch (_) {}
+  }
+
 Future<void> _logout() async {
     // Evita entrar em conflito com o bloqueio automático do Vault Files ou
     // do Crypto Vault, caso disparem quase ao mesmo tempo (ver comentário
@@ -12374,6 +12474,12 @@ class _VaultFilesHomeScreenState extends State<VaultFilesHomeScreen> with Single
         fileBytes: bytes,
         fileName: entry['fileName'] ?? 'file',
         fileKind: entry['fileKind'] ?? 'document',
+      );
+      final isPhotoEntry = entry['fileKind'] == 'photo';
+      PadlockChatBus.onFileSent?.call(
+        selected,
+        isPhotoEntry ? widget.local['encrypted_photo_sent_message']! : widget.local['encrypted_file_sent_message']!,
+        isPhotoEntry ? widget.local['photo_chat_preview']! : widget.local['file_chat_preview']!,
       );
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(widget.local['sent_toast']!)));
     } catch (e) {

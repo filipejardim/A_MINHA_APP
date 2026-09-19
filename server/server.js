@@ -335,12 +335,17 @@ wss.on('connection', (ws) => {
         }
         if (data.type === 'sealed') {
             const dest = data.targetId;
+            const mid = (typeof data.mid === 'string' && data.mid.length <= 64) ? data.mid : null;
+            // Confirmação de receção ao remetente anónimo: "ok" = entregue ou
+            // guardado na fila; "false" = recusado. (Só diz isto a quem já
+            // conhece a chave de acesso; não revela mais nada.)
+            const ack = (ok) => { if (mid) safeSend(ws, { type: 'sealed_ack', mid, ok }); };
             if (typeof dest !== 'string' || !ID_REGEX.test(dest) ||
-                typeof data.ak !== 'string' || typeof data.blob !== 'string') return;
+                typeof data.ak !== 'string' || typeof data.blob !== 'string') { ack(false); return; }
             // limite por IP (não há identidade a limitar)
             const nowMs = Date.now();
             const arr = (sealedPerIp.get(ws.clientIp) || []).filter(t => nowMs - t < 60000);
-            if (arr.length >= SEALED_PER_IP_PER_MIN) return;
+            if (arr.length >= SEALED_PER_IP_PER_MIN) { ack(false); return; }
             arr.push(nowMs);
             sealedPerIp.set(ws.clientIp, arr);
             // A chave de acesso tem de ser a do destinatário (só os contactos a têm).
@@ -350,16 +355,17 @@ wss.on('connection', (ws) => {
                 const given = crypto.createHash('sha256').update(Buffer.from(data.ak, 'base64')).digest();
                 good = !!expected && expected.length === given.length && crypto.timingSafeEqual(expected, given);
             } catch (_) { good = false; }
-            if (!good) return; // silêncio: nada de pistas sobre quem existe
+            if (!good) { ack(false); return; } // sem pistas sobre quem existe
             const out = { type: 'sealed', blob: data.blob };
             const targetSocket = peers.get(dest);
             if (targetSocket && targetSocket.readyState === 1) {
                 targetSocket.send(JSON.stringify(out), (err) => {
-                    if (err) { peers.delete(dest); queueAndNotify(out, dest, false); }
+                    if (err) { peers.delete(dest); ack(queueAndNotify(out, dest, false)); }
+                    else ack(true);
                 });
             } else {
                 if (targetSocket) peers.delete(dest);
-                queueAndNotify(out, dest, false);
+                ack(queueAndNotify(out, dest, false));
             }
             return;
         }
