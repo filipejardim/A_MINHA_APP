@@ -12,6 +12,7 @@ import 'package:a_minha_app/main.dart';
 void main() {
   group('controlo e chamadas', controlTests);
   group('enchimento', paddingTests);
+  group('selado', sealedTests);
   late Directory dir;
 
   setUp(() async {
@@ -204,5 +205,76 @@ void paddingTests() {
     final c2 = e.encryptBytes(padMessage('uma frase bem maior que o hi'), iv: iv);
     expect(c1.bytes.length, c2.bytes.length); // o tamanho já não revela o comprimento
     expect(unpadMessage(e.decryptBytes(c1, iv: iv)), 'hi');
+  });
+}
+
+void sealedTests() {
+  late Directory dir;
+  late Box box;
+  const idA = 'AAAAAAAA-AAAAAAAA-AAAAAAAA-AAAAAAAA';
+  const idB = 'BBBBBBBB-BBBBBBBB-BBBBBBBB-BBBBBBBB';
+  const idC = 'CCCCCCCC-CCCCCCCC-CCCCCCCC-CCCCCCCC';
+  final k1 = base64Encode(List<int>.generate(32, (i) => i + 1));
+  final k2 = base64Encode(List<int>.generate(32, (i) => 100 + i));
+
+  setUp(() async {
+    dir = await Directory.systemTemp.createTemp('padlock_seal');
+    Hive.init(dir.path);
+    box = await Hive.openBox('padlock_vault');
+  });
+  tearDown(() async {
+    await Hive.close();
+    try {
+      await dir.delete(recursive: true);
+    } catch (_) {}
+  });
+
+  test('Selado: o destinatário abre e descobre QUEM enviou (sem o servidor saber)', () async {
+    final blob = await PadlockSeal.seal(k1, {'type': 'secure_message', 'payload': 'xyz', 'senderId': idA, 'targetId': idB});
+    expect(utf8.decode(base64Decode(blob), allowMalformed: true).contains('secure_message'), isFalse); // nada em claro
+    // B tem dois contactos: A (chave k1) e C (chave k2)
+    await box.put('user_privacy_id', idB);
+    await box.put('ctrl_key_$idC', k2);
+    await box.put('ctrl_key_$idA', k1);
+    final opened = await PadlockSeal.open(blob);
+    expect(opened, isNotNull);
+    expect(opened!['senderId'], idA);
+    expect(opened['targetId'], idB);
+    expect(opened['payload'], 'xyz');
+  });
+
+  test('Selado: quem não tem a chave do par não consegue abrir, e adulterar é detetado', () async {
+    final blob = await PadlockSeal.seal(k1, {'type': 'wipe_chat'});
+    await box.put('user_privacy_id', idB);
+    await box.put('ctrl_key_$idC', k2); // só conhece outro contacto
+    expect(await PadlockSeal.open(blob), isNull);
+    await box.put('ctrl_key_$idA', k1);
+    final tampered = base64Decode(blob);
+    tampered[tampered.length - 5] ^= 1;
+    expect(await PadlockSeal.open(base64Encode(tampered)), isNull);
+  });
+
+  test('Selado: o pacote de dentro não pode falsificar o remetente', () async {
+    // A põe senderId de outro dentro do envelope: o receptor usa o dono da chave que abriu
+    final blob = await PadlockSeal.seal(k1, {'type': 'wipe_chat', 'senderId': idC});
+    await box.put('user_privacy_id', idB);
+    await box.put('ctrl_key_$idA', k1);
+    await box.put('ctrl_key_$idC', k2);
+    final opened = await PadlockSeal.open(blob);
+    expect(opened!['senderId'], idA);
+  });
+
+  test('Handshake assinado inclui a chave de acesso (adulterá-la é detetado)', () async {
+    final kp = await crypto.Ed25519().newKeyPair();
+    final pubBytes = (await kp.extractPublicKey()).bytes;
+    final authPub = base64Encode(pubBytes);
+    final sender = await PadlockIdentity.idFromPublicKey(pubBytes);
+    const hsPub = 'aGFuZHNoYWtlLXB1Yi1rZXk=';
+    final ak = base64Encode(List<int>.generate(32, (i) => 7 * i));
+    final sig = base64Encode((await crypto.Ed25519().sign(PadlockIdentity.handshakeMessage(sender, idB, hsPub, ak), keyPair: kp)).bytes);
+    final data = {'senderId': sender, 'authPub': authPub, 'hsig': sig, 'publicKey': hsPub, 'ak': ak};
+    expect(await PadlockIdentity.verifyHandshake(data, idB), authPub);
+    expect(await PadlockIdentity.verifyHandshake({...data, 'ak': base64Encode(List<int>.filled(32, 9))}, idB), isNull);
+    expect(await PadlockIdentity.verifyHandshake({...data, 'publicKey': 'b3V0cm8='}, idB), isNull);
   });
 }

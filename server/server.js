@@ -19,6 +19,10 @@
 //     pendentes com tetos por destino, tetos globais e validade (TTL).
 //  5. Credenciais TURN só para ligações autenticadas.
 //  6. Zero registos de metadados (não se escrevem IDs nem conteúdos nos logs).
+//  7. REMETENTE SELADO: mensagens e ordens seguem em pacotes "sealed" enviados
+//     por uma ligação ANÓNIMA (sem registo). O servidor só vê o destino e uma
+//     chave de acesso (ak) que só os contactos conhecem; quem enviou vai
+//     cifrado dentro do pacote, só o destinatário o consegue abrir.
 const http = require('http');
 const crypto = require('crypto');
 const { WebSocketServer } = require('ws');
@@ -58,7 +62,8 @@ const QUEUEABLE_TYPES = new Set([
     'contact_request', 'contact_accepted', 'delete_contact',
     'wipe_chat', 'delete_message', 'update_timer', 'message_read',
 ]);
-const PUSH_TYPES = new Set(['secure_message', 'secure_file', 'secure_voice']);
+const PUSH_TYPES = new Set(['secure_message', 'secure_file', 'secure_voice', 'sealed']);
+const SEALED_PER_IP_PER_MIN = 240;
 const CALL_ACTIONS = new Set(['call_offer', 'call_answer', 'call_candidate', 'call_ringing', 'call_end']);
 // Só estas ações são permitidas a uma ligação "auxiliar" (isolate em segundo
 // plano do CallKit, que precisa de avisar "está a tocar"/"recusada").
@@ -66,6 +71,8 @@ const AUX_ACTIONS = new Set(['call_ringing', 'call_end']);
 
 // ------------------------------------------------------------------- Estado
 const peers = new Map();            // ID -> WebSocket principal autenticado
+const akHashes = new Map();         // ID -> SHA-256 da chave de acesso (para pacotes selados)
+const sealedPerIp = new Map();      // IP -> [timestamps] (limite de pacotes selados)
 const fcmTokens = new Map();        // ID -> token FCM (só definido por quem se autenticou)
 const pendingMessages = new Map();  // ID -> [{ data, size, expires }]
 let pendingBytesTotal = 0;
@@ -144,6 +151,10 @@ function purgeExpired() {
             if (m.expires > now) keep.push(m); else pendingBytesTotal -= m.size;
         }
         if (keep.length) pendingMessages.set(id, keep); else pendingMessages.delete(id);
+    }
+    for (const [ip, arr] of sealedPerIp) {
+        const recent = arr.filter(t => now - t < 60000);
+        if (recent.length) sealedPerIp.set(ip, recent); else sealedPerIp.delete(ip);
     }
     for (const [id, arr] of contactReqLog) {
         const recent = arr.filter(t => now - t < 3600000);
@@ -280,6 +291,12 @@ wss.on('connection', (ws) => {
             ws.isAux = data.aux === true;
 
             if (!ws.isAux) {
+                if (typeof data.akHash === 'string') {
+                    try {
+                        const h = Buffer.from(data.akHash, 'base64');
+                        if (h.length === 32) akHashes.set(id, h);
+                    } catch (_) {}
+                }
                 // A ligação principal anterior deste MESMO dono é substituída
                 // (só quem tem a chave privada chega aqui).
                 const old = peers.get(id);
@@ -309,6 +326,43 @@ wss.on('connection', (ws) => {
         }
 
         if (data.type === 'ping') { safeSend(ws, { type: 'pong' }); return; }
+
+        // ------------------- Ligação ANÓNIMA: só serve para pacotes selados
+        if (data.type === 'anon_hello' && !ws.authedId) {
+            ws.isAnon = true;
+            clearTimeout(authTimer);
+            return;
+        }
+        if (data.type === 'sealed') {
+            const dest = data.targetId;
+            if (typeof dest !== 'string' || !ID_REGEX.test(dest) ||
+                typeof data.ak !== 'string' || typeof data.blob !== 'string') return;
+            // limite por IP (não há identidade a limitar)
+            const nowMs = Date.now();
+            const arr = (sealedPerIp.get(ws.clientIp) || []).filter(t => nowMs - t < 60000);
+            if (arr.length >= SEALED_PER_IP_PER_MIN) return;
+            arr.push(nowMs);
+            sealedPerIp.set(ws.clientIp, arr);
+            // A chave de acesso tem de ser a do destinatário (só os contactos a têm).
+            let good = false;
+            try {
+                const expected = akHashes.get(dest);
+                const given = crypto.createHash('sha256').update(Buffer.from(data.ak, 'base64')).digest();
+                good = !!expected && expected.length === given.length && crypto.timingSafeEqual(expected, given);
+            } catch (_) { good = false; }
+            if (!good) return; // silêncio: nada de pistas sobre quem existe
+            const out = { type: 'sealed', blob: data.blob };
+            const targetSocket = peers.get(dest);
+            if (targetSocket && targetSocket.readyState === 1) {
+                targetSocket.send(JSON.stringify(out), (err) => {
+                    if (err) { peers.delete(dest); queueAndNotify(out, dest, false); }
+                });
+            } else {
+                if (targetSocket) peers.delete(dest);
+                queueAndNotify(out, dest, false);
+            }
+            return;
+        }
 
         // ------------------------------- Daqui para baixo: só autenticados
         if (!ws.authedId) {
@@ -385,6 +439,7 @@ wss.on('connection', (ws) => {
         const n = (connPerIp.get(ws.clientIp) || 1) - 1;
         if (n <= 0) connPerIp.delete(ws.clientIp); else connPerIp.set(ws.clientIp, n);
         if (ws.authedId && !ws.isAux && peers.get(ws.authedId) === ws) peers.delete(ws.authedId);
+        // (a chave de acesso fica: é reenviada a cada registo)
     });
 
     ws.on('error', () => {});

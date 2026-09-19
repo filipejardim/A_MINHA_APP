@@ -95,6 +95,10 @@ static final List<dynamic> earlyCandidates = [];
   }
   static void disconnect() {
     channel?.sink.close();
+    try {
+      anonChannel?.sink.close();
+    } catch (_) {}
+    anonChannel = null;
     channel = null;
     _nonce = null;
     _nonceWaiter = null;
@@ -107,6 +111,79 @@ static final List<dynamic> earlyCandidates = [];
   static String? _nonce;
   static Completer<String>? _nonceWaiter;
   static bool registered = false;
+
+  // ---- REMETENTE SELADO ----
+  // As mensagens e ordens saem por uma ligação ANÓNIMA (nunca registada no
+  // servidor) dentro de um envelope cifrado que só o destinatário abre. O
+  // servidor vê apenas "isto é para X" - não vê quem enviou, nem o tipo.
+  static WebSocketChannel? anonChannel;
+  static DateTime _anonLastUse = DateTime.fromMillisecondsSinceEpoch(0);
+  static Future<void> _sealedChain = Future.value();
+
+  static void _ensureAnon() {
+    final now = DateTime.now();
+    // Uma ligação parada há mais de 20s pode ter morrido sem aviso: abre-se
+    // uma nova (evita mensagens perdidas numa ligação "zombie").
+    if (anonChannel != null && (anonChannel!.closeCode != null || now.difference(_anonLastUse) > const Duration(seconds: 20))) {
+      try {
+        anonChannel!.sink.close();
+      } catch (_) {}
+      anonChannel = null;
+    }
+    _anonLastUse = now;
+    if (anonChannel != null) return;
+    final ch = openPinnedChannel();
+    anonChannel = ch;
+    ch.stream.listen(
+      (_) {},
+      onDone: () { if (anonChannel == ch) anonChannel = null; },
+      onError: (_) { if (anonChannel == ch) anonChannel = null; },
+    );
+    ch.sink.add(jsonEncode({'type': 'anon_hello'}));
+  }
+
+  // Devolve false se não foi possível selar (contacto sem chaves de envelope).
+  static Future<bool> sendSealed(String peerId, Map<String, dynamic> packet) async {
+    try {
+      final vault = Hive.box('padlock_vault');
+      final ctrl = vault.get('ctrl_key_$peerId');
+      final ak = vault.get('their_ak_$peerId');
+      final myId = vault.get('user_privacy_id');
+      if (ctrl is! String || ak is! String || myId is! String) return false;
+      final blob = await PadlockSeal.seal(ctrl, {...packet, 'senderId': myId, 'targetId': peerId});
+      _ensureAnon();
+      anonChannel!.sink.add(jsonEncode({'type': 'sealed', 'targetId': peerId, 'ak': ak, 'blob': blob}));
+      return true;
+    } catch (e) {
+      dlog('Erro ao enviar pacote selado: $e');
+      return false;
+    }
+  }
+
+  static void pingAnon() {
+    try {
+      if (anonChannel != null && anonChannel!.closeCode == null) anonChannel!.sink.add('{"type":"ping"}');
+    } catch (_) {}
+  }
+
+  // Abre um envelope recebido (por ordem de chegada) e entrega o pacote de
+  // dentro ao resto da app como se tivesse chegado normalmente - o
+  // remetente é o CONTACTO cuja chave abriu o envelope (não o que o pacote diz).
+  static Future<void> _handleSealed(String raw) async {
+    try {
+      final m = jsonDecode(raw);
+      final blob = m['blob'];
+      if (blob is! String) return;
+      final inner = await PadlockSeal.open(blob);
+      if (inner == null) {
+        dlog('Envelope selado não abriu com nenhum contacto.');
+        return;
+      }
+      messageHub.add(jsonEncode(inner));
+    } catch (e) {
+      dlog('Erro ao abrir envelope selado: $e');
+    }
+  }
 
   static Future<String?> _waitForNonce() async {
     if (_nonce != null) return _nonce;
@@ -137,6 +214,7 @@ static final List<dynamic> earlyCandidates = [];
       ch.sink.add(jsonEncode({
         'type': 'register',
         ...auth,
+        'akHash': await PadlockIdentity.accessKeyHashB64(),
         'fcmToken': fcmToken ?? pendingFcmToken,
       }));
     } catch (e) {
@@ -172,6 +250,10 @@ static final List<dynamic> earlyCandidates = [];
               return;
             }
             if (data.startsWith('{"type":"error"')) return;
+            if (data.startsWith('{"type":"sealed"')) {
+              _sealedChain = _sealedChain.then((_) => _handleSealed(data));
+              return;
+            }
           }
           messageHub.add(data);
         },
@@ -358,14 +440,38 @@ class PadlockIdentity {
   // Assinatura do handshake: liga a chave pública de troca (X25519) enviada
   // num contact_request/contact_accepted ao ID de quem a envia - o servidor
   // (ou um intermediário) não consegue trocar a chave sem ser detetado.
-  static List<int> handshakeMessage(String senderId, String targetId, String handshakePubB64) =>
-      utf8.encode('padlock-hs-v1|$senderId|$targetId|$handshakePubB64');
+  static List<int> handshakeMessage(String senderId, String targetId, String handshakePubB64, String ak) =>
+      utf8.encode('padlock-hs-v1|$senderId|$targetId|$handshakePubB64|$ak');
+
+  // Chave de acesso: um segredo que só os teus contactos conhecem. O servidor
+  // guarda apenas o HASH dela e só entrega pacotes selados a quem a apresentar -
+  // assim ninguém que não seja contacto consegue encher-te de lixo, e quem
+  // envia não precisa de se identificar ao servidor (remetente selado).
+  static const String _akKey = 'padlock_access_key_v1';
+
+  static Future<Uint8List> _accessKeyBytes() async {
+    final stored = await _storage.read(key: _akKey);
+    if (stored != null && stored.isNotEmpty) return base64Decode(stored);
+    final r = Random.secure();
+    final k = Uint8List.fromList(List<int>.generate(32, (_) => r.nextInt(256)));
+    await _storage.write(key: _akKey, value: base64Encode(k));
+    return k;
+  }
+
+  static Future<String> accessKeyB64() async => base64Encode(await _accessKeyBytes());
+
+  static Future<String> accessKeyHashB64() async {
+    final d = await crypto.Sha256().hash(await _accessKeyBytes());
+    return base64Encode(d.bytes);
+  }
 
   static Future<Map<String, String>> handshakeFields(String targetId, String handshakePubB64) async {
     final myId = await id();
+    final ak = await accessKeyB64();
     return {
       'authPub': await publicKeyB64(),
-      'hsig': await signB64(handshakeMessage(myId, targetId, handshakePubB64)),
+      'ak': ak,
+      'hsig': await signB64(handshakeMessage(myId, targetId, handshakePubB64, ak)),
     };
   }
 
@@ -378,7 +484,8 @@ class PadlockIdentity {
     final authPub = data['authPub'];
     final hsig = data['hsig'];
     final hsPub = data['publicKey'];
-    if (senderId is! String || authPub is! String || hsig is! String || hsPub is! String) return null;
+    final ak = data['ak'];
+    if (senderId is! String || authPub is! String || hsig is! String || hsPub is! String || ak is! String) return null;
     try {
       final pubBytes = base64Decode(authPub);
       if (pubBytes.length != 32) return null;
@@ -386,12 +493,13 @@ class PadlockIdentity {
     } catch (_) {
       return null;
     }
-    final ok = await verify(pubB64: authPub, message: handshakeMessage(senderId, myId, hsPub), sigB64: hsig);
+    final ok = await verify(pubB64: authPub, message: handshakeMessage(senderId, myId, hsPub, ak), sigB64: hsig);
     return ok ? authPub : null;
   }
 
   static Future<void> wipe() async {
     await _storage.delete(key: _seedKey);
+    await _storage.delete(key: _akKey);
     _keyPair = null;
     _pub = null;
     _id = null;
@@ -1365,8 +1473,55 @@ class PadlockRatchet {
     await vault.delete('ctrl_key_$peerId');
     await vault.delete('ctrl_seen_$peerId');
     await vault.delete('auth_pub_$peerId');
+    await vault.delete('their_ak_$peerId');
   }
 }
+// Envelope selado: AES-256-GCM com uma chave própria de cada par de contactos
+// (derivada do segredo do handshake). Quem recebe experimenta a chave de cada
+// contacto até uma abrir - assim sabe quem enviou SEM o servidor saber.
+class PadlockSeal {
+  static final crypto.AesGcm _aes = crypto.AesGcm.with256bits();
+
+  static Future<crypto.SecretKey> _envKey(String ctrlKeyB64) async {
+    final mac = await crypto.Hmac.sha256().calculateMac(
+      utf8.encode('padlock-env-v1'),
+      secretKey: crypto.SecretKey(base64Decode(ctrlKeyB64)),
+    );
+    return crypto.SecretKey(mac.bytes);
+  }
+
+  static Future<String> seal(String ctrlKeyB64, Map<String, dynamic> packet) async {
+    final box = await _aes.encrypt(utf8.encode(jsonEncode(packet)), secretKey: await _envKey(ctrlKeyB64));
+    return base64Encode(box.concatenation());
+  }
+
+  static Future<Map<String, dynamic>?> open(String blobB64) async {
+    final vault = Hive.box('padlock_vault');
+    final myId = vault.get('user_privacy_id');
+    final bytes = base64Decode(blobB64);
+    if (bytes.length < 12 + 16) return null;
+    for (final k in vault.keys.toList()) {
+      if (k is! String || !k.startsWith('ctrl_key_')) continue;
+      final ctrl = vault.get(k);
+      if (ctrl is! String) continue;
+      try {
+        final box = crypto.SecretBox.fromConcatenation(bytes, nonceLength: 12, macLength: 16);
+        final clear = await _aes.decrypt(box, secretKey: await _envKey(ctrl));
+        final inner = jsonDecode(utf8.decode(clear));
+        if (inner is Map) {
+          final out = Map<String, dynamic>.from(inner);
+          out['senderId'] = k.substring('ctrl_key_'.length);
+          out['targetId'] = myId;
+          return out;
+        }
+      } catch (_) {
+        // não é desta chave - tenta a do contacto seguinte
+      }
+    }
+    return null;
+  }
+}
+
 // Mensagem que se assina nas chamadas: liga a oferta/resposta SDP (que contém
 // a impressão digital DTLS da chamada) à identidade de quem a envia. Sem isto,
 // quem controla a sinalização podia trocar o SDP e ficar "no meio" da chamada
@@ -1428,9 +1583,7 @@ class PadlockCtrl {
   static Future<void> send(String peerId, String type, {Map<String, dynamic> fields = const {}}) async {
     final packet = await build(peerId, type, fields: fields);
     if (packet == null) return;
-    try {
-      PadlockNetwork.channel?.sink.add(jsonEncode(packet));
-    } catch (_) {}
+    await PadlockNetwork.sendSealed(peerId, packet);
   }
 
   static bool _constEq(List<int> a, List<int> b) {
@@ -1519,16 +1672,14 @@ Future<void> sendEncryptedFile({
   final encrypted = encrypter.encrypt(innerPayload, iv: iv);
   final payload = '${iv.base64}:${encrypted.base64}';
 
-  final myId = Hive.box('padlock_vault').get('user_privacy_id');
-  PadlockNetwork.channel?.sink.add(jsonEncode({
+  final sentOk = await PadlockNetwork.sendSealed(targetId, {
     'type': 'secure_file',
-    'senderId': myId,
-    'targetId': targetId,
     'payload': payload,
     'chainIndex': result['index'],
     'dh': result['dh'] ?? '',
     'timestamp': DateTime.now().millisecondsSinceEpoch,
-  }));
+  });
+  if (!sentOk) throw Exception('Secure channel unavailable for this contact.');
 
   await VaultFilesStore.storeSent(
     peerId: targetId,
@@ -1557,16 +1708,14 @@ Future<void> sendEncryptedVoice({
   final encrypted = encrypter.encrypt(innerPayload, iv: iv);
   final payload = '${iv.base64}:${encrypted.base64}';
 
-  final myId = Hive.box('padlock_vault').get('user_privacy_id');
-  PadlockNetwork.channel?.sink.add(jsonEncode({
+  final sentOk = await PadlockNetwork.sendSealed(targetId, {
     'type': 'secure_voice',
-    'senderId': myId,
-    'targetId': targetId,
     'payload': payload,
     'chainIndex': result['index'],
     'dh': result['dh'] ?? '',
     'timestamp': DateTime.now().millisecondsSinceEpoch,
-  }));
+  });
+  if (!sentOk) throw Exception('Secure channel unavailable for this contact.');
 }
 
 // Enchimento (padding) das mensagens de texto: o texto é enchido até a um
@@ -2208,6 +2357,8 @@ Map<String, Map<String, String>> t = {
     'no_recovery_warning': '⚠ There is NO password recovery. Write your key on paper and keep it somewhere safe, and double-check what you type. If you forget it, ALL data is lost forever.',
     'confirm_key_label': 'Confirm Decryption Key',
     'keys_do_not_match': 'The two keys do not match.',
+    'hide_ip_calls_title': 'Protect my IP in calls',
+    'hide_ip_calls_desc': 'Calls go through a relay server, so the other person never sees your IP address. Uses a bit more data.',
   },
   'PT': {
     'chats': 'Conversas',
@@ -2449,6 +2600,8 @@ Map<String, Map<String, String>> t = {
     'no_recovery_warning': '⚠ NÃO existe recuperação da palavra-passe. Escreve a tua chave num papel e guarda-a num sítio seguro, e confirma o que escreves. Se a esqueceres, TODOS os dados perdem-se para sempre.',
     'confirm_key_label': 'Confirmar Chave de Encriptação',
     'keys_do_not_match': 'As duas chaves não coincidem.',
+    'hide_ip_calls_title': 'Proteger o meu IP nas chamadas',
+    'hide_ip_calls_desc': 'As chamadas passam por um servidor de relay, por isso a outra pessoa nunca vê o teu endereço IP. Gasta um pouco mais de dados.',
   },
   'ES': {
     'chats': 'Chats',
@@ -2690,6 +2843,8 @@ Map<String, Map<String, String>> t = {
     'no_recovery_warning': '⚠ NO existe recuperación de la contraseña. Escribe tu clave en papel y guárdala en un lugar seguro, y comprueba lo que escribes. Si la olvidas, TODOS los datos se pierden para siempre.',
     'confirm_key_label': 'Confirmar Clave de Descifrado',
     'keys_do_not_match': 'Las dos claves no coinciden.',
+    'hide_ip_calls_title': 'Proteger mi IP en las llamadas',
+    'hide_ip_calls_desc': 'Las llamadas pasan por un servidor de retransmisión, así la otra persona nunca ve tu dirección IP. Usa algo más de datos.',
   },
   'FR': {
     'chats': 'Chats',
@@ -2931,6 +3086,8 @@ Map<String, Map<String, String>> t = {
     'no_recovery_warning': '⚠ Il n\'existe AUCUNE récupération du mot de passe. Notez votre clé sur papier, gardez-la en lieu sûr et vérifiez ce que vous saisissez. Si vous l\'oubliez, TOUTES les données sont perdues pour toujours.',
     'confirm_key_label': 'Confirmer la Clé de Déchiffrement',
     'keys_do_not_match': 'Les deux clés ne correspondent pas.',
+    'hide_ip_calls_title': 'Protéger mon IP pendant les appels',
+    'hide_ip_calls_desc': 'Les appels passent par un serveur relais : l\'autre personne ne voit jamais votre adresse IP. Consomme un peu plus de données.',
   },
   'DE': {
     'chats': 'Chats',
@@ -3172,6 +3329,8 @@ Map<String, Map<String, String>> t = {
     'no_recovery_warning': '⚠ Es gibt KEINE Passwort-Wiederherstellung. Schreibe deinen Schlüssel auf Papier, bewahre ihn sicher auf und prüfe deine Eingabe. Wenn du ihn vergisst, sind ALLE Daten für immer verloren.',
     'confirm_key_label': 'Entschlüsselungsschlüssel bestätigen',
     'keys_do_not_match': 'Die beiden Schlüssel stimmen nicht überein.',
+    'hide_ip_calls_title': 'Meine IP in Anrufen schützen',
+    'hide_ip_calls_desc': 'Anrufe laufen über einen Relay-Server, sodass die andere Person nie deine IP-Adresse sieht. Verbraucht etwas mehr Daten.',
   },
   'RU': {
     'chats': 'Чаты',
@@ -3413,6 +3572,8 @@ Map<String, Map<String, String>> t = {
     'no_recovery_warning': '⚠ Восстановления пароля НЕТ. Запишите ключ на бумаге, храните в надёжном месте и проверьте введённое. Если вы его забудете, ВСЕ данные будут потеряны навсегда.',
     'confirm_key_label': 'Подтвердите ключ расшифровки',
     'keys_do_not_match': 'Ключи не совпадают.',
+    'hide_ip_calls_title': 'Защитить мой IP в звонках',
+    'hide_ip_calls_desc': 'Звонки идут через ретранслятор, поэтому собеседник никогда не видит ваш IP-адрес. Расходуется немного больше трафика.',
   },
   'UK': {
     'chats': 'Чати',
@@ -3654,6 +3815,8 @@ Map<String, Map<String, String>> t = {
     'no_recovery_warning': '⚠ Відновлення пароля НЕМАЄ. Запишіть ключ на папері, зберігайте в надійному місці та перевірте введене. Якщо ви його забудете, ВСІ дані буде втрачено назавжди.',
     'confirm_key_label': 'Підтвердьте ключ розшифрування',
     'keys_do_not_match': 'Ключі не збігаються.',
+    'hide_ip_calls_title': 'Захистити мою IP у дзвінках',
+    'hide_ip_calls_desc': 'Дзвінки йдуть через ретранслятор, тож співрозмовник ніколи не бачить вашу IP-адресу. Витрачається трохи більше трафіку.',
   },
   'ZH': {
     'chats': '聊天',
@@ -3895,6 +4058,8 @@ Map<String, Map<String, String>> t = {
     'no_recovery_warning': '⚠ 没有密码找回功能。请把密钥写在纸上并妥善保管,同时仔细核对您输入的内容。一旦忘记,所有数据将永远丢失。',
     'confirm_key_label': '确认解密密钥',
     'keys_do_not_match': '两次输入的密钥不一致。',
+    'hide_ip_calls_title': '在通话中保护我的 IP',
+    'hide_ip_calls_desc': '通话通过中继服务器转发,对方永远看不到您的 IP 地址。会多用一点流量。',
   },
   'KO': {
     'chats': '채팅',
@@ -4136,6 +4301,8 @@ Map<String, Map<String, String>> t = {
     'no_recovery_warning': '⚠ 비밀번호 복구 기능은 없습니다. 키를 종이에 적어 안전한 곳에 보관하고, 입력한 내용을 다시 확인하세요. 잊어버리면 모든 데이터가 영구히 사라집니다.',
     'confirm_key_label': '암호 해독 키 확인',
     'keys_do_not_match': '두 키가 일치하지 않습니다.',
+    'hide_ip_calls_title': '통화에서 내 IP 보호',
+    'hide_ip_calls_desc': '통화가 중계 서버를 거치므로 상대방은 내 IP 주소를 볼 수 없습니다. 데이터를 조금 더 사용합니다.',
   },
   'AR': {
     'chats': 'الدردشات',
@@ -4377,6 +4544,8 @@ Map<String, Map<String, String>> t = {
     'no_recovery_warning': '⚠ لا توجد استعادة لكلمة المرور. اكتب مفتاحك على ورقة واحتفظ به في مكان آمن وتحقق مما تكتبه. إذا نسيته فستُفقد جميع البيانات إلى الأبد.',
     'confirm_key_label': 'تأكيد مفتاح فك التشفير',
     'keys_do_not_match': 'المفتاحان غير متطابقين.',
+    'hide_ip_calls_title': 'حماية عنوان IP الخاص بي في المكالمات',
+    'hide_ip_calls_desc': 'تمر المكالمات عبر خادم وسيط، لذلك لا يرى الطرف الآخر عنوان IP الخاص بك أبدًا. يستهلك بيانات أكثر قليلًا.',
   },
   'TR': {
     'chats': 'Sohbetler',
@@ -4618,6 +4787,8 @@ Map<String, Map<String, String>> t = {
     'no_recovery_warning': '⚠ Parola kurtarma YOKTUR. Anahtarınızı bir kağıda yazıp güvenli bir yerde saklayın ve yazdığınızı kontrol edin. Unutursanız TÜM veriler sonsuza dek kaybolur.',
     'confirm_key_label': 'Şifre Çözme Anahtarını Onayla',
     'keys_do_not_match': 'İki anahtar eşleşmiyor.',
+    'hide_ip_calls_title': 'Aramalarda IP\'mi koru',
+    'hide_ip_calls_desc': 'Aramalar bir aktarma sunucusundan geçer, böylece karşı taraf IP adresinizi asla görmez. Biraz daha fazla veri kullanır.',
   },
   'IT': {
     'chats': 'Chat',
@@ -4859,6 +5030,8 @@ Map<String, Map<String, String>> t = {
     'no_recovery_warning': '⚠ NON esiste alcun recupero della password. Scrivi la chiave su carta, conservala in un posto sicuro e ricontrolla ciò che digiti. Se la dimentichi, TUTTI i dati andranno persi per sempre.',
     'confirm_key_label': 'Conferma Chiave di Decrittazione',
     'keys_do_not_match': 'Le due chiavi non coincidono.',
+    'hide_ip_calls_title': 'Proteggi il mio IP nelle chiamate',
+    'hide_ip_calls_desc': 'Le chiamate passano da un server di inoltro, così l\'altra persona non vede mai il tuo indirizzo IP. Usa un po\' più di dati.',
   },
   'JA': {
     'chats': 'チャット',
@@ -5100,6 +5273,8 @@ Map<String, Map<String, String>> t = {
     'no_recovery_warning': '⚠ パスワードの復元機能はありません。キーを紙に書いて安全な場所に保管し、入力内容をよく確認してください。忘れるとすべてのデータが永久に失われます。',
     'confirm_key_label': '復号鍵を確認',
     'keys_do_not_match': '2つのキーが一致しません。',
+    'hide_ip_calls_title': '通話でIPアドレスを保護',
+    'hide_ip_calls_desc': '通話は中継サーバーを経由するため、相手にIPアドレスが知られることはありません。データ使用量が少し増えます。',
   },
   'HI': {
     'chats': 'चैट',
@@ -5341,6 +5516,8 @@ Map<String, Map<String, String>> t = {
     'no_recovery_warning': '⚠ पासवर्ड रिकवरी की कोई सुविधा नहीं है। अपनी कुंजी कागज़ पर लिखकर सुरक्षित जगह रखें और जो टाइप कर रहे हैं उसे दोबारा जाँचें। यदि आप इसे भूल गए, तो सारा डेटा हमेशा के लिए खो जाएगा।',
     'confirm_key_label': 'डिक्रिप्शन कुंजी की पुष्टि करें',
     'keys_do_not_match': 'दोनों कुंजियाँ मेल नहीं खातीं।',
+    'hide_ip_calls_title': 'कॉल में मेरा IP सुरक्षित रखें',
+    'hide_ip_calls_desc': 'कॉल एक रिले सर्वर से होकर जाती हैं, इसलिए दूसरा व्यक्ति आपका IP पता कभी नहीं देखता। थोड़ा अधिक डेटा लगता है।',
   },
   'NL': {
     'chats': 'Chats',
@@ -5582,6 +5759,8 @@ Map<String, Map<String, String>> t = {
     'no_recovery_warning': '⚠ Er is GEEN wachtwoordherstel. Schrijf je sleutel op papier, bewaar hem veilig en controleer wat je typt. Vergeet je hem, dan is ALLE data voorgoed verloren.',
     'confirm_key_label': 'Decoderingssleutel bevestigen',
     'keys_do_not_match': 'De twee sleutels komen niet overeen.',
+    'hide_ip_calls_title': 'Mijn IP beschermen in gesprekken',
+    'hide_ip_calls_desc': 'Gesprekken lopen via een relayserver, zodat de ander nooit je IP-adres ziet. Gebruikt iets meer data.',
   },
   'PL': {
     'chats': 'Czaty',
@@ -5823,6 +6002,8 @@ Map<String, Map<String, String>> t = {
     'no_recovery_warning': '⚠ NIE MA odzyskiwania hasła. Zapisz klucz na papierze, przechowuj go w bezpiecznym miejscu i sprawdź, co wpisujesz. Jeśli go zapomnisz, WSZYSTKIE dane przepadną na zawsze.',
     'confirm_key_label': 'Potwierdź Klucz Deszyfrowania',
     'keys_do_not_match': 'Oba klucze nie są zgodne.',
+    'hide_ip_calls_title': 'Chroń mój adres IP w rozmowach',
+    'hide_ip_calls_desc': 'Rozmowy przechodzą przez serwer przekaźnikowy, więc druga osoba nigdy nie widzi twojego adresu IP. Zużywa nieco więcej danych.',
   },
 };
 
@@ -5945,7 +6126,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
                 if (_contacts.any((c) => c['id'] == senderId && c['handshake'] == 'completed')) {
                   return;
                 }
-                mostrarPedidoDeConexao(senderId, senderPubKey, authPubOk);
+                mostrarPedidoDeConexao(senderId, senderPubKey, authPubOk, data['ak'].toString());
               } 
               else if (data['action'] == 'call_candidate') {
         PadlockNetwork.earlyCandidates.add(data);
@@ -6003,6 +6184,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> with Widget
                   return;
                 }
                 await Hive.box('padlock_vault').put('auth_pub_$acceptedId', authPubOk);
+                // Só guarda a chave de acesso de quem realmente aceitou um pedido NOSSO.
+                if (Hive.box('padlock_vault').get('private_key_$acceptedId') != null) {
+                  await Hive.box('padlock_vault').put('their_ak_$acceptedId', data['ak'].toString());
+                }
 
                 // 2. O teu amigo aceitou. Recebes a chave pública dele e fechas a ponte!
                 if (acceptedPubKey != null) {
@@ -6368,6 +6553,7 @@ final int msgTimestamp = data['timestamp'] ?? 0;
       if (PadlockNetwork.channel != null) {
         // 1. O Batimento Cardíaco para não deixar a net cair
         PadlockNetwork.channel!.sink.add(jsonEncode({'type': 'ping'}));
+        PadlockNetwork.pingAnon();
 
         if (PadlockNetwork.status.value == 'Online') {
           // 2. Pede o estado real dos amigos
@@ -6398,28 +6584,28 @@ final int msgTimestamp = data['timestamp'] ?? 0;
                }
                
                if (isTargetOnline) {
-                 PadlockNetwork.channel!.sink.add(jsonEncode(killSignal)); // Fogo!
+                 PadlockNetwork.sendSealed(killSignal['targetId'].toString(), Map<String, dynamic>.from(killSignal)); // Fogo!
                } else {
                  bulletsToKeep.add(killSignal); // Alvo offline. Guarda a bala no carregador.
                }
             }
             vault.put('pending_kills', jsonEncode(bulletsToKeep)); // Atualiza o carregador físico
           }
-          final myId = Hive.box('padlock_vault').get('user_privacy_id');
           bool salvouAlguma = false;
           for (var chat in _chats) {
             if (chat['messages'] != null) {
               for (var msg in chat['messages']) {
                 if (msg['isMe'] == true && msg['status'] == 'A aguardar...' && msg['payload'] != null) {
-                  PadlockNetwork.channel!.sink.add(jsonEncode({
+                  final pendingMsg = msg;
+                  PadlockNetwork.sendSealed(chat['id'].toString(), {
                     'type': 'secure_message',
-                    'senderId': myId,
-                    'targetId': chat['id'],
                     'payload': msg['payload'],
                     'chainIndex': msg['chainIndex'],
                     'dh': msg['dh'],
                     'timestamp': msg['timestamp'],
-                  }));
+                  }).then((ok) {
+                    if (!ok) pendingMsg['status'] = 'A aguardar...'; // volta a tentar no próximo ciclo
+                  });
                   msg['status'] = 'sent'; // Muda de 'Aguardar' para 'Enviado'
                   salvouAlguma = true;
                 }
@@ -6498,19 +6684,23 @@ final int msgTimestamp = data['timestamp'] ?? 0;
     }
   }
 
+  // Sessão de 15 minutos FIXA, contada desde o login: passados 15 minutos a app
+  // volta ao login mesmo que estejas a usá-la (não reinicia ao tocar no ecrã).
+  // A única exceção é uma chamada ativa (voz, vídeo, ou minimizada): nunca é
+  // cortada - assim que a chamada acaba (verifica de 10 em 10 segundos), sai.
   void _resetInactivityTimer() {
     _inactivityTimer?.cancel();
-   _inactivityTimer = Timer(const Duration(minutes: 15), () {
-      // Chamada ativa (ecrã inteiro OU minimizada em bolha) nunca é cortada
-      // por inatividade. emChamada sozinho não chega: expira aos 90s por
-      // desenho, por isso aos 15 min já dizia "sem chamada".
-      if (PadlockCallOverlay.isActive || PadlockNetwork.emChamada == true) {
-        _resetInactivityTimer();
-        return;
-      }
-      dlog('Sessão de 15 Minutos expirada. A forçar Logout.');
-      _logout();
-    });
+    _inactivityTimer = Timer(const Duration(minutes: 15), _sessionExpired);
+  }
+
+  void _sessionExpired() {
+    if (!mounted) return;
+    if (PadlockCallOverlay.isActive || PadlockNetwork.emChamada == true) {
+      _inactivityTimer = Timer(const Duration(seconds: 10), _sessionExpired);
+      return;
+    }
+    dlog('Sessão de 15 Minutos terminada. A voltar ao login.');
+    _logout();
   }
 
   @override
@@ -6685,7 +6875,7 @@ Future<void> _logout() async {
     PadlockNetwork.isPerformingAutoLock = false;
   }
  // Função acionada pela rede P2P quando chega um pedido de nova conexão
-  void mostrarPedidoDeConexao(String incomingId, String? senderPubKey, String authPubB64) {
+  void mostrarPedidoDeConexao(String incomingId, String? senderPubKey, String authPubB64, String akB64) {
     showDialog(
       context: context,
       barrierDismissible: false, 
@@ -6718,6 +6908,7 @@ Future<void> _logout() async {
               // Guarda a chave de autenticação (verificada) de quem pediu: serve
               // para autenticar as chamadas e mensagens de controlo desse contacto.
               await Hive.box('padlock_vault').put('auth_pub_$incomingId', authPubB64);
+              await Hive.box('padlock_vault').put('their_ak_$incomingId', akB64);
               // 1. Gera o teu próprio par de chaves militares para responder
               final algorithm = crypto.X25519();
               final keyPair = await algorithm.newKeyPair();
@@ -7057,7 +7248,8 @@ if (context.mounted) {
       // ligado, por isso nunca reiniciava o temporizador de inatividade -
       // na prática, a "sessão de 15 minutos" disparava sempre 15 minutos
       // depois do login, sem ligar nenhuma se estavas mesmo a usar a app.
-      onPointerDown: (_) => _resetInactivityTimer(),
+      // (a sessão de 15 minutos é fixa - tocar no ecrã já não a reinicia)
+      onPointerDown: (_) {},
       behavior: HitTestBehavior.translucent,
       child: Scaffold(
        appBar: AppBar(
@@ -8123,7 +8315,7 @@ void _checkExpiredMessages() {
     final vault = Hive.box('padlock_vault');
     if (killSignal != null) {
       try {
-        PadlockNetwork.channel?.sink.add(jsonEncode(killSignal));
+        await PadlockNetwork.sendSealed(widget.chatData['id'].toString(), Map<String, dynamic>.from(killSignal));
       } catch (e) {
         dlog('Erro ao enviar sinal de destruição: $e');
       }
@@ -8391,17 +8583,17 @@ final dhPub = encResult['dh']!;
 
     if (isOnline) {
       try {
-        PadlockNetwork.channel?.sink.add(jsonEncode({
+        final sealedOk = await PadlockNetwork.sendSealed(destId.toString(), {
           'type': 'secure_message',
-          'senderId': Hive.box('padlock_vault').get('user_privacy_id'),
-          'targetId': destId,
           'payload': encryptedPayload,
           'chainIndex': chainIndex,
           'dh': dhPub,
           'timestamp': currentTimestamp,
-        }));
+        });
+        if (!sealedOk) isOnline = false; // sem chaves de envelope: fica a aguardar
       } catch (e) {
         dlog('Erro ao enviar mensagem: $e');
+        isOnline = false;
       }
     }
 
@@ -9197,11 +9389,22 @@ class SettingsScreen extends StatelessWidget {
                 // notificações E toques de chamada; desligado = toca tudo.
                 SwitchListTile(
                   secondary: const Icon(Icons.volume_off, color: Color(0xFF1e4d2b)),
-                  title: const Text('Silent Mode', style: TextStyle(color: Colors.white)),
+                  title: Text(local['silent_mode']!, style: const TextStyle(color: Colors.white)),
                   subtitle: Text(local['silent_mode_desc']!, style: const TextStyle(fontSize: 11, color: Colors.grey)),
                   value: silentMode,
                   activeTrackColor: const Color(0xFF1e4d2b),
                   onChanged: onSilentChange,
+                ),
+                ValueListenableBuilder(
+                  valueListenable: Hive.box('padlock_vault').listenable(keys: ['hide_ip_calls']),
+                  builder: (context, Box box, _) => SwitchListTile(
+                    secondary: const Icon(Icons.shield, color: Color(0xFF1e4d2b)),
+                    title: Text(local['hide_ip_calls_title']!, style: const TextStyle(color: Colors.white)),
+                    subtitle: Text(local['hide_ip_calls_desc']!, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    value: box.get('hide_ip_calls', defaultValue: true) == true,
+                    activeTrackColor: const Color(0xFF1e4d2b),
+                    onChanged: (v) => box.put('hide_ip_calls', v),
+                  ),
                 ),
 
                 const Divider(color: Colors.white10, height: 35),
@@ -10348,6 +10551,22 @@ if (!widget.acceptedViaCallKit && !silentModeAtivo) {
 
   String _myOfferSdp = '';
 
+  // Configuração WebRTC: com "Proteger o meu IP" (ligado por defeito) todo o
+  // áudio/vídeo passa pelo servidor de relay (TURN) e a outra pessoa nunca vê o
+  // teu IP. Se não houver TURN disponível, usa o modo normal (senão a chamada
+  // não ligava de todo).
+  Future<Map<String, dynamic>> _rtcConfig() async {
+    final servers = await _fetchIceServers();
+    final hideIp = !Hive.isBoxOpen('padlock_vault') || Hive.box('padlock_vault').get('hide_ip_calls', defaultValue: true) == true;
+    final hasTurn = servers.any((sv) => sv['urls'].toString().contains('turn'));
+    return {
+      'iceServers': servers,
+      'bundlePolicy': 'max-bundle',
+      'rtcpMuxPolicy': 'require',
+      if (hideIp && hasTurn) 'iceTransportPolicy': 'relay',
+    };
+  }
+
   Future<bool> _verifyIncomingOffer() async {
     try {
       final vault = Hive.box('padlock_vault');
@@ -10391,11 +10610,7 @@ if (!widget.acceptedViaCallKit && !silentModeAtivo) {
     });
 
     try {
-      final Map<String, dynamic> configuration = {
-        'iceServers': await _fetchIceServers(),
-        'bundlePolicy': 'max-bundle',
-        'rtcpMuxPolicy': 'require',
-      };
+      final Map<String, dynamic> configuration = await _rtcConfig();
 
       _peerConnection = await createPeerConnection(configuration);
       _setupPeerConnectionListeners();
@@ -10470,11 +10685,7 @@ _audioPlayer.play(AssetSource('sounds/morse.mp3'));
     });
 
     try {
-      final Map<String, dynamic> configuration = {
-        'iceServers': await _fetchIceServers(),
-        'bundlePolicy': 'max-bundle',
-        'rtcpMuxPolicy': 'require',
-      };
+      final Map<String, dynamic> configuration = await _rtcConfig();
 
       _peerConnection = await createPeerConnection(configuration);
       _setupPeerConnectionListeners();
