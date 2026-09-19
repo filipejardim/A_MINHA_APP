@@ -28,6 +28,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:audioplayers/audioplayers.dart' as ap show AndroidAudioMode;
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
@@ -116,6 +117,7 @@ static final List<dynamic> earlyCandidates = [];
   // As mensagens e ordens saem por uma ligação ANÓNIMA (nunca registada no
   // servidor) dentro de um envelope cifrado que só o destinatário abre. O
   // servidor vê apenas "isto é para X" - não vê quem enviou, nem o tipo.
+  static String? currentCallPeer; // com quem está a chamada ativa (evita tratar a mesma oferta duas vezes)
   static WebSocketChannel? anonChannel;
   static DateTime _anonLastUse = DateTime.fromMillisecondsSinceEpoch(0);
   static final Map<String, Completer<bool>> _pendingAcks = {};
@@ -238,6 +240,29 @@ static final List<dynamic> earlyCandidates = [];
     }
   }
 
+  // Garante que a ligação principal está AUTENTICADA antes de mandar sinalização
+  // (resposta à chamada, candidatos, pedido de servidores TURN). Ao atender uma
+  // chamada por CallKit com a app fechada, o ecrã de chamada abre logo depois do
+  // login - antes de o ecrã principal se registar - e a resposta seguia por uma
+  // ligação ainda não autenticada, que o servidor deita fora: a chamada ficava
+  // presa em "Exchanging Encryption Keys".
+  static Future<bool> ensureRegistered() async {
+    connect();
+    for (int i = 0; i < 45; i++) {
+      if (channel != null && registered) return true;
+      if (channel != null && !registered) {
+        String? fcm;
+        try {
+          if (Hive.isBoxOpen('padlock_vault')) fcm = Hive.box('padlock_vault').get('my_fcm_token');
+        } catch (_) {}
+        await registerMain(fcmToken: fcm);
+      }
+      await Future.delayed(const Duration(milliseconds: 200));
+      if (channel == null) connect();
+    }
+    return registered;
+  }
+
   static void connect() {
     // Só tenta abrir o tubo P2P se o telemóvel tiver net real
     //if (html.window.navigator.onLine != true) return;
@@ -252,6 +277,15 @@ static final List<dynamic> earlyCandidates = [];
       ch.stream.listen(
         (data) {
           if (data is String) {
+            // Confirma ao servidor que este pacote chegou à app (ele guarda e
+            // volta a tentar/acordar o telemóvel por push se não houver ack).
+            final head = data.length > 240 ? data.substring(0, 240) : data;
+            final sidMatch = RegExp(r'"sid":"([0-9a-f]{16})"').firstMatch(head);
+            if (sidMatch != null) {
+              try {
+                ch.sink.add('{"type":"ack","sid":"${sidMatch.group(1)}"}');
+              } catch (_) {}
+            }
             if (data.startsWith('{"type":"challenge"')) {
               try {
                 _nonce = jsonDecode(data)['nonce'] as String?;
@@ -6352,6 +6386,11 @@ if (chaveTrancada == null) {
           // carimbado pelo servidor); a assinatura da oferta é verificada
           // antes de atender (ver ActiveCallScreen.acceptSecureCall).
           if (!_contacts.any((c) => c['id'] == data['senderId'])) return;
+          // Oferta repetida da MESMA pessoa com quem já estamos em chamada
+          // (ex: a fila do servidor entrega outra vez a oferta que já
+          // atendemos por CallKit): ignora - antes mandava "call_end" e
+          // derrubava a chamada.
+          if (data['senderId'] == PadlockNetwork.currentCallPeer) return;
           if (PadlockNetwork.emChamada) {
           PadlockNetwork.channel?.sink.add(jsonEncode({'action': 'call_end', 'targetId': data['senderId']}));
           return;
@@ -10291,6 +10330,7 @@ bool _isRemoteSet = false;
   void initState() {
     super.initState();
     _callStatusText = _local['call_status_connecting']!;
+    PadlockNetwork.currentCallPeer = widget.targetId;
     PadlockNetwork.emChamada = true;
     WakelockPlus.enable();
     // O altifalante liga sempre ao início em vídeo (ver o resto da lógica
@@ -10385,6 +10425,7 @@ bool _isRemoteSet = false;
     contentType: AndroidContentType.music,
     usageType: AndroidUsageType.voiceCommunicationSignalling,
     audioFocus: AndroidAudioFocus.gainTransient,
+    audioMode: ap.AndroidAudioMode.inCommunication,
   ),
 ));
     _audioPlayer.play(AssetSource('sounds/ringing.mp3')).catchError((e) => dlog('Erro audio: $e'));
@@ -10448,7 +10489,7 @@ bool _isRemoteSet = false;
 final bool silentModeAtivo = !(Hive.box('padlock_vault').get('notifications_enabled', defaultValue: true) as bool);
 if (!widget.acceptedViaCallKit && !silentModeAtivo) {
   _audioPlayer.setReleaseMode(ReleaseMode.loop);
-  _audioPlayer.setAudioContext(AudioContext(android: AudioContextAndroid(isSpeakerphoneOn: true, stayAwake: true, contentType: AndroidContentType.music, usageType: AndroidUsageType.notificationRingtone, audioFocus: AndroidAudioFocus.gainTransient)));
+  _audioPlayer.setAudioContext(AudioContext(android: AudioContextAndroid(isSpeakerphoneOn: true, stayAwake: true, contentType: AndroidContentType.music, usageType: AndroidUsageType.notificationRingtone, audioFocus: AndroidAudioFocus.gainTransient, audioMode: ap.AndroidAudioMode.ringtone)));
   _audioPlayer.setVolume(0.7);
   _audioPlayer.play(AssetSource('sounds/ringtone.mp3.mp3'));
 }
@@ -10463,6 +10504,7 @@ if (!widget.acceptedViaCallKit && !silentModeAtivo) {
   @override
   void dispose() {
     _callSubscription?.cancel();
+    if (PadlockNetwork.currentCallPeer == widget.targetId) PadlockNetwork.currentCallPeer = null;
     PadlockNetwork.emChamada = false;
     WakelockPlus.disable();
     _callTimeoutTimer?.cancel();
@@ -10537,16 +10579,14 @@ if (!widget.acceptedViaCallKit && !silentModeAtivo) {
           _callStatusText = _local['call_status_connected_encrypted']!;
           _callStatusColor = const Color(0xFF00FF66);
           _startActiveTimer();
-          _audioPlayer.stop(); // Corta o Morse/Ringing imediatamente assim que atende!
           // A chamada atendeu! Em voz, passa o som para o ouvido (auscultador).
-          // Em vídeo mantém-se sempre no altifalante - faltava este "isVideo"
-          // aqui, por isso o altifalante ligado no início da chamada de
-          // vídeo era sempre desligado outra vez assim que a ligação
-          // completava, obrigando a ligá-lo à mão.
-        if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
-  _localStream!.getAudioTracks()[0].enableSpeakerphone(widget.isVideo);
-  _isSpeakerOn = widget.isVideo;
-}
+          // Em vídeo mantém-se sempre no altifalante. Corta o Morse/toque e
+          // REPÕE o modo de chamada + altifalante (e volta a repor um pouco
+          // depois, porque o plugin de sons acaba de parar assincronamente).
+          _isSpeakerOn = widget.isVideo;
+          _restoreCallAudio(stopTones: true);
+          Future.delayed(const Duration(milliseconds: 700), _restoreCallAudio);
+          Future.delayed(const Duration(milliseconds: 2500), _restoreCallAudio);
         } else if (state == RTCIceConnectionState.RTCIceConnectionStateDisconnected) {
           // EFEITO TÚNEL: Net caiu. Não desliga a chamada, espera que recupere.
           _callStatusText = _local['call_status_reconnecting']!;
@@ -10650,6 +10690,27 @@ if (!widget.acceptedViaCallKit && !silentModeAtivo) {
   }
 
   String _myOfferSdp = '';
+
+  // O plugin de sons (audioplayers) repõe o "modo de áudio" do Android para
+  // NORMAL cada vez que toca o Morse/toque, e mexe no altifalante: isso
+  // desliga o modo de chamada do WebRTC - sem ele o cancelamento de eco
+  // deixa de funcionar (ouvias-te em duplicado) e o botão do altifalante
+  // mostrava "ligado" sem estar. Aqui repõe-se o modo de chamada e o estado
+  // do altifalante depois de os sons pararem.
+  Future<void> _restoreCallAudio({bool stopTones = false}) async {
+    if (!mounted) return;
+    if (stopTones) {
+      try {
+        await _audioPlayer.stop();
+      } catch (_) {}
+    }
+    try {
+      await Helper.setAndroidAudioConfiguration(AndroidAudioConfiguration.communication);
+    } catch (_) {}
+    try {
+      await Helper.setSpeakerphoneOn(_isSpeakerOn);
+    } catch (_) {}
+  }
 
   // Configuração WebRTC: com "Proteger o meu IP" (ligado por defeito) todo o
   // áudio/vídeo passa pelo servidor de relay (TURN) e a outra pessoa nunca vê o
@@ -10756,6 +10817,7 @@ if (_localStream != null && _localStream!.getAudioTracks().isNotEmpty) {
     contentType: AndroidContentType.music,
     usageType: AndroidUsageType.voiceCommunicationSignalling,
     audioFocus: AndroidAudioFocus.gainTransient,
+    audioMode: ap.AndroidAudioMode.inCommunication,
   ),
 ));
 _audioPlayer.setVolume(0.3);
@@ -10778,6 +10840,10 @@ _audioPlayer.play(AssetSource('sounds/morse.mp3'));
       endCall(widget.targetId);
       return;
     }
+
+    // A resposta e os candidatos só chegam ao outro lado por uma ligação
+    // autenticada (importante quando se atende por CallKit logo após o login).
+    await PadlockNetwork.ensureRegistered();
 
     setState(() {
       _callStatusText = _local['call_status_exchanging_keys']!;
@@ -10838,6 +10904,8 @@ _isRemoteSet = true;
 };
       PadlockNetwork.channel?.sink.add(jsonEncode(answerSignal));
       _audioPlayer.stop();
+      _isSpeakerOn = widget.isVideo;
+      _restoreCallAudio(stopTones: true);
 flutterLocalNotificationsPlugin.cancel(99);
     } catch (e) {
       dlog('Erro ao aceitar chamada P2P: $e');
@@ -10894,8 +10962,8 @@ flutterLocalNotificationsPlugin.cancel(99);
     if (_localStream != null) {
       setState(() {
         _isSpeakerOn = !_isSpeakerOn;
-        _localStream!.getAudioTracks()[0].enableSpeakerphone(_isSpeakerOn);
       });
+      Helper.setSpeakerphoneOn(_isSpeakerOn);
     }
   }
 

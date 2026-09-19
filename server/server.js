@@ -78,6 +78,10 @@ const pendingMessages = new Map();  // ID -> [{ data, size, expires }]
 let pendingBytesTotal = 0;
 const connPerIp = new Map();
 const contactReqLog = new Map();    // ID -> [timestamps]
+const unacked = new Map();          // sid -> { dest, timer } (pacotes entregues por socket, à espera de confirmação da app)
+const ringWait = new Map();         // "quemLiga|quemAtende" -> timer (oferta de chamada à espera de "a tocar")
+const ACK_TIMEOUT_MS = 6000;        // sem confirmação em 6s -> fila + push (o socket podia estar "morto")
+const RING_ACK_TIMEOUT_MS = 3000;   // sem "a tocar" em 3s -> push FCM a acordar o telemóvel
 
 // ------------------------------------------------------------------ Helpers
 function clientIp(req) {
@@ -190,8 +194,32 @@ function queueAndNotify(data, destino, isCallPacket) {
         : { action: 'secure_message' };
 
     admin.messaging().send({ token: tokenFCM, data: fcmData, android: { priority: 'high' } })
-        .catch(() => {}); // sem registos: nada de metadados nos logs
+        .catch((e) => { console.error('[FCM] falha ao enviar push:', (e && (e.code || e.message)) || 'erro'); }); // só o código do erro - nunca IDs
     return queued;
+}
+
+// Entrega por socket COM confirmação da app. Um socket pode parecer vivo (o
+// telemóvel adormeceu, a rede mudou) e engolir o pacote sem erro nenhum: a
+// primeira mensagem perdia-se e só a seguinte dava erro. Agora a app confirma
+// cada pacote (ack); sem confirmação em 6s, vai para a fila e acorda o
+// telemóvel por push.
+function deliverTracked(targetSocket, dest, packet, done) {
+    const sid = crypto.randomBytes(8).toString('hex');
+    const wire = packet.type ? { type: packet.type, sid, ...packet } : packet;
+    const timer = setTimeout(() => {
+        if (unacked.delete(sid)) queueAndNotify(packet, dest, false);
+    }, ACK_TIMEOUT_MS);
+    unacked.set(sid, { dest, timer });
+    targetSocket.send(JSON.stringify(wire), (err) => {
+        if (err) {
+            clearTimeout(timer);
+            unacked.delete(sid);
+            peers.delete(dest);
+            if (done) done(queueAndNotify(packet, dest, false));
+        } else if (done) {
+            done(true);
+        }
+    });
 }
 
 // Credenciais TURN (metered.ca) vêm de variáveis de ambiente no Render,
@@ -230,7 +258,21 @@ server.on('upgrade', (request, socket, head) => {
     });
 });
 
+// Batimento: de 20 em 20s manda um ping a cada ligação; quem não responder
+// até ao ciclo seguinte é considerado morto e cortado (antes, telemóveis que
+// adormeciam ficavam "online" para sempre e engoliam mensagens).
+const heartbeat = setInterval(() => {
+    for (const client of wss.clients) {
+        if (client.isAlive === false) { try { client.terminate(); } catch (_) {} continue; }
+        client.isAlive = false;
+        try { client.ping(); } catch (_) {}
+    }
+}, 20 * 1000);
+heartbeat.unref();
+
 wss.on('connection', (ws) => {
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
     ws.authedId = null;
     ws.isAux = false;
     ws.nonce = crypto.randomBytes(32).toString('hex');
@@ -359,10 +401,7 @@ wss.on('connection', (ws) => {
             const out = { type: 'sealed', blob: data.blob };
             const targetSocket = peers.get(dest);
             if (targetSocket && targetSocket.readyState === 1) {
-                targetSocket.send(JSON.stringify(out), (err) => {
-                    if (err) { peers.delete(dest); ack(queueAndNotify(out, dest, false)); }
-                    else ack(true);
-                });
+                deliverTracked(targetSocket, dest, out, ack);
             } else {
                 if (targetSocket) peers.delete(dest);
                 ack(queueAndNotify(out, dest, false));
@@ -374,6 +413,13 @@ wss.on('connection', (ws) => {
         if (!ws.authedId) {
             safeSend(ws, { type: 'error', code: 'auth_required' });
             violation();
+            return;
+        }
+
+        // Confirmação de receção enviada pela app do destinatário.
+        if (data.type === 'ack') {
+            const e = typeof data.sid === 'string' ? unacked.get(data.sid) : null;
+            if (e && e.dest === ws.authedId) { clearTimeout(e.timer); unacked.delete(data.sid); }
             return;
         }
 
@@ -420,23 +466,46 @@ wss.on('connection', (ws) => {
         data.targetId = rawDest;
         delete data.target;
 
+        // "A tocar" / resposta / fim de chamada: a oferta já foi tratada - cancela
+        // o push de reserva (nos dois sentidos).
+        if (data.action === 'call_ringing' || data.action === 'call_answer' || data.action === 'call_end') {
+            for (const key of [`${rawDest}|${ws.authedId}`, `${ws.authedId}|${rawDest}`]) {
+                if (ringWait.has(key)) { clearTimeout(ringWait.get(key)); ringWait.delete(key); }
+            }
+        }
+
+        // Pacotes de chamada que têm de sobreviver a um destinatário ainda
+        // offline (a atender fora da app): a oferta, o fim, e os CANDIDATOS ICE
+        // e a resposta (sem os candidatos de quem liga, a chamada atendida
+        // fora da app ficava presa em "Exchanging Encryption Keys").
+        const wantsQueue = isQueueableType || data.action === 'call_offer' || data.action === 'call_end' ||
+            data.action === 'call_candidate' || data.action === 'call_answer';
+
         const targetSocket = peers.get(rawDest);
         if (targetSocket && targetSocket.readyState === 1) {
-            targetSocket.send(JSON.stringify(data), (err) => {
-                if (err) {
-                    peers.delete(rawDest);
-                    if (isQueueableType || data.action === 'call_offer' || data.action === 'call_end') {
-                        queueAndNotify(data, rawDest, isCallPacket);
+            if (isQueueableType) {
+                deliverTracked(targetSocket, rawDest, data, null);
+            } else {
+                targetSocket.send(JSON.stringify(data), (err) => {
+                    if (err) {
+                        peers.delete(rawDest);
+                        if (wantsQueue) queueAndNotify(data, rawDest, true);
                     }
+                });
+                if (data.action === 'call_offer') {
+                    // Se o telemóvel não disser "a tocar" em 3s, o socket estava
+                    // morto/adormecido: fila + push a acordá-lo.
+                    const key = `${ws.authedId}|${rawDest}`;
+                    if (ringWait.has(key)) clearTimeout(ringWait.get(key));
+                    ringWait.set(key, setTimeout(() => {
+                        ringWait.delete(key);
+                        queueAndNotify(data, rawDest, true);
+                    }, RING_ACK_TIMEOUT_MS));
                 }
-            });
+            }
         } else {
             if (targetSocket) peers.delete(rawDest);
-            // Candidatos/answer/ringing a um destino offline não servem para
-            // nada mais tarde; só oferta e fim de chamada acordam o telemóvel.
-            if (isQueueableType || data.action === 'call_offer' || data.action === 'call_end') {
-                queueAndNotify(data, rawDest, isCallPacket);
-            }
+            if (wantsQueue) queueAndNotify(data, rawDest, isCallPacket);
         }
     });
 
