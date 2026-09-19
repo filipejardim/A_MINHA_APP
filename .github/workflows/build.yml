@@ -31,7 +31,7 @@ jobs:
           flutter pub get
 
       - name: Construir o APK
-        run: flutter build apk --release
+        run: flutter build apk --release --dart-define=PADLOCK_TESTER=true
 
       - name: Disponibilizar o APK para Download
         uses: actions/upload-artifact@v4
